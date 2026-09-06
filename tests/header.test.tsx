@@ -43,6 +43,17 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
   });
 
+  it("hides Dashboard from authenticated patients", () => {
+    authState.user = { full_name: "Patient Demo" };
+    authState.isAuthenticated = true;
+    authState.role = "patient";
+
+    render(<Header />);
+
+    expect(screen.queryByRole("link", { name: /Dashboard/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
+  });
+
   it("opens an accessible mobile menu", () => {
     render(<Header />);
     const toggle = screen.getByRole("button", { name: "เปิดเมนู" });

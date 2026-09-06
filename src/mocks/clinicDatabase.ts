@@ -1,6 +1,7 @@
 import type {
   Appointment,
   AppointmentSlot,
+  Broadcast,
   Department,
   Doctor,
   InventoryLog,
@@ -45,6 +46,7 @@ export interface ClinicMockTables {
   medication_reminders: MedicationReminder[];
   medication_logs: MedicationLog[];
   notifications: Notification[];
+  broadcasts: Broadcast[];
 }
 
 export const clinicMockTables: ClinicMockTables = {
@@ -82,6 +84,8 @@ export const clinicMockTables: ClinicMockTables = {
     { id: 'profile-shuri-udaku', specialty: 'กายภาพและการเคลื่อนไหว', department_id: 'dept-physio', created_at: CREATED_AT, updated_at: UPDATED_AT },
   ],
   appointment_slots: [
+    { id: 'slot-history-7d', doctor_id: 'profile-stephen-strange', slot_date: '2026-09-05', start_time: '10:00', end_time: '10:30', max_capacity: 1, booked_count: 1, status: 'full', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'slot-history-30d', doctor_id: 'profile-charles-xavier', slot_date: '2026-08-20', start_time: '13:00', end_time: '14:00', max_capacity: 1, booked_count: 1, status: 'full', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'slot-001', doctor_id: 'profile-stephen-strange', slot_date: '2026-09-07', start_time: '08:30', end_time: '09:00', max_capacity: 1, booked_count: 1, status: 'full', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'slot-002', doctor_id: 'profile-stephen-strange', slot_date: '2026-09-07', start_time: '09:00', end_time: '09:30', max_capacity: 1, booked_count: 0, status: 'available', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'slot-003', doctor_id: 'profile-charles-xavier', slot_date: '2026-09-07', start_time: '13:00', end_time: '14:00', max_capacity: 1, booked_count: 1, status: 'full', created_at: CREATED_AT, updated_at: UPDATED_AT },
@@ -91,6 +95,8 @@ export const clinicMockTables: ClinicMockTables = {
     { id: 'slot-007', doctor_id: 'profile-bruce-banner', slot_date: '2026-09-10', start_time: '13:00', end_time: '14:00', max_capacity: 1, booked_count: 0, status: 'available', created_at: CREATED_AT, updated_at: UPDATED_AT },
   ],
   appointments: [
+    { id: 'appointment-history-7d', user_id: 'profile-peter-parker', slot_id: 'slot-history-7d', queue_number: 1, reason: 'ติดตามอาการย้อนหลัง', status: 'completed', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'appointment-history-30d', user_id: 'profile-wednesday', slot_id: 'slot-history-30d', queue_number: 1, reason: 'ให้คำปรึกษาย้อนหลัง', status: 'completed', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'appointment-peter', user_id: 'profile-peter-parker', slot_id: 'slot-001', queue_number: 1, reason: 'ไข้และปวดศีรษะ', status: 'confirmed', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'appointment-wednesday', user_id: 'profile-wednesday', slot_id: 'slot-003', queue_number: 1, reason: 'ปรึกษาสุขภาพ', status: 'completed', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'appointment-sherlock', user_id: 'profile-sherlock', slot_id: 'slot-004', queue_number: 1, reason: 'รับวัคซีน', status: 'pending', created_at: CREATED_AT, updated_at: UPDATED_AT },
@@ -127,6 +133,7 @@ export const clinicMockTables: ClinicMockTables = {
     { id: 'notification-002', user_id: 'profile-peter-parker', type: 'reminder', title: 'ถึงเวลาทานยา', message: 'Paracetamol 500mg เวลา 20:00 น.', is_read: false, created_at: UPDATED_AT },
     { id: 'notification-003', user_id: 'profile-wednesday', type: 'broadcast', title: 'ประกาศจากคลินิก', message: 'คลินิกเปิดให้บริการตามเวลาปกติ', is_read: true, created_at: CREATED_AT },
   ],
+  broadcasts: [],
 };
 
 export function createClinicMockTables(): ClinicMockTables {

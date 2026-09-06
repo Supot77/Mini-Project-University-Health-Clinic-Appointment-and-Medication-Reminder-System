@@ -174,20 +174,18 @@ CREATE TABLE IF NOT EXISTS public.broadcasts (
   sent_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   title text NOT NULL,
   message text NOT NULL,
+  notification_type text NOT NULL DEFAULT 'broadcast',
   audience jsonb NOT NULL,
   request_key text NOT NULL UNIQUE,
   sent_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS public.broadcast_recipients (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  broadcast_id uuid NOT NULL REFERENCES public.broadcasts(id) ON DELETE RESTRICT,
-  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
-  read_at timestamp with time zone,
-  deleted_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT broadcast_recipients_unique UNIQUE (broadcast_id, user_id)
+  CONSTRAINT broadcasts_notification_type_check CHECK (notification_type IN ('reminder', 'appointment', 'broadcast', 'system')),
+  CONSTRAINT broadcasts_audience_check CHECK (
+    jsonb_typeof(audience) = 'object'
+    AND jsonb_typeof(audience -> 'all') = 'boolean'
+    AND jsonb_typeof(audience -> 'roles') = 'array'
+    AND NOT (audience ? 'userIds')
+  )
 );
 
 DO $constraints$
@@ -274,4 +272,3 @@ ALTER TABLE public.prescription_changes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.medication_log_changes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.broadcast_recipients ENABLE ROW LEVEL SECURITY;

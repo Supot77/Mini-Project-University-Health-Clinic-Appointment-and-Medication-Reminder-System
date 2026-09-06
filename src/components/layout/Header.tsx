@@ -20,7 +20,7 @@ const navigationItems: NavigationItem[] = [
   { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "staff", "doctor"] },
   { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff"] },
   { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["staff", "doctor", "pharmacist"] },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["patient", "staff", "doctor", "pharmacist", "admin"] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["staff", "doctor", "pharmacist", "admin"] },
 ];
 
 export default function Header() {
@@ -28,9 +28,11 @@ export default function Header() {
   const { user, isAuthenticated, isLoading, signOut, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Temporary demo mode: keep every main route reachable while the team edits pages.
-  // `roles` stays on each item for the future permission-aware navigation pass.
-  const visibleNavigation = navigationItems;
+  // Keep all routes reachable in unauthenticated demo mode, but never offer
+  // Dashboard to an authenticated patient.
+  const visibleNavigation = isAuthenticated && role === "patient"
+    ? navigationItems.filter((item) => item.roles.includes("patient"))
+    : navigationItems;
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 

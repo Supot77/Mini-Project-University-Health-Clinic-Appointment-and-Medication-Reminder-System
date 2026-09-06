@@ -2,7 +2,26 @@
 // ระบบศูนย์แจ้งเตือนและแดชบอร์ด
 
 import { supabase } from '@/lib/supabase';
-import type { Notification, NotificationType } from '@/types/database';
+import type {
+  Notification,
+  NotificationType,
+} from '@/types/database';
+
+export interface MedicationAlertItem {
+  id: string;
+  name: string;
+  stock: number;
+  minStock: number;
+  expiryDate: string | null;
+  isLowStock: boolean;
+  isExpired: boolean;
+}
+
+export interface MedicationDashboardData {
+  lowStockCount: number;
+  expiredCount: number;
+  alerts: MedicationAlertItem[];
+}
 
 // --- Notifications ---
 export async function getNotifications(userId: string, limit = 20): Promise<Notification[]> {
@@ -58,19 +77,46 @@ export async function createNotification(
   return data;
 }
 
-export async function broadcastNotification(
-  userIds: string[],
-  title: string,
-  message: string
-) {
-  const notifications = userIds.map((userId) => ({
-    user_id: userId,
-    type: 'broadcast' as NotificationType,
-    title,
-    message,
-  }));
-  const { error } = await supabase.from('notifications').insert(notifications);
-  if (error) throw error;
+function getBangkokDate(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const dateParts = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+}
+
+export async function getMedicationDashboardData(): Promise<MedicationDashboardData> {
+  const { data, error } = await supabase
+    .from('medications')
+    .select('id, name, stock, min_stock, expiry_date')
+    .eq('is_active', true)
+    .order('stock', { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  const today = getBangkokDate();
+  const alerts = (data ?? [])
+    .map((medication): MedicationAlertItem => ({
+      id: medication.id,
+      name: medication.name,
+      stock: medication.stock,
+      minStock: medication.min_stock,
+      expiryDate: medication.expiry_date,
+      isLowStock: medication.stock <= medication.min_stock,
+      isExpired: Boolean(medication.expiry_date && medication.expiry_date < today),
+    }))
+    .filter(({ isLowStock, isExpired }) => isLowStock || isExpired)
+    .sort((a, b) => Number(b.isExpired) - Number(a.isExpired) || a.stock - b.stock);
+
+  return {
+    lowStockCount: alerts.filter(({ isLowStock }) => isLowStock).length,
+    expiredCount: alerts.filter(({ isExpired }) => isExpired).length,
+    alerts,
+  };
 }
 
 // --- Dashboard Stats ---

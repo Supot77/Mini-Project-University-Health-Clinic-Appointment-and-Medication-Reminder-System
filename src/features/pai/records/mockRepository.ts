@@ -2,6 +2,7 @@ import {
   PREVIEW_DOCTOR_ID, PREVIEW_PATIENT_ID,
   type DemoRecord, type RecordResult, type RecordsDemoRepository,
 } from './contract';
+import type { ClinicMockTables } from '@/mocks/clinicDatabase';
 
 const base: DemoRecord = {
   id: 'REC-001', patientId: PREVIEW_PATIENT_ID, patientName: 'นักศึกษาตัวอย่าง ก', patientCode: 'DEMO-001',
@@ -37,8 +38,23 @@ function copy(record: DemoRecord): DemoRecord {
   return { ...record, prescriptions: record.prescriptions.map(item => ({ ...item })), history: record.history.map(item => ({ ...item })) };
 }
 
-export function createRecordsDemoRepository(): RecordsDemoRepository {
-  let records = fixtures().map(copy);
+export function recordsFromSharedMock(tables: ClinicMockTables): DemoRecord[] {
+  const profiles = new Map(tables.profiles.map((profile) => [profile.id, profile]));
+  const doctors = new Map(tables.doctors.map((doctor) => [doctor.id, doctor]));
+  const departments = new Map(tables.departments.map((department) => [department.id, department]));
+  const slots = new Map(tables.appointment_slots.map((slot) => [slot.id, slot]));
+  const appointments = new Map(tables.appointments.map((appointment) => [appointment.id, appointment]));
+  return tables.medical_records.map((record) => {
+    const patient = profiles.get(record.patient_id);
+    const doctor = doctors.get(record.doctor_id);
+    const appointment = appointments.get(record.appointment_id);
+    const slot = appointment ? slots.get(appointment.slot_id) : undefined;
+    return { id: record.id, patientId: record.patient_id, patientName: patient?.full_name ?? 'ไม่ระบุผู้ป่วย', patientCode: patient?.student_id ?? record.patient_id, doctorId: record.doctor_id, doctorName: profiles.get(record.doctor_id)?.full_name ?? 'ไม่ระบุแพทย์', department: departments.get(doctor?.department_id ?? '')?.name ?? 'ไม่ระบุแผนก', dateLabel: slot ? `${slot.slot_date} · ${slot.start_time.slice(0, 5)} น.` : 'ไม่ระบุวันนัด', symptoms: appointment?.reason ?? 'ไม่ได้ระบุอาการ', allergy: patient?.allergies ?? 'ไม่ทราบ', diagnosis: record.diagnosis ?? '', advice: record.treatment_notes ?? '', status: appointment?.status === 'completed' ? 'completed' : 'draft', version: 1, prescriptions: (record.prescribed_medications ?? []).map((medication, index) => ({ id: `${record.id}-RX-${index + 1}`, name: medication.name, unit: 'รายการ', ordered: medication.quantity, dispensed: 0, instructions: `${medication.dosage} · ${medication.frequency} · ${medication.duration_days} วัน`, dispensedInstructions: '' })), history: [] };
+  });
+}
+
+export function createRecordsDemoRepository(seed?: DemoRecord[]): RecordsDemoRepository {
+  let records = (seed ?? fixtures()).map(copy);
 
   function editable(id: string, version: number): RecordResult {
     const record = records.find(item => item.id === id);

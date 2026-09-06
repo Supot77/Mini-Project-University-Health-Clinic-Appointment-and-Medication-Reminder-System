@@ -44,8 +44,8 @@ export interface AppointmentPreviewRepository {
 
 export const DEMO_TODAY = '2026-09-07';
 export const DEMO_NOW = '2026-09-07T08:00:00+07:00';
-export const DEMO_PATIENT_ID = 'patient-demo';
-export const DEMO_DOCTOR_ID = 'doctor-01';
+export const DEMO_PATIENT_ID = 'profile-peter-parker';
+export const DEMO_DOCTOR_ID = 'profile-stephen-strange';
 export const statusLabels: Record<AppointmentStatus, string> = {
   pending: 'รออนุมัติ', confirmed: 'ยืนยันแล้ว', in_progress: 'กำลังตรวจ', completed: 'ตรวจเสร็จ', cancelled: 'ยกเลิกแล้ว', no_show: 'ไม่มาตามนัด', rejected: 'ไม่อนุมัติ',
 };

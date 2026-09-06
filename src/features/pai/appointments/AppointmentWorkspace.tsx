@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, CalendarDays, Check, Clock3, Plus, Search, Stethoscope, Users, X } from 'lucide-react';
 import PaiPageHeader, { inputClass, primaryButtonClass, secondaryButtonClass } from '../components/PaiPageHeader';
-import { createAppointmentPreviewRepository } from './mockRepository';
+import { appointmentSnapshotFromSharedMock, createAppointmentPreviewRepository } from './mockRepository';
+import { useOptionalClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
 import { DEMO_DOCTOR_ID, DEMO_PATIENT_ID, DEMO_TODAY, formatAppointmentDate, remainingSeats, statusLabels, type AppointmentResult, type AppointmentStatus, type BookingSlot, type DemoAppointment, type PreviewRole } from './repository';
 
 const panelClass = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6';
@@ -17,7 +18,8 @@ function Status({ value }: { value: AppointmentStatus }) {
 }
 
 export default function AppointmentWorkspace() {
-  const [repository] = useState(createAppointmentPreviewRepository);
+  const sharedMock = useOptionalClinicMockDatabase();
+  const [repository] = useState(() => createAppointmentPreviewRepository(sharedMock ? appointmentSnapshotFromSharedMock(sharedMock.database.snapshot()) : undefined));
   const [snapshot, setSnapshot] = useState(() => repository.snapshot());
   const [role, setRole] = useState<PreviewRole>('patient');
   const [tab, setTab] = useState('upcoming');

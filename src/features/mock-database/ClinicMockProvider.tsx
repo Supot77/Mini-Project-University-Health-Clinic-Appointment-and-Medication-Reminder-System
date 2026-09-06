@@ -22,3 +22,7 @@ export function useClinicMockDatabase() {
   if (!context) throw new Error('useClinicMockDatabase must be used inside ClinicMockProvider');
   return context;
 }
+
+export function useOptionalClinicMockDatabase() {
+  return useContext(ClinicMockContext);
+}

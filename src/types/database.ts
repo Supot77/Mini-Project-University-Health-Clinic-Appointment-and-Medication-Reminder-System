@@ -298,6 +298,7 @@ export interface Broadcast {
   sent_by: string;
   title: string;
   message: string;
+  notification_type: NotificationType;
   audience: Record<string, unknown>;
   request_key: string;
   sent_at: string;

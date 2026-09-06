@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Check, CheckCheck, ChevronRight, ClipboardList, FileHeart, History, LockKeyhole, Pencil, Pill, Plus, Search, Stethoscope, Trash2 } from 'lucide-react';
 import PaiPageHeader, { inputClass, primaryButtonClass, secondaryButtonClass } from '../components/PaiPageHeader';
 import { PREVIEW_DOCTOR_ID, type DemoPrescriptionItem, type DemoRecord, type RecordDraft, type RecordPreview, type RecordResult, type RecordsDemoRepository } from './contract';
-import { createRecordsPreviewService } from './service';
+import { createRecordsDemoRepository, recordsFromSharedMock } from './mockRepository';
+import { useOptionalClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
 
 const cardClass = 'rounded-2xl border border-slate-200 bg-white shadow-sm';
 const labelClass = 'mb-2 block text-sm font-medium text-slate-700';
@@ -15,7 +16,8 @@ function RecordStatus({ status }: { status: DemoRecord['status'] }) {
 }
 
 export default function RecordsWorkspace({ repository }: { repository?: RecordsDemoRepository }) {
-  const [service] = useState(() => repository ?? createRecordsPreviewService());
+  const sharedMock = useOptionalClinicMockDatabase();
+  const [service] = useState(() => repository ?? createRecordsDemoRepository(sharedMock ? recordsFromSharedMock(sharedMock.database.snapshot()) : undefined));
   const [view, setView] = useState<RecordPreview>('patient');
   const [records, setRecords] = useState<DemoRecord[]>([]);
   const [selectedId, setSelectedId] = useState('');

@@ -2,6 +2,7 @@ import {
   DEMO_DOCTOR_ID, DEMO_NOW, DEMO_PATIENT_ID, DEMO_TODAY, remainingSeats, slotTimestamp,
   type AppointmentPreviewRepository, type AppointmentResult, type AppointmentSnapshot, type BookingSlot,
 } from './repository';
+import type { ClinicMockTables } from '@/mocks/clinicDatabase';
 
 const activeStatuses = ['pending', 'confirmed', 'in_progress'];
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -11,21 +12,32 @@ function makeSnapshot(): AppointmentSnapshot {
   for (const date of ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-14', '2026-09-21']) {
     for (const [index, department, doctor] of [[1, 'เวชปฏิบัติทั่วไป', 'นพ.กิตติ สุขใจ'], [2, 'ทันตกรรม', 'ทพญ.ธารา ยิ้มดี'], [3, 'กายภาพบำบัด', 'พญ.ปวีณ์ ใจดี']] as const) {
       for (const [start, end] of [['09:00', '09:30'], ['09:30', '10:00'], ['10:00', '10:30']]) {
-        slots.push({ id: `${date}-${index}-${start}`, date, start, end, department, doctorId: `doctor-0${index}`, doctor, capacity: 3, reservedByOthers: start === '09:30' && date !== DEMO_TODAY ? 3 : 0, closed: start === '10:00' && index === 2 });
+        slots.push({ id: `${date}-${index}-${start}`, date, start, end, department, doctorId: [DEMO_DOCTOR_ID, 'profile-charles-xavier', 'profile-bruce-banner'][index - 1], doctor, capacity: 3, reservedByOthers: start === '09:30' && date !== DEMO_TODAY ? 3 : 0, closed: start === '10:00' && index === 2 });
       }
     }
   }
   return {
     slots,
     appointments: [
-      { id: 'APT-001', patientId: DEMO_PATIENT_ID, patient: 'ณัฐชา ใจดี', slotId: '2026-09-07-1-09:00', queue: 'A001', reason: 'ปรึกษาอาการทั่วไป', status: 'confirmed' },
+      { id: 'APT-001', patientId: DEMO_PATIENT_ID, patient: 'Peter Parker', slotId: '2026-09-07-1-09:00', queue: 'A001', reason: 'ไข้และปวดศีรษะ', status: 'confirmed' },
       { id: 'APT-002', patientId: 'patient-02', patient: 'ธนกร เรียนดี', slotId: '2026-09-07-1-09:30', queue: 'A002', reason: 'ติดตามอาการ', status: 'pending' },
       { id: 'APT-003', patientId: 'patient-03', patient: 'พิมพ์ชนก สดใส', slotId: '2026-09-07-1-10:00', queue: 'A003', reason: 'ตรวจตามนัด', status: 'in_progress' },
       { id: 'APT-004', patientId: 'patient-04', patient: 'อนันต์ สุขดี', slotId: '2026-09-07-2-09:00', queue: 'B001', reason: 'ตรวจสุขภาพช่องปาก', status: 'confirmed' },
-      { id: 'APT-005', patientId: DEMO_PATIENT_ID, patient: 'ณัฐชา ใจดี', slotId: '2026-09-09-2-09:00', queue: 'B002', reason: 'ตรวจสุขภาพช่องปาก', status: 'pending' },
-      { id: 'APT-006', patientId: DEMO_PATIENT_ID, patient: 'ณัฐชา ใจดี', slotId: '2026-09-10-1-09:00', queue: 'A004', reason: 'ติดตามอาการ', status: 'confirmed', proposal: { slotId: '2026-09-11-1-09:00', reason: 'แพทย์งดตรวจในวันเดิม', deadline: '8 ก.ย. 2569 เวลา 08:00 น.' } },
+      { id: 'APT-005', patientId: DEMO_PATIENT_ID, patient: 'Peter Parker', slotId: '2026-09-09-2-09:00', queue: 'B002', reason: 'ติดตามอาการ', status: 'pending' },
+      { id: 'APT-006', patientId: DEMO_PATIENT_ID, patient: 'Peter Parker', slotId: '2026-09-10-1-09:00', queue: 'A004', reason: 'ติดตามอาการ', status: 'confirmed', proposal: { slotId: '2026-09-11-1-09:00', reason: 'แพทย์งดตรวจในวันเดิม', deadline: '8 ก.ย. 2569 เวลา 08:00 น.' } },
     ],
   };
+}
+
+export function appointmentSnapshotFromSharedMock(tables: ClinicMockTables): AppointmentSnapshot {
+  const profiles = new Map(tables.profiles.map((profile) => [profile.id, profile]));
+  const departments = new Map(tables.departments.map((department) => [department.id, department]));
+  const doctors = new Map(tables.doctors.map((doctor) => [doctor.id, doctor]));
+  const slots = tables.appointment_slots.map((slot) => {
+    const doctor = doctors.get(slot.doctor_id);
+    return { id: slot.id, date: slot.slot_date, start: slot.start_time.slice(0, 5), end: slot.end_time.slice(0, 5), doctorId: slot.doctor_id, doctor: profiles.get(slot.doctor_id)?.full_name ?? 'ไม่ระบุแพทย์', department: departments.get(doctor?.department_id ?? '')?.name ?? 'ไม่ระบุแผนก', capacity: slot.max_capacity, reservedByOthers: slot.booked_count, closed: slot.status === 'closed' };
+  });
+  return { slots, appointments: tables.appointments.map((item) => ({ id: item.id, patientId: item.user_id, patient: profiles.get(item.user_id)?.full_name ?? 'ไม่ระบุผู้ป่วย', slotId: item.slot_id, queue: item.queue_number ? `Q${String(item.queue_number).padStart(3, '0')}` : '-', reason: item.reason ?? '', status: item.status })) };
 }
 
 export function createAppointmentPreviewRepository(seed?: AppointmentSnapshot): AppointmentPreviewRepository {
