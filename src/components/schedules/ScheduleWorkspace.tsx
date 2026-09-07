@@ -179,9 +179,9 @@ export default function ScheduleWorkspace({ role }: { role: UserRole; actorId: s
     setNotice(slot.status === 'closed' ? 'เปิดรอบตรวจอีกครั้งใน mock UI แล้ว' : 'ปิดรอบตรวจแล้ว นัดเดิมยังคงอยู่');
   };
 
-  const jumpToDemoWeek = () => {
+  const jumpToToday = () => {
     setWeekStart(MOCK_WEEK_START);
-    setNotice('กลับสู่สัปดาห์ข้อมูลจำลองแล้ว');
+    setNotice('ไปยังสัปดาห์ปัจจุบันแล้ว');
   };
 
   const openScheduleForm = (schedule?: DoctorWeeklySchedule) => {
@@ -220,28 +220,6 @@ export default function ScheduleWorkspace({ role }: { role: UserRole; actorId: s
         </div>
       </header>
 
-      <section className="order-2 rounded-2xl bg-[#0a2540] p-4 text-white shadow-[0_10px_34px_rgba(10,37,64,0.14)]" aria-label="ตัวกรองตารางตรวจ">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={jumpToDemoWeek} className="flex min-h-11 items-center gap-2 rounded-xl bg-white/8 px-3 text-xs font-semibold text-slate-200 hover:bg-white/15 sm:flex"><CalendarDays className="h-4 w-4" aria-hidden="true" />วันนี้</button>
-            <button type="button" onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? -1 : calendarView === 'month' ? -28 : -7))} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/8 hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300" aria-label="ช่วงก่อนหน้า"><ChevronLeft className="h-5 w-5" aria-hidden="true" /></button>
-            <div className="min-w-52 text-center"><div className="text-xs text-slate-400">ช่วงเวลาที่แสดง</div><div className="mt-0.5 font-bold tabular-nums">{calendarView === 'day' ? formatShortDate(weekStart) : calendarView === 'month' ? `${monthNames[parseClinicDate(weekStart).getUTCMonth()]} ${parseClinicDate(weekStart).getUTCFullYear() + 543}` : formatWeekRange(weekStart)}</div></div>
-            <button type="button" onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? 1 : calendarView === 'month' ? 28 : 7))} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/8 hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300" aria-label="ช่วงถัดไป"><ChevronRight className="h-5 w-5" aria-hidden="true" /></button>
-            <button type="button" onClick={jumpToDemoWeek} className="hidden min-h-11 items-center gap-2 rounded-xl bg-white/8 px-3 text-xs font-semibold text-slate-200 hover:bg-white/15 sm:flex"><RefreshCw className="h-4 w-4" aria-hidden="true" />รีเซ็ตเดโม</button>
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              {role === 'staff_admin' && <button type="button" onClick={() => setManagementPanel((current) => current === 'schedule' ? null : 'schedule')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${managementPanel === 'schedule' ? 'bg-white text-[#0a2540]' : 'border border-white/15 bg-white/8 text-white hover:bg-white/15'}`} aria-expanded={managementPanel === 'schedule'}><Clock3 className="h-4 w-4" aria-hidden="true" />จัดการตาราง</button>}
-              {role === 'staff_admin' && <button type="button" onClick={() => openSlotForm()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-bold text-[#0a2540] shadow-sm hover:bg-sky-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"><Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจ</button>}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-              <label className="relative"><span className="sr-only">กรองแผนก</span><Filter className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" /><select value={departmentFilter} onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }} className="h-11 min-w-52 rounded-xl border border-white/15 bg-white/8 pl-9 pr-3 text-sm text-white outline-none focus:border-sky-300 focus:ring-4 focus:ring-sky-400/15"><option className="text-slate-950" value="all">ทุกแผนก</option>{departments.map((department) => <option className="text-slate-950" key={department.id} value={department.id}>{department.name}</option>)}</select></label>
-            <label><span className="sr-only">กรองแพทย์</span><select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)} className="h-11 min-w-52 rounded-xl border border-white/15 bg-white/8 px-3 text-sm text-white outline-none focus:border-sky-300 focus:ring-4 focus:ring-sky-400/15"><option className="text-slate-950" value="all">แพทย์ทุกคน</option>{filteredDoctors.map((doctor) => <option className="text-slate-950" key={doctor.id} value={doctor.id}>{doctor.fullName}</option>)}</select></label>
-            <label><span className="sr-only">กรองสถานะ</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | ScheduleSlotStatus)} className="h-11 min-w-40 rounded-xl border border-white/15 bg-white/8 px-3 text-sm text-white outline-none focus:border-sky-300 focus:ring-4 focus:ring-sky-400/15"><option className="text-slate-950" value="all">ทุกสถานะ</option><option className="text-slate-950" value="available">เปิดรับ</option><option className="text-slate-950" value="full">เต็ม</option><option className="text-slate-950" value="closed">ปิดรอบ</option></select></label>
-            <label><span className="sr-only">มุมมองปฏิทิน</span><select value={calendarView} onChange={(event) => setCalendarView(event.target.value as CalendarView)} className="h-11 min-w-32 rounded-xl border border-white/15 bg-white/8 px-3 text-sm text-white outline-none focus:border-sky-300 focus:ring-4 focus:ring-sky-400/15"><option className="text-slate-950" value="day">วัน</option><option className="text-slate-950" value="week">สัปดาห์</option><option className="text-slate-950" value="month">เดือน</option></select></label>
-          </div>
-        </div>
-      </section>
-
       <div className="order-3" aria-live="polite">
         {notice && <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200"><span className="flex items-center gap-2"><Check className="h-4 w-4" aria-hidden="true" />{notice}</span><button type="button" onClick={() => setNotice('')} className="min-h-11 min-w-11 rounded-lg p-2 hover:bg-emerald-100" aria-label="ปิดข้อความ"><X className="h-4 w-4" aria-hidden="true" /></button></div>}
       </div>
@@ -278,30 +256,196 @@ export default function ScheduleWorkspace({ role }: { role: UserRole; actorId: s
       )}
 
 
-      {calendarView !== 'week' && <div className="order-5"><CalendarBoard view={calendarView} days={displayDays} slots={visibleSlots} doctors={doctors} departments={departments} onCreate={openSlotForm} onEdit={openSlotForm} onToggle={toggleClosed} /></div>}
+      <section className="order-5 overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80" aria-label="ปฏิทินตารางตรวจ">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={jumpToToday}
+              className="flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-[0.98]"
+            >
+              <CalendarDays className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+              วันนี้
+            </button>
+            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+              <button
+                type="button"
+                onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? -1 : calendarView === 'month' ? -28 : -7))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:shadow-xs"
+                aria-label="ช่วงก่อนหน้า"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <div className="min-w-44 px-2 text-center">
+                <span className="text-xs font-bold tabular-nums text-slate-800">
+                  {calendarView === 'day'
+                    ? formatShortDate(weekStart)
+                    : calendarView === 'month'
+                      ? `${monthNames[parseClinicDate(weekStart).getUTCMonth()]} ${parseClinicDate(weekStart).getUTCFullYear() + 543}`
+                      : formatWeekRange(weekStart)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? 1 : calendarView === 'month' ? 28 : 7))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:shadow-xs"
+                aria-label="ช่วงถัดไป"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
 
-      <section className={`order-5 hidden overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80 lg:block ${calendarView === 'week' ? '' : '!hidden'}`} aria-label="ปฏิทินตารางตรวจรายสัปดาห์">
-        <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
-          {weekDays.map((date) => {
-            const parsed = parseClinicDate(date);
-            const isToday = date === DEMO_TODAY;
-            return <div key={date} className={`px-3 py-4 text-center ${isToday ? 'bg-sky-50' : ''}`}><div className={`text-xs font-semibold ${isToday ? 'text-sky-700' : 'text-slate-500'}`}>{dayNames[parsed.getUTCDay()]}</div><div className={`mx-auto mt-2 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold tabular-nums ${isToday ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div></div>;
-          })}
-        </div>
-        <div className="grid min-h-[460px] grid-cols-7 divide-x divide-slate-200">
-          {weekDays.map((date) => {
-            const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
-            return <div key={date} className={`min-w-0 space-y-3 p-3 ${date === DEMO_TODAY ? 'bg-sky-50/30' : ''}`}>{daySlots.map((slot) => <SlotCard key={slot.id} slot={slot} doctors={doctors} departments={departments} onEdit={() => openSlotForm(slot)} onToggleClosed={() => toggleClosed(slot)} />)}{daySlots.length === 0 && <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"><Plus className="mb-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบ</button>}</div>;
-          })}
-        </div>
-      </section>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative">
+              <span className="sr-only">กรองแผนก</span>
+              <Filter className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
+              <select
+                value={departmentFilter}
+                onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }}
+                className="h-10 min-w-36 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              >
+                <option value="all">ทุกแผนก</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.name}</option>
+                ))}
+              </select>
+            </label>
 
-      <section className={`order-5 space-y-4 lg:hidden ${calendarView === 'week' ? '' : 'hidden'}`} aria-label="รายการตารางตรวจบนมือถือ">
-        {weekDays.map((date) => {
-          const parsed = parseClinicDate(date);
-          const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
-          return <article key={date} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div className="mb-3 flex items-center justify-between"><div><div className="text-xs font-semibold text-sky-700">{dayNames[parsed.getUTCDay()]}</div><h2 className="font-bold text-slate-950">{formatShortDate(date)}</h2></div><button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-sky-700 hover:bg-sky-50"><Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบ</button></div><div className="grid gap-3 sm:grid-cols-2">{daySlots.map((slot) => <SlotCard key={slot.id} slot={slot} doctors={doctors} departments={departments} onEdit={() => openSlotForm(slot)} onToggleClosed={() => toggleClosed(slot)} />)}{daySlots.length === 0 && <p className="rounded-xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-400 sm:col-span-2">ยังไม่มีรอบตรวจ</p>}</div></article>;
-        })}
+            <label>
+              <span className="sr-only">กรองแพทย์</span>
+              <select
+                value={doctorFilter}
+                onChange={(event) => setDoctorFilter(event.target.value)}
+                className="h-10 min-w-36 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              >
+                <option value="all">แพทย์ทุกคน</option>
+                {filteredDoctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span className="sr-only">กรองสถานะ</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as 'all' | ScheduleSlotStatus)}
+                className="h-10 min-w-28 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="available">เปิดรับ</option>
+                <option value="full">เต็ม</option>
+                <option value="closed">ปิดรอบ</option>
+              </select>
+            </label>
+
+            <label>
+              <span className="sr-only">มุมมองปฏิทิน</span>
+              <select
+                value={calendarView}
+                onChange={(event) => setCalendarView(event.target.value as CalendarView)}
+                className="h-10 min-w-28 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              >
+                <option value="day">วัน</option>
+                <option value="week">สัปดาห์</option>
+                <option value="month">เดือน</option>
+              </select>
+            </label>
+
+            {role === 'staff_admin' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setManagementPanel((current) => current === 'schedule' ? null : 'schedule')}
+                  className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition ${
+                    managementPanel === 'schedule'
+                      ? 'border-sky-500 bg-sky-50 text-sky-700'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                  aria-expanded={managementPanel === 'schedule'}
+                >
+                  <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                  จัดการตาราง
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSlotForm()}
+                  className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0a2540] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#123e67] active:scale-[0.98]"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                  เพิ่มรอบตรวจ
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {calendarView !== 'week' ? (
+          <CalendarBoard view={calendarView} days={displayDays} slots={visibleSlots} doctors={doctors} departments={departments} onCreate={openSlotForm} onEdit={openSlotForm} onToggle={toggleClosed} />
+        ) : (
+          <>
+            <div className="hidden lg:block">
+              <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
+                {weekDays.map((date) => {
+                  const parsed = parseClinicDate(date);
+                  const isToday = date === DEMO_TODAY;
+                  return (
+                    <div key={date} className={`px-3 py-4 text-center ${isToday ? 'bg-sky-50' : ''}`}>
+                      <div className={`text-xs font-semibold ${isToday ? 'text-sky-700' : 'text-slate-500'}`}>{dayNames[parsed.getUTCDay()]}</div>
+                      <div className={`mx-auto mt-2 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold tabular-nums ${isToday ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="grid min-h-[460px] grid-cols-7 divide-x divide-slate-200">
+                {weekDays.map((date) => {
+                  const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
+                  return (
+                    <div key={date} className={`min-w-0 space-y-3 p-3 ${date === DEMO_TODAY ? 'bg-sky-50/30' : ''}`}>
+                      {daySlots.map((slot) => (
+                        <SlotCard key={slot.id} slot={slot} doctors={doctors} departments={departments} onEdit={() => openSlotForm(slot)} onToggleClosed={() => toggleClosed(slot)} />
+                      ))}
+                      {daySlots.length === 0 && (
+                        <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
+                          <Plus className="mb-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบ
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 lg:hidden">
+              {weekDays.map((date) => {
+                const parsed = parseClinicDate(date);
+                const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
+                return (
+                  <article key={date} className="rounded-xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-semibold text-sky-700">{dayNames[parsed.getUTCDay()]}</div>
+                        <h2 className="font-bold text-slate-950">{formatShortDate(date)}</h2>
+                      </div>
+                      <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-sky-700 hover:bg-sky-50">
+                        <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบ
+                      </button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {daySlots.map((slot) => (
+                        <SlotCard key={slot.id} slot={slot} doctors={doctors} departments={departments} onEdit={() => openSlotForm(slot)} onToggleClosed={() => toggleClosed(slot)} />
+                      ))}
+                      {daySlots.length === 0 && (
+                        <p className="rounded-xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-400 sm:col-span-2">ยังไม่มีรอบตรวจ</p>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        )}
       </section>
 
       <aside className="order-9 grid gap-4 rounded-2xl bg-slate-900 p-5 text-white lg:grid-cols-[1fr_auto] lg:items-center">
@@ -348,9 +492,63 @@ function CalendarBoard({ view, days, slots, doctors, departments, onCreate, onEd
 }) {
   if (view === 'day') {
     const date = days[0];
-    return <section className="overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80" aria-label="ปฏิทินรายวัน"><div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><div className="text-xs font-semibold text-sky-700">{dayNames[parseClinicDate(date).getUTCDay()]}</div><h2 className="mt-1 text-lg font-bold text-slate-950">{formatShortDate(date)}</h2></div><div className="divide-y divide-slate-100">{slots.filter((slot) => slot.slotDate === date).map((slot) => <div key={slot.id} className="flex flex-wrap items-center gap-4 px-5 py-4"><div className="w-24 text-sm font-bold tabular-nums text-slate-700">{slot.startTime}–{slot.endTime}</div><div className="min-w-0 flex-1"><SlotCard slot={slot} doctors={doctors} departments={departments} onEdit={() => onEdit(slot)} onToggleClosed={() => onToggle(slot)} /></div></div>)}{slots.filter((slot) => slot.slotDate === date).length === 0 && <button type="button" onClick={() => onCreate(undefined, date)} className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"><Plus className="mr-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจวันนี้</button>}</div></section>;
+    return (
+      <div aria-label="ปฏิทินรายวัน">
+        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div className="text-xs font-semibold text-sky-700">{dayNames[parseClinicDate(date).getUTCDay()]}</div>
+          <h2 className="mt-1 text-lg font-bold text-slate-950">{formatShortDate(date)}</h2>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {slots.filter((slot) => slot.slotDate === date).map((slot) => (
+            <div key={slot.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+              <div className="w-24 text-sm font-bold tabular-nums text-slate-700">{slot.startTime}–{slot.endTime}</div>
+              <div className="min-w-0 flex-1">
+                <SlotCard slot={slot} doctors={doctors} departments={departments} onEdit={() => onEdit(slot)} onToggleClosed={() => onToggle(slot)} />
+              </div>
+            </div>
+          ))}
+          {slots.filter((slot) => slot.slotDate === date).length === 0 && (
+            <button type="button" onClick={() => onCreate(undefined, date)} className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจวันนี้
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
-  return <section className="overflow-x-auto rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80" aria-label={view === 'month' ? 'ปฏิทินรายเดือน' : 'ปฏิทินรายสัปดาห์'}><div className="min-w-[720px]"><div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">{days.slice(0, 7).map((date) => { const parsed = parseClinicDate(date); return <div key={date} className="px-2 py-3 text-center"><div className="text-[11px] font-semibold text-slate-500">{dayNames[parsed.getUTCDay()]}</div><div className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${date === DEMO_TODAY ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div></div>; })}</div><div className="grid grid-cols-7 divide-x divide-y divide-slate-200">{days.map((date) => { const daySlots = slots.filter((slot) => slot.slotDate === date); return <div key={date} className={`min-h-36 min-w-0 p-2 ${date === DEMO_TODAY ? 'bg-sky-50/30' : ''}`}><div className="mb-1 text-right text-xs font-semibold text-slate-500">{parseClinicDate(date).getUTCDate()}</div>{daySlots.map((slot) => <MiniSlot slot={slot} key={slot.id} doctors={doctors} onEdit={() => onEdit(slot)} />)}<button type="button" onClick={() => onCreate(undefined, date)} className="mt-1 flex min-h-8 w-full items-center justify-center rounded border border-dashed border-transparent text-[10px] text-slate-300 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"><Plus className="h-3 w-3" aria-hidden="true" /></button></div>; })}</div></div></section>;
+  return (
+    <div className="overflow-x-auto" aria-label={view === 'month' ? 'ปฏิทินรายเดือน' : 'ปฏิทินรายสัปดาห์'}>
+      <div className="min-w-[720px]">
+        <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
+          {days.slice(0, 7).map((date) => {
+            const parsed = parseClinicDate(date);
+            return (
+              <div key={date} className="px-2 py-3 text-center">
+                <div className="text-[11px] font-semibold text-slate-500">{dayNames[parsed.getUTCDay()]}</div>
+                <div className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${date === DEMO_TODAY ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-7 divide-x divide-y divide-slate-200">
+          {days.map((date) => {
+            const daySlots = slots.filter((slot) => slot.slotDate === date);
+            return (
+              <div key={date} className={`min-h-36 min-w-0 p-2 ${date === DEMO_TODAY ? 'bg-sky-50/30' : ''}`}>
+                <div className="mb-1 text-right text-xs font-semibold text-slate-500">{parseClinicDate(date).getUTCDate()}</div>
+                {daySlots.map((slot) => (
+                  <MiniSlot slot={slot} key={slot.id} doctors={doctors} onEdit={() => onEdit(slot)} />
+                ))}
+                <button type="button" onClick={() => onCreate(undefined, date)} className="mt-1 flex min-h-8 w-full items-center justify-center rounded border border-dashed border-transparent text-[10px] text-slate-300 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700">
+                  <Plus className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MiniSlot({ slot, doctors, onEdit }: { slot: ScheduleSlot; doctors: import('@/types/schedule').ScheduleDoctor[]; onEdit: () => void }) {
