@@ -1,7 +1,6 @@
 // Persisted contract for migrations 01-03. Runtime still uses mock repositories.
 
-export type UserRole = 'patient' | 'staff' | 'doctor' | 'pharmacist' | 'admin';
-
+export type UserRole = 'patient'| 'staff_admin'| 'medical';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rejected';
 
 export type SlotStatus = 'available' | 'full' | 'closed';
@@ -23,7 +22,6 @@ export type EmailJobType = 'dose_advance' | 'dose_final_repeat' | 'staff_overrid
 export type EmailJobStatus = 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled' | 'skipped_paused';
 
 // ----- Table Interfaces -----
-
 export interface Profile {
   id: string;
   student_id: string | null;
@@ -35,13 +33,17 @@ export interface Profile {
   chronic_diseases: string | null;
   role: UserRole;
   avatar_url: string | null;
+
   patient_type?: PatientType | null;
   employee_id?: string | null;
   organization?: string | null;
+
   allergy_status?: HealthDeclarationStatus | null;
   chronic_disease_status?: HealthDeclarationStatus | null;
+
   is_active?: boolean;
   permission_version?: number;
+
   created_at: string;
   updated_at: string;
 }
