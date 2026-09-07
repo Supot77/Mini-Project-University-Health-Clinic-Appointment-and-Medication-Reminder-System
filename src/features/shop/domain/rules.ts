@@ -106,11 +106,11 @@ export function validateSlot(
 
 export function validateDepartmentName(
   name: string,
-  code: string,
+  code: string | undefined,
   departments: ScheduleDepartment[],
   editingId?: string,
 ): ShopResult<true> {
-  if (!name.trim() || !code.trim()) return failure('กรอกชื่อและรหัสแผนกก่อนบันทึก');
+  if (!name.trim()) return failure('กรอกชื่อแผนกก่อนบันทึก', 'name');
   const normalized = name.trim().toLocaleLowerCase('th');
   if (departments.some((item) => item.id !== editingId && item.name.trim().toLocaleLowerCase('th') === normalized)) {
     return failure('ชื่อแผนกนี้มีอยู่แล้ว', 'name');

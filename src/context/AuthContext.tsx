@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/client';   // ← เปลี่ยนจาก '@/lib/supabase'
-import { AuthUser, AuthSession } from '@/types/auth';
+import React, { createContext, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
+import type { AuthSession } from '@/types/auth';
 import type { UserRole } from '@/types/database';
 
 const supabase = createClient();
@@ -15,6 +16,7 @@ interface AuthContextType extends AuthSession {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [session, setSession] = useState<AuthSession>({
     user: null,
     isLoading: true,
@@ -93,7 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error during signOut:', error);
+    } finally {
+      setSession({ user: null, isLoading: false, isAuthenticated: false });
+      router.push('/');
+      router.refresh();
+    }
   };
 
   return (

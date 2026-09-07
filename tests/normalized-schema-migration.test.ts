@@ -10,6 +10,7 @@ const broadcastRecipientUpgrade = readFileSync(resolve(process.cwd(), 'supabase/
 const roleUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/06_consolidate_roles.sql'), 'utf8');
 const contractFieldsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/07_add_contract_fields.sql'), 'utf8');
 const patientSearchRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/08_allow_medical_patient_search.sql'), 'utf8');
+const doctorProfilesRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/10_allow_view_doctor_profiles.sql'), 'utf8');
 
 const normalizedTables = [
   'reschedule_proposals',
@@ -72,6 +73,14 @@ describe('normalized transaction migration', () => {
     expect(patientSearchRlsUpgrade).toContain('DROP POLICY IF EXISTS "Staff/Admin can view all profiles"');
     expect(patientSearchRlsUpgrade).toContain("public.get_user_role() IN ('staff_admin', 'medical')");
     expect(patientSearchRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
+  });
+
+  it('allows patients and public to view doctor profiles and doctor records', () => {
+    expect(doctorProfilesRlsUpgrade).toContain('DROP POLICY IF EXISTS "Anyone can view medical profiles"');
+    expect(doctorProfilesRlsUpgrade).toContain("role = 'medical'");
+    expect(doctorProfilesRlsUpgrade).toContain('EXISTS (SELECT 1 FROM public.doctors WHERE doctors.id = profiles.id)');
+    expect(doctorProfilesRlsUpgrade).toContain('CREATE POLICY "Anyone can view doctors"');
+    expect(doctorProfilesRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
   });
 
   it('creates every approved transaction table and enables default-deny RLS', () => {

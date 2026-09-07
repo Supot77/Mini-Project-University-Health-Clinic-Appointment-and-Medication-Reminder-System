@@ -1,47 +1,37 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
   Building2,
   Check,
-  Database,
   Filter,
-  Link2,
+  Loader2,
   Pencil,
   Plus,
+  Power,
   Search,
   ShieldCheck,
   Stethoscope,
-  UserRoundCheck,
+  UserPlus,
   Users,
   X,
 } from 'lucide-react';
 import { useShop } from '@/features/shop/context/ShopProvider';
 import type {
-  DepartmentTone,
   DoctorAvailability,
   ScheduleDepartment,
   ScheduleDoctor,
 } from '@/types/schedule';
 
-const toneClasses: Record<DepartmentTone, { badge: string; marker: string; wash: string }> = {
-  sky: { badge: 'bg-sky-50 text-sky-700', marker: 'bg-sky-500', wash: 'bg-sky-50/70' },
-  teal: { badge: 'bg-teal-50 text-teal-700', marker: 'bg-teal-500', wash: 'bg-teal-50/70' },
-  amber: { badge: 'bg-amber-50 text-amber-800', marker: 'bg-amber-500', wash: 'bg-amber-50/70' },
-  violet: { badge: 'bg-violet-50 text-violet-700', marker: 'bg-violet-500', wash: 'bg-violet-50/70' },
-};
-
 const inputClass =
-  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100';
+  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-xs outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-50';
 
 type WorkspaceTab = 'departments' | 'doctors';
 
 interface DepartmentDraft {
   name: string;
-  code: string;
   description: string;
-  room: string;
-  tone: DepartmentTone;
 }
 
 interface DoctorDraft {
@@ -56,10 +46,7 @@ interface DoctorDraft {
 
 const emptyDepartmentDraft: DepartmentDraft = {
   name: '',
-  code: '',
   description: '',
-  room: '',
-  tone: 'sky',
 };
 
 const emptyDoctorDraft: DoctorDraft = {
@@ -73,26 +60,53 @@ const emptyDoctorDraft: DoctorDraft = {
 };
 
 export default function DepartmentWorkspace() {
-  const { departments, doctors, slots, doctorAccounts, saveDepartment: persistDepartment, toggleDepartment: persistDepartmentToggle, saveDoctor: persistDoctor, toggleDoctor: persistDoctorToggle } = useShop();
+  const {
+    departments,
+    doctors,
+    slots,
+    doctorAccounts,
+    isLoading,
+    saveDepartment: persistDepartment,
+    toggleDepartment: persistDepartmentToggle,
+    saveDoctor: persistDoctor,
+    toggleDoctor: persistDoctorToggle,
+  } = useShop();
+
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('departments');
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showInactive, setShowInactive] = useState(false);
-  const [departmentFormOpen, setDepartmentFormOpen] = useState(false);
-  const [doctorFormOpen, setDoctorFormOpen] = useState(false);
+
+  // Drawer state
+  const [departmentDrawerOpen, setDepartmentDrawerOpen] = useState(false);
+  const [doctorDrawerOpen, setDoctorDrawerOpen] = useState(false);
   const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
   const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
+
   const [departmentDraft, setDepartmentDraft] = useState<DepartmentDraft>(emptyDepartmentDraft);
   const [doctorDraft, setDoctorDraft] = useState<DoctorDraft>(emptyDoctorDraft);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Keyboard escape listener to close drawers
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (departmentDrawerOpen) setDepartmentDrawerOpen(false);
+        if (doctorDrawerOpen) setDoctorDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [departmentDrawerOpen, doctorDrawerOpen]);
 
   const normalizedSearch = search.trim().toLocaleLowerCase('th');
 
   const visibleDepartments = useMemo(
     () =>
       departments.filter((department) => {
-        const matchesSearch = `${department.name} ${department.code} ${department.description}`
+        const matchesSearch = `${department.name} ${department.description}`
           .toLocaleLowerCase('th')
           .includes(normalizedSearch);
         return matchesSearch && (showInactive || department.isActive);
@@ -121,34 +135,57 @@ export default function DepartmentWorkspace() {
       department
         ? {
             name: department.name,
-            code: department.code,
             description: department.description,
-            room: department.room,
-            tone: department.tone,
           }
         : emptyDepartmentDraft,
     );
-    setDepartmentFormOpen(true);
+    setDepartmentDrawerOpen(true);
   };
 
-  const saveDepartment = () => {
-    const result = persistDepartment(departmentDraft, editingDepartmentId ?? undefined);
-    if (!result.ok) { setFormError(result.error); return; }
-    setNotice(editingDepartmentId ? 'อัปเดตข้อมูลแผนกใน mock UI แล้ว' : 'เพิ่มแผนกใหม่ใน mock UI แล้ว');
-
-    setDepartmentFormOpen(false);
+  const closeDepartmentDrawer = () => {
+    setDepartmentDrawerOpen(false);
     setEditingDepartmentId(null);
     setDepartmentDraft(emptyDepartmentDraft);
+    setFormError('');
   };
 
-  const toggleDepartment = (department: ScheduleDepartment) => {
+  const saveDepartment = async () => {
+    setFormError('');
+    setIsSaving(true);
+    const result = await persistDepartment(departmentDraft, editingDepartmentId ?? undefined);
+    setIsSaving(false);
+
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+
+    setNotice(editingDepartmentId ? 'อัปเดตข้อมูลแผนกสำเร็จ' : 'เพิ่มแผนกใหม่สำเร็จ');
+    closeDepartmentDrawer();
+  };
+
+  const toggleDepartment = async (department: ScheduleDepartment) => {
+    setFormError('');
+    setNotice('');
     const impact = doctors.some((doctor) => doctor.departmentId === department.id)
       ? ' แพทย์และประวัติเดิมจะยังคงเชื่อมกับแผนกนี้'
       : '';
-    if (!window.confirm(department.isActive ? `ยืนยันการ${impact ? 'ปิดใช้งาน' : 'ลบ'} “${department.name}”?${impact}` : `เปิดใช้งาน “${department.name}” อีกครั้ง?`)) return;
-    const result = persistDepartmentToggle(department.id);
-    if (!result.ok) { setFormError(result.error); return; }
-    setNotice(result.value === 'deleted' ? 'ลบแผนกที่ยังไม่มีข้อมูลอ้างอิงแล้ว' : result.value === 'disabled' ? 'ปิดใช้งานแผนกแล้ว ประวัติเดิมยังอยู่' : 'เปิดใช้งานแผนกแล้ว');
+    if (!window.confirm(department.isActive ? `ยืนยันการปิดใช้งานแผนก “${department.name}”?${impact}` : `ยืนยันการเปิดใช้งานแผนก “${department.name}” อีกครั้ง?`)) return;
+
+    setIsSaving(true);
+    const result = await persistDepartmentToggle(department.id);
+    setIsSaving(false);
+
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+
+    if (result.value === 'disabled') {
+      setShowInactive(true);
+    }
+
+    setNotice(result.value === 'deleted' ? 'ลบแผนกแล้ว' : result.value === 'disabled' ? 'ปิดใช้งานแผนกแล้ว' : 'เปิดใช้งานแผนกแล้ว');
   };
 
   const selectDoctorAccount = (profileId: string) => {
@@ -179,27 +216,53 @@ export default function DepartmentWorkspace() {
           }
         : emptyDoctorDraft,
     );
-    setDoctorFormOpen(true);
+    setDoctorDrawerOpen(true);
   };
 
-  const saveDoctor = () => {
-    const result = persistDoctor(doctorDraft, editingDoctorId ?? undefined);
-    if (!result.ok) { setFormError(result.error); return; }
-    setNotice(editingDoctorId ? 'อัปเดตข้อมูลแพทย์ใน mock UI แล้ว' : 'เพิ่มแพทย์จากบัญชีจำลองแล้ว');
-
-    setDoctorFormOpen(false);
+  const closeDoctorDrawer = () => {
+    setDoctorDrawerOpen(false);
     setEditingDoctorId(null);
     setDoctorDraft(emptyDoctorDraft);
+    setFormError('');
   };
 
-  const toggleDoctor = (doctor: ScheduleDoctor) => {
+  const saveDoctor = async () => {
+    setFormError('');
+    setIsSaving(true);
+    const result = await persistDoctor(doctorDraft, editingDoctorId ?? undefined);
+    setIsSaving(false);
+
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+
+    setNotice(editingDoctorId ? 'อัปเดตข้อมูลแพทย์สำเร็จ' : 'ผูกแพทย์เข้ากับแผนกสำเร็จ');
+    closeDoctorDrawer();
+  };
+
+  const toggleDoctor = async (doctor: ScheduleDoctor) => {
+    setFormError('');
+    setNotice('');
     const hasReferences = Boolean(doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id));
-    const action = doctor.availability === 'inactive' ? 'เปิดใช้งาน' : hasReferences ? 'ปิดใช้งาน' : 'ลบ';
+    const action = doctor.availability === 'inactive' ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
     const impact = hasReferences ? ' รอบและประวัติเดิมจะยังคงอยู่' : '';
     if (!window.confirm(`${action} ${doctor.fullName}?${impact}`)) return;
-    const result = persistDoctorToggle(doctor.id);
-    if (!result.ok) { setFormError(result.error); return; }
-    setNotice(result.value === 'deleted' ? 'ลบแพทย์ที่ยังไม่มีข้อมูลอ้างอิงแล้ว' : doctor.availability === 'inactive' ? 'เปิดใช้งานแพทย์แล้ว' : 'ปิดใช้งานแพทย์แล้ว');
+
+    setIsSaving(true);
+    const result = await persistDoctorToggle(doctor.id);
+    setIsSaving(false);
+
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+
+    if (doctor.availability !== 'inactive') {
+      setShowInactive(true);
+    }
+
+    setNotice(result.value === 'deleted' ? 'ลบแพทย์แล้ว' : doctor.availability === 'inactive' ? 'เปิดใช้งานแพทย์แล้ว' : 'ปิดใช้งานแพทย์แล้ว');
   };
 
   const activeDoctors = doctors.filter((doctor) => doctor.availability === 'active').length;
@@ -207,56 +270,45 @@ export default function DepartmentWorkspace() {
 
   return (
     <div className="space-y-6">
-      <header className="overflow-hidden rounded-[28px] bg-[#0a2540] text-white shadow-[0_18px_50px_rgba(10,37,64,0.16)]">
-        <div className="grid gap-8 px-6 py-7 sm:px-8 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-sky-200">
-              <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1">SHOP · MOCK WORKSPACE</span>
-              <span>ข้อมูลจำลองสำหรับพัฒนา UI</span>
+      {/* Clinical Command Header */}
+      <header className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50/70 px-3 py-1 text-xs font-semibold text-teal-800">
+              <span className="h-2 w-2 rounded-full bg-teal-600 animate-pulse" aria-hidden="true" />
+              <span>ระบบจัดการคลินิก · สถาบันสุขภาพ ม.วลัยลักษณ์</span>
             </div>
-            <h1 className="max-w-3xl text-3xl font-bold tracking-[-0.03em] text-balance sm:text-4xl">
-              โครงสร้างบริการและทีมแพทย์
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              โครงสร้างบริการและบุคลากรทางการแพทย์
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-              จัดการแผนก จับคู่บัญชีแพทย์ และเตรียมข้อมูลต้นทางให้ตารางตรวจ ระบบนัดหมาย และแดชบอร์ด
+            <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
+              จัดการแผนกตรวจรักษาและจับคู่บัญชีแพทย์ ข้อมูลซิงค์กับฐานข้อมูล Supabase แบบเรียลไทม์
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white/7 p-2 ring-1 ring-white/10">
-            {[
-              ['แผนกเปิด', activeDepartments],
-              ['แพทย์ทั้งหมด', doctors.length],
-              ['พร้อมออกตรวจ', activeDoctors],
-            ].map(([label, value]) => (
-              <div key={label} className="min-w-20 rounded-xl bg-white/8 px-3 py-3 text-center">
-                <div className="text-xl font-bold tabular-nums">{value}</div>
-                <div className="mt-1 text-[11px] text-slate-300">{label}</div>
-              </div>
-            ))}
+
+          {/* Quick Metrics Chips */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-center transition-colors hover:bg-slate-100/70">
+              <div className="text-2xl font-bold tabular-nums text-slate-900">{activeDepartments}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">แผนกเปิดบริการ</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-center transition-colors hover:bg-slate-100/70">
+              <div className="text-2xl font-bold tabular-nums text-slate-900">{doctors.length}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">แพทย์ทั้งหมด</div>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 text-center transition-colors hover:bg-emerald-50">
+              <div className="text-2xl font-bold tabular-nums text-emerald-700">{activeDoctors}</div>
+              <div className="mt-1 text-xs font-medium text-emerald-800">พร้อมออกตรวจ</div>
+            </div>
           </div>
-        </div>
-        <div className="grid gap-px bg-white/10 sm:grid-cols-3">
-          {[
-            [Database, 'Database', 'รอ migration + RLS'],
-            [UserRoundCheck, 'Auth · ฟีม', 'รับบัญชี role medical'],
-            [Link2, 'Booking · ปาย', 'ส่งต่อ medical/slot IDs'],
-          ].map(([Icon, label, detail]) => {
-            const ItemIcon = Icon as typeof Database;
-            return (
-              <div key={String(label)} className="flex items-center gap-3 bg-[#0d3152] px-6 py-3.5">
-                <ItemIcon className="h-4 w-4 text-sky-300" aria-hidden="true" />
-                <div>
-                  <div className="text-xs font-semibold text-white">{String(label)}</div>
-                  <div className="text-[11px] text-slate-400">{String(detail)}</div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </header>
 
-      <section className="rounded-2xl bg-white p-3 shadow-[0_4px_24px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="เลือกข้อมูลที่ต้องการจัดการ">
+      {/* Control Bar: Tabs, Search, Filters & Action Button */}
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Segmented Control */}
+          <div className="flex rounded-xl bg-slate-100/90 p-1" role="tablist" aria-label="เลือกมุมมองการจัดการ">
             <button
               type="button"
               role="tab"
@@ -265,12 +317,17 @@ export default function DepartmentWorkspace() {
                 setActiveTab('departments');
                 setSearch('');
               }}
-              className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 sm:flex-none ${
-                activeTab === 'departments' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-all focus-visible:ring-2 focus-visible:ring-teal-600 sm:flex-none ${
+                activeTab === 'departments'
+                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/50'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Building2 className="h-4 w-4" aria-hidden="true" />
-              แผนก
+              <Building2 className="h-4 w-4 text-teal-700" aria-hidden="true" />
+              <span>แผนกการรักษา</span>
+              <span className="ml-1 rounded-full bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700">
+                {departments.length}
+              </span>
             </button>
             <button
               type="button"
@@ -280,154 +337,251 @@ export default function DepartmentWorkspace() {
                 setActiveTab('doctors');
                 setSearch('');
               }}
-              className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 sm:flex-none ${
-                activeTab === 'doctors' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-all focus-visible:ring-2 focus-visible:ring-teal-600 sm:flex-none ${
+                activeTab === 'doctors'
+                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/50'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Stethoscope className="h-4 w-4" aria-hidden="true" />
-              แพทย์
+              <Stethoscope className="h-4 w-4 text-teal-700" aria-hidden="true" />
+              <span>แพทย์และผู้ตรวจ</span>
+              <span className="ml-1 rounded-full bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700">
+                {doctors.length}
+              </span>
             </button>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="relative min-w-64 flex-1">
-              <span className="sr-only">ค้นหา</span>
+          {/* Search, Filter, and Add Button */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+            <div className="relative min-w-64 flex-1">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={activeTab === 'departments' ? 'ค้นหาชื่อหรือรหัสแผนก' : 'ค้นหาชื่อหรือความเชี่ยวชาญ'}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={activeTab === 'departments' ? 'ค้นหาชื่อแผนกหรือรายละเอียด...' : 'ค้นหาชื่อแพทย์หรือความเชี่ยวชาญ...'}
                 className={`${inputClass} pl-9`}
               />
-            </label>
+            </div>
+
             {activeTab === 'doctors' && (
-              <label className="relative">
-                <span className="sr-only">กรองตามแผนก</span>
+              <div className="relative">
                 <Filter className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
                 <select
                   value={departmentFilter}
-                  onChange={(event) => setDepartmentFilter(event.target.value)}
-                  className={`${inputClass} min-w-52 pl-9`}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className={`${inputClass} min-w-44 pl-9 text-slate-700`}
                 >
                   <option value="all">ทุกแผนก</option>
                   {departments.map((department) => (
-                    <option key={department.id} value={department.id}>{department.name}</option>
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
                   ))}
                 </select>
-              </label>
+              </div>
             )}
-            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-600">
+
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-50">
               <input
                 type="checkbox"
                 checked={showInactive}
-                onChange={(event) => setShowInactive(event.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
               />
-              แสดงที่ปิดใช้
+              <span>แสดงที่ปิดใช้</span>
             </label>
+
             <button
               type="button"
               onClick={() => (activeTab === 'departments' ? openDepartmentForm() : openDoctorForm())}
-              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm transition-[background-color,transform] hover:bg-sky-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-xs transition-all hover:bg-teal-800 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
             >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {activeTab === 'departments' ? 'เพิ่มแผนก' : 'เพิ่มแพทย์'}
+              {activeTab === 'departments' ? (
+                <>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <span>เพิ่มแผนก</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4" aria-hidden="true" />
+                  <span>เพิ่มแพทย์</span>
+                </>
+              )}
             </button>
           </div>
         </div>
       </section>
 
-      <div aria-live="polite">
+      {/* Notifications Banner */}
+      <div aria-live="polite" className="space-y-3">
         {notice && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            <span className="flex items-center gap-2"><Check className="h-4 w-4" aria-hidden="true" />{notice}</span>
-            <button type="button" onClick={() => setNotice('')} className="min-h-11 min-w-11 rounded-lg p-2 hover:bg-emerald-100" aria-label="ปิดข้อความ">
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+            <span className="flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+              {notice}
+            </span>
+            <button
+              type="button"
+              onClick={() => setNotice('')}
+              className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100"
+              aria-label="ปิดแจ้งเตือน"
+            >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         )}
-      </div>
 
-      {activeTab === 'departments' && departmentFormOpen && (
-        <section className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-sky-200" aria-labelledby="department-form-title">
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Mock form</p>
-              <h2 id="department-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingDepartmentId ? 'แก้ไขแผนก' : 'เพิ่มแผนกใหม่'}</h2>
-            </div>
-            <button type="button" onClick={() => setDepartmentFormOpen(false)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="ปิดแบบฟอร์ม">
-              <X className="h-5 w-5" aria-hidden="true" />
+        {formError && !departmentDrawerOpen && !doctorDrawerOpen && (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
+            <span className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+              {formError}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFormError('')}
+              className="rounded-lg p-1 text-rose-700 hover:bg-rose-100"
+              aria-label="ปิดข้อความแจ้งเตือน"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <label className="space-y-1.5 xl:col-span-2"><span className="text-sm font-medium text-slate-700">ชื่อแผนก</span><input value={departmentDraft.name} onChange={(event) => setDepartmentDraft((current) => ({ ...current, name: event.target.value }))} className={inputClass} /></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">รหัสย่อ</span><input value={departmentDraft.code} onChange={(event) => setDepartmentDraft((current) => ({ ...current, code: event.target.value }))} className={inputClass} maxLength={6} /></label>
-            <label className="space-y-1.5 xl:col-span-2"><span className="text-sm font-medium text-slate-700">สถานที่</span><input value={departmentDraft.room} onChange={(event) => setDepartmentDraft((current) => ({ ...current, room: event.target.value }))} className={inputClass} /></label>
-            <label className="space-y-1.5 md:col-span-2 xl:col-span-4"><span className="text-sm font-medium text-slate-700">รายละเอียดบริการ</span><input value={departmentDraft.description} onChange={(event) => setDepartmentDraft((current) => ({ ...current, description: event.target.value }))} className={inputClass} /></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">สีประจำแผนก</span><select value={departmentDraft.tone} onChange={(event) => setDepartmentDraft((current) => ({ ...current, tone: event.target.value as DepartmentTone }))} className={inputClass}><option value="sky">ฟ้า</option><option value="teal">เขียวอมฟ้า</option><option value="amber">เหลืองอำพัน</option><option value="violet">ม่วง</option></select></label>
-          </div>
-          {formError && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{formError}</p>}
-          <div className="mt-5 flex justify-end gap-2">
-            <button type="button" onClick={() => setDepartmentFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button>
-            <button type="button" onClick={saveDepartment} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98]">บันทึกแผนก</button>
-          </div>
-        </section>
-      )}
+        )}
 
-      {activeTab === 'doctors' && doctorFormOpen && (
-        <section className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-sky-200" aria-labelledby="doctor-form-title">
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Auth handoff</p>
-              <h2 id="doctor-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingDoctorId ? 'แก้ไขข้อมูลแพทย์' : 'ผูกบัญชีแพทย์กับคลินิก'}</h2>
-              <p className="mt-1 text-sm text-slate-500">บัญชีและ role เป็นงานของฟีม ส่วนช้อปกำหนดแผนกและความเชี่ยวชาญทางการแพทย์</p>
-            </div>
-            <button type="button" onClick={() => setDoctorFormOpen(false)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="ปิดแบบฟอร์ม"><X className="h-5 w-5" aria-hidden="true" /></button>
+        {isLoading && (
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-teal-100 bg-teal-50/50 p-4 text-sm font-medium text-teal-800">
+            <Loader2 className="h-4 w-4 animate-spin text-teal-600" aria-hidden="true" />
+            <span>กำลังโหลดข้อมูลจากฐานข้อมูล...</span>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">บัญชีที่มี role medical</span><select value={doctorDraft.profileId} disabled={Boolean(editingDoctorId)} onChange={(event) => selectDoctorAccount(event.target.value)} className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}><option value="">เลือกบัญชีแพทย์</option>{editingDoctorId && <option value={doctorDraft.profileId}>{doctorDraft.fullName} · {doctorDraft.email}</option>}{!editingDoctorId && doctorAccounts.filter((account) => !doctors.some((doctor) => doctor.profileId === account.profileId)).map((account) => <option key={account.profileId} value={account.profileId}>{account.fullName} · {account.email}</option>)}</select></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">แผนก</span><select value={doctorDraft.departmentId} onChange={(event) => setDoctorDraft((current) => ({ ...current, departmentId: event.target.value }))} className={inputClass}><option value="">เลือกแผนก</option>{departments.filter((department) => department.isActive).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">สถานะ</span><select value={doctorDraft.availability} onChange={(event) => setDoctorDraft((current) => ({ ...current, availability: event.target.value as DoctorAvailability }))} className={inputClass}><option value="active">พร้อมออกตรวจ</option><option value="on_leave">ลา</option><option value="inactive">ปิดใช้งาน</option></select></label>
-            <label className="space-y-1.5 md:col-span-2 xl:col-span-4"><span className="text-sm font-medium text-slate-700">ความเชี่ยวชาญ</span><input value={doctorDraft.specialty} onChange={(event) => setDoctorDraft((current) => ({ ...current, specialty: event.target.value }))} className={inputClass} /></label>
-          </div>
-          {formError && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{formError}</p>}
-          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setDoctorFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button><button type="button" onClick={saveDoctor} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98]">บันทึกแพทย์</button></div>
-        </section>
-      )}
+        )}
+      </div>
 
-      {activeTab === 'departments' ? (
-        <section aria-labelledby="departments-title">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 id="departments-title" className="text-lg font-bold text-slate-950">แผนกทั้งหมด</h2>
-            <span className="text-sm text-slate-500">{visibleDepartments.length} รายการ</span>
+      {/* Departments Grid View */}
+      {activeTab === 'departments' && (
+        <section aria-labelledby="departments-list-title">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id="departments-list-title" className="text-base font-bold text-slate-900">
+              แผนกการรักษาทั้งหมด
+            </h2>
+            <span className="text-xs font-semibold text-slate-500">
+              {visibleDepartments.length} รายการ
+            </span>
           </div>
+
           {visibleDepartments.length === 0 ? (
-            <EmptyPanel title="ไม่พบแผนก" detail="ลองเปลี่ยนคำค้นหรือเปิดตัวกรองรายการที่ปิดใช้งาน" />
+            <EmptyPanel
+              title="ไม่พบแผนกที่ค้นหา"
+              detail="ลองเปลี่ยนคำค้นหา หรือเลือกตัวเลือก 'แสดงที่ปิดใช้' เพื่อดูแผนกทั้งหมด"
+            />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
               {visibleDepartments.map((department) => {
-                const doctorCount = doctors.filter((doctor) => doctor.departmentId === department.id).length;
-                const tone = toneClasses[department.tone];
+                const affiliatedDoctors = doctors.filter((doctor) => doctor.departmentId === department.id);
+
                 return (
-                  <article key={department.id} className={`group relative overflow-hidden rounded-2xl bg-white p-5 shadow-[0_4px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80 ${!department.isActive ? 'opacity-70' : ''}`}>
-                    <div className={`absolute inset-y-0 left-0 w-1.5 ${tone.marker}`} aria-hidden="true" />
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-lg px-2 py-1 text-[11px] font-bold tracking-wider ${tone.badge}`}>{department.code}</span>
-                          {!department.isActive && <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">ปิดใช้งาน</span>}
+                  <article
+                    key={department.id}
+                    className={`group relative flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-xs transition-all hover:shadow-md ${
+                      department.isActive
+                        ? 'border-slate-200/90 hover:border-teal-300/80'
+                        : 'border-slate-200 bg-slate-50/50 opacity-75'
+                    }`}
+                  >
+                    <div>
+                      {/* Top Meta & Actions */}
+                      <div className="flex items-start justify-between gap-3">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            department.isActive
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70'
+                              : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              department.isActive ? 'bg-emerald-500' : 'bg-slate-400'
+                            }`}
+                            aria-hidden="true"
+                          />
+                          {department.isActive ? 'เปิดให้บริการ' : 'ปิดใช้งาน'}
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openDepartmentForm(department)}
+                            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-teal-600"
+                            aria-label={`แก้ไข ${department.name}`}
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => toggleDepartment(department)}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                              department.isActive
+                                ? 'text-rose-600 hover:bg-rose-50'
+                                : 'text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                            title={department.isActive ? 'ปิดการให้บริการ' : 'เปิดการให้บริการ'}
+                          >
+                            <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>{department.isActive ? 'ปิดใช้' : 'เปิดใช้'}</span>
+                          </button>
                         </div>
-                        <h3 className="mt-3 text-lg font-bold text-slate-950">{department.name}</h3>
-                        <p className="mt-1 text-sm leading-6 text-slate-500">{department.description}</p>
                       </div>
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => openDepartmentForm(department)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label={`แก้ไข ${department.name}`}><Pencil className="h-4 w-4" aria-hidden="true" /></button>
-                        <button type="button" onClick={() => toggleDepartment(department)} className={`min-h-11 rounded-xl px-3 text-xs font-semibold ${department.isActive ? 'text-rose-700 hover:bg-rose-50' : 'text-emerald-700 hover:bg-emerald-50'}`}>{department.isActive ? (doctorCount > 0 ? 'ปิดใช้' : 'ลบ') : 'เปิดใช้'}</button>
-                      </div>
+
+                      {/* Title & Description */}
+                      <h3 className="mt-3 text-lg font-bold tracking-tight text-slate-900">
+                        {department.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+                        {department.description || 'ยังไม่มีคำอธิบายรายละเอียดบริการ'}
+                      </p>
                     </div>
-                    <div className={`mt-5 grid grid-cols-2 gap-3 rounded-xl p-3 ${tone.wash}`}>
-                      <div className="flex items-center gap-2 text-sm text-slate-700"><Users className="h-4 w-4" aria-hidden="true" /><span><strong className="tabular-nums">{doctorCount}</strong> แพทย์</span></div>
-                      <div className="truncate text-right text-xs text-slate-500">{department.room}</div>
+
+                    {/* Signature Element: Department Doctor Roster */}
+                    <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                      <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                        <span className="flex items-center gap-1.5 font-semibold text-slate-700">
+                          <Users className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                          <span>แพทย์ประจำแผนก ({affiliatedDoctors.length})</span>
+                        </span>
+                      </div>
+
+                      {affiliatedDoctors.length === 0 ? (
+                        <div className="flex items-center justify-between text-xs text-slate-400 py-1">
+                          <span>ยังไม่มีแพทย์สังกัดแผนกนี้</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openDoctorForm();
+                              setDoctorDraft((current) => ({ ...current, departmentId: department.id }));
+                            }}
+                            className="font-medium text-teal-700 hover:text-teal-900 hover:underline"
+                          >
+                            + ผูกแพทย์
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {affiliatedDoctors.map((doc) => (
+                            <span
+                              key={doc.id}
+                              className={`inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs ${
+                                doc.availability === 'active'
+                                  ? 'border-slate-200'
+                                  : 'border-slate-200/60 opacity-60'
+                              }`}
+                              title={`${doc.fullName} (${doc.specialty || 'แพทย์'})`}
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden="true" />
+                              <span className="truncate max-w-44">{doc.fullName}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </article>
                 );
@@ -435,25 +589,132 @@ export default function DepartmentWorkspace() {
             </div>
           )}
         </section>
-      ) : (
-        <section aria-labelledby="doctors-title">
-          <div className="mb-3 flex items-center justify-between"><h2 id="doctors-title" className="text-lg font-bold text-slate-950">ทะเบียนแพทย์</h2><span className="text-sm text-slate-500">{visibleDoctors.length} คน</span></div>
+      )}
+
+      {/* Doctors Table View */}
+      {activeTab === 'doctors' && (
+        <section aria-labelledby="doctors-list-title">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id="doctors-list-title" className="text-base font-bold text-slate-900">
+              ทะเบียนแพทย์และผู้ตรวจ
+            </h2>
+            <span className="text-xs font-semibold text-slate-500">
+              {visibleDoctors.length} คน
+            </span>
+          </div>
+
           {visibleDoctors.length === 0 ? (
-            <EmptyPanel title="ไม่พบแพทย์" detail="ลองเปลี่ยนคำค้น แผนก หรือเปิดรายการที่ปิดใช้งาน" />
+            <EmptyPanel
+              title="ไม่พบแพทย์ที่ค้นหา"
+              detail="ลองเปลี่ยนคำค้นหา เลือกแผนกอื่น หรือเปิด 'แสดงที่ปิดใช้'"
+            />
           ) : (
-            <div className="overflow-hidden rounded-2xl bg-white shadow-[0_4px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80">
-              <div className="hidden grid-cols-[minmax(240px,1.5fr)_minmax(180px,1fr)_minmax(180px,1fr)_110px_120px] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid"><span>แพทย์</span><span>แผนก</span><span>ความเชี่ยวชาญ</span><span>สถานะ</span><span className="text-right">จัดการ</span></div>
+            <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="hidden grid-cols-[minmax(260px,1.5fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_110px] gap-4 border-b border-slate-200 bg-slate-50/80 px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:grid">
+                <span>แพทย์ / บัญชี</span>
+                <span>แผนกสังกัด</span>
+                <span>ความเชี่ยวชาญ</span>
+                <span>สถานะ</span>
+                <span className="text-right">จัดการ</span>
+              </div>
+
               <div className="divide-y divide-slate-100">
                 {visibleDoctors.map((doctor) => {
                   const department = departments.find((item) => item.id === doctor.departmentId);
-                  const status = doctor.availability === 'active' ? ['พร้อมออกตรวจ', 'bg-emerald-50 text-emerald-700'] : doctor.availability === 'on_leave' ? ['ลา', 'bg-amber-50 text-amber-800'] : ['ปิดใช้งาน', 'bg-slate-100 text-slate-600'];
+                  const statusConfig: Record<DoctorAvailability, { label: string; badge: string; dot: string }> = {
+                    active: {
+                      label: 'พร้อมออกตรวจ',
+                      badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70',
+                      dot: 'bg-emerald-500',
+                    },
+                    on_leave: {
+                      label: 'ลาตรวจ',
+                      badge: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/70',
+                      dot: 'bg-amber-500',
+                    },
+                    inactive: {
+                      label: 'ปิดใช้งาน',
+                      badge: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+                      dot: 'bg-slate-400',
+                    },
+                  };
+
+                  const currentStatus = statusConfig[doctor.availability] ?? statusConfig.active;
+
                   return (
-                    <article key={doctor.id} className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(240px,1.5fr)_minmax(180px,1fr)_minmax(180px,1fr)_110px_120px] lg:items-center">
-                      <div className="flex items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0a2540] text-sm font-bold text-white">{doctor.initials}</div><div className="min-w-0"><h3 className="truncate text-sm font-bold text-slate-950">{doctor.fullName}</h3><p className="truncate text-xs text-slate-500">{doctor.email}</p></div></div>
-                      <div className="text-sm text-slate-700"><span className="mr-2 text-xs font-semibold text-slate-400 lg:hidden">แผนก</span>{department?.name ?? 'ยังไม่กำหนด'}</div>
-                      <div className="text-sm text-slate-600"><span className="mr-2 text-xs font-semibold text-slate-400 lg:hidden">เชี่ยวชาญ</span>{doctor.specialty}</div>
-                      <div><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${status[1]}`}>{status[0]}</span></div>
-                      <div className="flex justify-end gap-1"><button type="button" onClick={() => openDoctorForm(doctor)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label={`แก้ไข ${doctor.fullName}`}><Pencil className="h-4 w-4" aria-hidden="true" /></button><button type="button" onClick={() => toggleDoctor(doctor)} className={`min-h-11 rounded-xl px-3 text-xs font-semibold ${doctor.availability === 'inactive' ? 'text-emerald-700 hover:bg-emerald-50' : 'text-rose-700 hover:bg-rose-50'}`}>{doctor.availability === 'inactive' ? 'เปิดใช้' : doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id) ? 'ปิดใช้' : 'ลบ'}</button></div>
+                    <article
+                      key={doctor.id}
+                      className="grid gap-4 px-6 py-4.5 transition-colors hover:bg-slate-50/60 lg:grid-cols-[minmax(260px,1.5fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_110px] lg:items-center"
+                    >
+                      {/* Doctor Name & Avatar */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-sm font-bold text-white shadow-2xs">
+                          {doctor.initials}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-bold text-slate-900">
+                            {doctor.fullName}
+                          </h3>
+                          <p className="truncate text-xs text-slate-500">
+                            {doctor.email || 'บัญชีแพทย์ในระบบ'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Department */}
+                      <div className="text-sm text-slate-700">
+                        <span className="mr-2 text-xs font-semibold text-slate-400 lg:hidden">แผนก:</span>
+                        {department ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                            <Building2 className="h-3 w-3 text-slate-500" aria-hidden="true" />
+                            {department.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">ยังไม่สังกัดแผนก</span>
+                        )}
+                      </div>
+
+                      {/* Specialty */}
+                      <div className="text-sm text-slate-600">
+                        <span className="mr-2 text-xs font-semibold text-slate-400 lg:hidden">ความเชี่ยวชาญ:</span>
+                        {doctor.specialty || '-'}
+                      </div>
+
+                      {/* Availability */}
+                      <div>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${currentStatus.badge}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${currentStatus.dot}`} aria-hidden="true" />
+                          {currentStatus.label}
+                        </span>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openDoctorForm(doctor)}
+                          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-teal-600"
+                          aria-label={`แก้ไข ${doctor.fullName}`}
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => toggleDoctor(doctor)}
+                          className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                            doctor.availability === 'inactive'
+                              ? 'text-emerald-700 hover:bg-emerald-50'
+                              : 'text-rose-600 hover:bg-rose-50'
+                          }`}
+                        >
+                          {doctor.availability === 'inactive'
+                            ? 'เปิดใช้'
+                            : doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id)
+                            ? 'ปิดใช้'
+                            : 'ลบ'}
+                        </button>
+                      </div>
                     </article>
                   );
                 })}
@@ -463,20 +724,285 @@ export default function DepartmentWorkspace() {
         </section>
       )}
 
-      <aside className="grid gap-3 rounded-2xl bg-slate-900 p-5 text-white md:grid-cols-[auto_1fr] md:items-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-400/15 text-sky-300"><ShieldCheck className="h-6 w-6" aria-hidden="true" /></div>
-        <div><h2 className="font-bold">ขอบเขต mock ชัดเจน</h2><p className="mt-1 text-sm leading-6 text-slate-300">ฟอร์มนี้เปลี่ยน state ใน browser เท่านั้น จุดเชื่อม Auth, RLS, archive และ Supabase มี comment `INTEGRATION` กำกับไว้ในโค้ด</p></div>
+      {/* Security Info Card */}
+      <aside className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div className="text-xs text-slate-600 leading-relaxed">
+          <strong className="text-slate-900 block font-semibold">การรักษาความปลอดภัยและนโยบาย RLS</strong>
+          การแก้ไขโครงสร้างแผนกและจับคู่แพทย์จะบันทึกตรงไปยังตาราง <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-800">departments</code>, <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-800">doctors</code> และ <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-800">profiles</code> ใน Supabase ภายใต้สิทธิ์ของ <span className="font-semibold text-teal-800">staff_admin</span>
+        </div>
       </aside>
+
+      {/* Slide-over Drawer: Department */}
+      {departmentDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="department-drawer-title" role="dialog" aria-modal="true">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={closeDepartmentDrawer}
+            aria-hidden="true"
+          />
+
+          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between">
+              {/* Drawer Header */}
+              <div className="border-b border-slate-200 px-6 py-5 flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Department Management</span>
+                  <h2 id="department-drawer-title" className="text-xl font-bold text-slate-900 mt-1">
+                    {editingDepartmentId ? 'แก้ไขแผนก' : 'เพิ่มแผนกใหม่'}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    บันทึกข้อมูลเข้าตาราง departments ใน Supabase
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDepartmentDrawer}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-600"
+                  aria-label="ปิดแผงแก้ไข"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Drawer Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                {formError && (
+                  <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700" role="alert">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label htmlFor="dept-name" className="text-sm font-semibold text-slate-800">
+                    ชื่อแผนก <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    id="dept-name"
+                    value={departmentDraft.name}
+                    onChange={(e) => setDepartmentDraft((curr) => ({ ...curr, name: e.target.value }))}
+                    placeholder="เช่น เวชปฏิบัติทั่วไป, กุมารเวชกรรม"
+                    className={inputClass}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="dept-desc" className="text-sm font-semibold text-slate-800">
+                    รายละเอียดบริการ
+                  </label>
+                  <textarea
+                    id="dept-desc"
+                    rows={4}
+                    value={departmentDraft.description}
+                    onChange={(e) => setDepartmentDraft((curr) => ({ ...curr, description: e.target.value }))}
+                    placeholder="ระบุขอบเขตการรักษา หรือรายละเอียดเพิ่มเติมสำหรับผู้รับบริการ..."
+                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 shadow-xs outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-50"
+                  />
+                </div>
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeDepartmentDrawer}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200/70"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={saveDepartment}
+                  className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-teal-800 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <span>บันทึกแผนก</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-over Drawer: Doctor */}
+      {doctorDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="doctor-drawer-title" role="dialog" aria-modal="true">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={closeDoctorDrawer}
+            aria-hidden="true"
+          />
+
+          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between">
+              {/* Drawer Header */}
+              <div className="border-b border-slate-200 px-6 py-5 flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Doctor Roster</span>
+                  <h2 id="doctor-drawer-title" className="text-xl font-bold text-slate-900 mt-1">
+                    {editingDoctorId ? 'แก้ไขข้อมูลแพทย์' : 'ผูกแพทย์กับแผนก'}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    เลือกบัญชีผู้ใช้ที่มี role medical เพื่อผูกเข้ากับแผนกตรวจ
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDoctorDrawer}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-600"
+                  aria-label="ปิดแผงแก้ไข"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Drawer Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                {formError && (
+                  <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700" role="alert">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label htmlFor="doc-account" className="text-sm font-semibold text-slate-800">
+                    เลือกบัญชีแพทย์ <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    id="doc-account"
+                    value={doctorDraft.profileId}
+                    disabled={Boolean(editingDoctorId)}
+                    onChange={(e) => selectDoctorAccount(e.target.value)}
+                    className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}
+                  >
+                    <option value="">-- เลือกบัญชีที่มี role medical --</option>
+                    {editingDoctorId && (
+                      <option value={doctorDraft.profileId}>
+                        {doctorDraft.fullName} {doctorDraft.email ? `(${doctorDraft.email})` : ''}
+                      </option>
+                    )}
+                    {!editingDoctorId &&
+                      doctorAccounts
+                        .filter((account) => !doctors.some((doctor) => doctor.profileId === account.profileId))
+                        .map((account) => (
+                          <option key={account.profileId} value={account.profileId}>
+                            {account.fullName} {account.email ? `(${account.email})` : ''}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="doc-dept" className="text-sm font-semibold text-slate-800">
+                    แผนกสังกัด <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    id="doc-dept"
+                    value={doctorDraft.departmentId}
+                    onChange={(e) => setDoctorDraft((curr) => ({ ...curr, departmentId: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">-- เลือกแผนก --</option>
+                    {departments
+                      .filter((department) => department.isActive)
+                      .map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="doc-spec" className="text-sm font-semibold text-slate-800">
+                    ความเชี่ยวชาญเฉพาะทาง
+                  </label>
+                  <input
+                    id="doc-spec"
+                    value={doctorDraft.specialty}
+                    onChange={(e) => setDoctorDraft((curr) => ({ ...curr, specialty: e.target.value }))}
+                    placeholder="เช่น เวชปฏิบัติทั่วไป, ทันตกรรมทั่วไป"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="doc-avail" className="text-sm font-semibold text-slate-800">
+                    สถานะการออกตรวจ
+                  </label>
+                  <select
+                    id="doc-avail"
+                    value={doctorDraft.availability}
+                    onChange={(e) =>
+                      setDoctorDraft((curr) => ({
+                        ...curr,
+                        availability: e.target.value as DoctorAvailability,
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="active">พร้อมออกตรวจ</option>
+                    <option value="on_leave">ลาตรวจ</option>
+                    <option value="inactive">ปิดใช้งาน</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeDoctorDrawer}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200/70"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={saveDoctor}
+                  className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-teal-800 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <span>บันทึกข้อมูลแพทย์</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function EmptyPanel({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-2xl bg-white px-6 py-14 text-center shadow-sm ring-1 ring-slate-200">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500"><Search className="h-5 w-5" aria-hidden="true" /></div>
-      <h3 className="mt-4 font-bold text-slate-950">{title}</h3>
-      <p className="mt-1 text-sm text-slate-500">{detail}</p>
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
+        <Search className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <h3 className="mt-4 text-base font-bold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto">{detail}</p>
     </div>
   );
 }

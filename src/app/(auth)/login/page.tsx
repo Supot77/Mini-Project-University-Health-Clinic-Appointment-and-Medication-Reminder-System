@@ -20,7 +20,10 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
-      router.replace('/profile');
+
+      const redirect = searchParams.get('redirect');
+      router.push(redirect || '/profile');
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error

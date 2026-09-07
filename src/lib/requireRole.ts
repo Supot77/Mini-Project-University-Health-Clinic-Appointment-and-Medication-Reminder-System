@@ -2,6 +2,12 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import type { UserRole } from '@/types/database';
 
+function canonicalRole(role: string): UserRole {
+  if (role === 'doctor' || role === 'pharmacist' || role === 'medical') return 'medical';
+  if (role === 'staff' || role === 'admin' || role === 'staff_admin') return 'staff_admin';
+  return 'patient';
+}
+
 export async function requireRole(allowedRoles: UserRole[]) {
   const supabase = await createClient();
 
@@ -24,9 +30,10 @@ export async function requireRole(allowedRoles: UserRole[]) {
     redirect('/login');
   }
 
-  if (!allowedRoles.includes(profile.role as UserRole)) {
+  const role = canonicalRole(profile.role);
+  if (!allowedRoles.includes(role)) {
     redirect('/dashboard');
   }
 
-  return { user, role: profile.role as UserRole };
+  return { user, role };
 }
