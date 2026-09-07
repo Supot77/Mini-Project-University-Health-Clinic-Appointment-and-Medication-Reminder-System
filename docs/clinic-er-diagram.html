@@ -330,15 +330,16 @@
 
           <!-- notifications -->
           <g class="entity">
-            <rect class="entity-box" x="640" y="248" width="300" height="124" rx="6" />
+            <rect class="entity-box" x="640" y="248" width="300" height="144" rx="6" />
             <rect class="entity-header" x="640" y="248" width="300" height="40" rx="6" />
             <line class="entity-divider" x1="640" y1="288" x2="940" y2="288" />
             <text class="entity-tag" x="652" y="264">ENTITY</text>
             <text class="entity-name" x="652" y="280">notifications</text>
             <text class="field" x="652" y="308"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
             <text class="field" x="652" y="328"><tspan class="field-key">→ user_id</tspan><tspan class="field-ref"> : profiles.id</tspan></text>
-            <text class="field" x="652" y="348"><tspan>type</tspan><tspan class="field-ref"> : appointment | reminder</tspan></text>
-            <text class="field" x="652" y="368"><tspan>is_read</tspan><tspan class="field-ref"> : boolean</tspan></text>
+            <text class="field" x="652" y="348"><tspan>title</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="652" y="368"><tspan>message</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="652" y="388"><tspan>created_at</tspan><tspan class="field-ref"> : timestamptz</tspan></text>
           </g>
 
           <line class="legend-rule" x1="40" y1="596" x2="1000" y2="596" />

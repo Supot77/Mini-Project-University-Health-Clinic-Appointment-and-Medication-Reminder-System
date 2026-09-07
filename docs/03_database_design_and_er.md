@@ -6,7 +6,7 @@
 
 ## สถานะและขอบเขต
 
-- Runtime เป้าหมายใช้ Supabase จริงผ่าน database repository; mock repository สงวนไว้สำหรับ automated tests และ offline demo ที่ระบุชัด
+- Runtime ปัจจุบันใช้ mock repository และข้อมูลสังเคราะห์ ไม่เรียกฐานข้อมูลจริง
 - Schema ปัจจุบันมี 11 ตาราง: `profiles`, `departments`, `doctors`, `appointment_slots`, `appointments`, `medical_records`, `medications`, `inventory_logs`, `medication_reminders`, `medication_logs`, `notifications`
 - บทบาทใน `profiles.role` เหลือ 3 ค่าเท่านั้น: `patient`, `medical`, `staff_admin`
 - `medical` ครอบคลุมแพทย์และเภสัชกร; `staff_admin` ครอบคลุมเจ้าหน้าที่และแอดมิน
@@ -231,14 +231,9 @@ erDiagram
 | --- | --- | --- | --- | --- | --- |
 | `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสข้อความ |
 | `user_id` | `uuid` | ไม่ได้ | — | FK → `profiles.id` | ผู้รับข้อความ |
-| `type` | `text` | ไม่ได้ | — | domain: `reminder`, `appointment`, `broadcast`, `system` | ประเภทข้อความ |
 | `title` | `text` | ไม่ได้ | — | — | หัวข้อ |
 | `message` | `text` | ไม่ได้ | — | — | เนื้อหา |
-| `is_read` | `boolean` | ไม่ได้ | `false` | — | สถานะอ่าน |
 | `created_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้างข้อความ |
-| `event_key` | `text` | ได้ | — | compatibility | คีย์เหตุการณ์เดิม; ไม่มี auto-dedup ใน scope |
-| `read_at` | `timestamptz` | ได้ | — | compatibility | เวลาที่อ่าน; schema หลักยังใช้ `is_read` |
-| `deleted_at` | `timestamptz` | ได้ | — | compatibility | เวลาซ่อน/ลบในกล่องผู้รับ |
 | `broadcast_id` | `uuid` | ได้ | — | compatibility; ไม่มี FK ใน schema ล่าสุด | ค่าอ้างอิง Broadcast แบบไม่สร้างตารางถาวร |
 
 ## ความสัมพันธ์และกติกา
@@ -269,11 +264,9 @@ erDiagram
 
 ไม่ใช้ตารางหรือ flow สำหรับ `reschedule_proposals`, `prescription_items`, `dispensing_events`, `dispensing_items`, `stock_reservations`, `prescription_changes`, `medication_log_changes`, `email_jobs`, `broadcasts`, worker, retry, email/Web Push, การแบ่งจ่าย, กันยา, ยาค้าง, การคืนยา และการชำระเงิน
 
-ฟิลด์ compatibility ที่ยังเห็นใน schema เช่น `dispensing_item_id`, `email_pause_until`, `revision`, `event_key` และ `broadcast_id` มีไว้รองรับข้อมูลเดิมเท่านั้น ไม่ควรนำไปสร้าง workflow ใหม่โดยไม่มี requirement เพิ่ม
+ฟิลด์ compatibility ที่ยังเห็นใน schema เช่น `dispensing_item_id`, `email_pause_until`, `revision` และ `broadcast_id` มีไว้รองรับข้อมูลเดิมเท่านั้น ไม่ควรนำไปสร้าง workflow ใหม่โดยไม่มี requirement เพิ่ม
 
 ## แผน migration
-
-การรัน migration/seed กับ Supabase development หรือ staging ทำได้เมื่อยืนยัน project เป้าหมาย ตรวจ diff สำรองข้อมูลเดิมตามความเสี่ยง และมีผู้รับผิดชอบอนุมัติ ห้ามใช้ destructive reset กับ production และห้ามเปิดเผย `service_role` หรือ secret ในคำสั่ง รายงาน หรือ client bundle
 
 ### ฐานข้อมูลใหม่
 
