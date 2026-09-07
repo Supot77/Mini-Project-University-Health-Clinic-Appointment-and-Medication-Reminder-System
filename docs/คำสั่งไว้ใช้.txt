@@ -1,0 +1,28 @@
+ก่อนเริ่มงานทุกครั้ง — ดึงงานล่าสุดจากทีม
+git checkout develop
+git pull origin develop
+
+เช็คสถานะไฟล์ที่แก้ไข
+git status
+
+เก็บงานที่แก้เข้า commit
+git add .
+git commit -m "feat: อธิบายสั้นๆ ว่าทำอะไร"
+
+สร้าง branch (ไว้เพิ่มฟีเจอร์)
+git checkout -b feature/ชื่องาน
+
+ส่งงานขึ้น GitHub
+git push origin feature/ชื่องาน
+
+ดึงงานใหม่จากทีมมารวมกับ branch ตัวเอง (ก่อน push ทุกครั้ง)
+git checkout develop
+git pull origin develop
+git checkout feature/ชื่องาน
+git merge develop --no-edit
+
+ถ้า merge แล้วเจอ conflict
+# 1. เปิดไฟล์ที่ conflict แก้ด้วยมือ (ลบเครื่องหมาย <<<<<<< ======= >>>>>>> ออก)
+git add ไฟล์ที่แก้แล้ว
+git status              # เช็คว่า "All conflicts fixed" หรือยัง
+git commit --no-edit    # commit การ merge ให้เสร็จ
