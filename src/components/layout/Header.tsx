@@ -32,9 +32,9 @@ export default function Header() {
   // Permission-aware navigation: show only the items allowed for the current role.
   // Guests (not logged in) only see the public doctor schedule table.
   const visibleNavigation =
-    isAuthenticated && role
-      ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
-      : navigationItems.filter((item) => item.href === "/schedules");
+  isAuthenticated && role
+    ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
+    : navigationItems.filter((item) => item.roles.includes("patient"));
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
