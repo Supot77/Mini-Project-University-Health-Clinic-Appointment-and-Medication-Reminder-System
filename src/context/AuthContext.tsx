@@ -1,12 +1,15 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';   // ← เปลี่ยนจาก '@/lib/supabase'
 import { AuthUser, AuthSession } from '@/types/auth';
+import type { UserRole } from '@/types/database';
+
+const supabase = createClient();
 
 interface AuthContextType extends AuthSession {
   signOut: () => Promise<void>;
-  role: string | null;
+  role: UserRole | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

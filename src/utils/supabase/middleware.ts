@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import type { User } from "@supabase/supabase-js";
 
 function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -7,10 +8,10 @@ function getSupabaseConfig() {
   return url && key ? { url, key } : null;
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest): Promise<{ response: NextResponse; user: User | null }> {
   let response = NextResponse.next({ request: { headers: request.headers } });
   const config = getSupabaseConfig();
-  if (!config) return response;
+  if (!config) return { response, user: null };
 
   const supabase = createServerClient(config.url, config.key, {
     cookies: {
@@ -25,6 +26,6 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
-  return response;
+  const { data: { user } } = await supabase.auth.getUser();
+  return { response, user };
 }

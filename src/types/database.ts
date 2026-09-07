@@ -1,6 +1,7 @@
 // Persisted contract for migrations 01-03. Runtime still uses mock repositories.
 
-export type UserRole = 'patient' | 'staff' | 'doctor' | 'pharmacist' | 'admin';
+export const userRoles = ['patient', 'medical', 'staff_admin'] as const;
+export type UserRole = (typeof userRoles)[number];
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rejected';
 

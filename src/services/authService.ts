@@ -1,8 +1,10 @@
 // 👤 รับผิดชอบโดย: ฟีม
 // ระบบยืนยันตัวตนและโปรไฟล์
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import type { Profile, UserRole } from '@/types/database';
+
+const supabase = createClient(); 
 
 export async function signUp(email: string, password: string, fullName: string, studentId?: string, phone?: string) {
   const { data, error } = await supabase.auth.signUp({ email, password });
@@ -57,4 +59,19 @@ export async function updateProfile(userId: string, updates: Partial<Profile>) {
 export async function resetPassword(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(email);
   if (error) throw error;
+}
+
+export async function searchPatients(query: string): Promise<Profile[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'patient')
+    .or(`student_id.ilike.%${trimmed}%,phone.ilike.%${trimmed}%`)
+    .limit(20);
+
+  if (error) throw error;
+  return data ?? [];
 }

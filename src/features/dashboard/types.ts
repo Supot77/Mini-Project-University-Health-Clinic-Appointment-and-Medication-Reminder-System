@@ -54,10 +54,8 @@ export interface SendBroadcastInput {
 
 export const roleLabels: Record<UserRole, string> = {
   patient: 'ผู้ป่วย',
-  staff: 'เจ้าหน้าที่',
-  doctor: 'แพทย์',
-  pharmacist: 'เภสัชกร',
-  admin: 'ผู้ดูแลระบบ',
+  medical: 'แพทย์/เภสัชกร',
+  staff_admin: 'เจ้าหน้าที่/แอดมิน',
 };
 
 export const dashboardRangeLabels: Record<DashboardRange, string> = {

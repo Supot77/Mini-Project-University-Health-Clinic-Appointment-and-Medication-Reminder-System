@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ComponentType } from "react";
-import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, UserRound, X } from "lucide-react";
+import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-type NavigationRole = "patient" | "staff" | "doctor" | "pharmacist" | "admin";
+type NavigationRole = "patient" | "medical" | "staff_admin";
 
 interface NavigationItem {
   href: string;
@@ -16,11 +16,12 @@ interface NavigationItem {
 }
 
 const navigationItems: NavigationItem[] = [
-  { href: "/schedules", label: "ตารางแพทย์", icon: CalendarDays, roles: ["patient", "staff", "doctor"] },
-  { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "staff", "doctor"] },
-  { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff"] },
-  { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["staff", "doctor", "pharmacist"] },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["staff", "doctor", "pharmacist", "admin"] },
+  { href: "/schedules", label: "ตารางแพทย์", icon: CalendarDays, roles: ["patient", "medical", "staff_admin"] },
+  { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "medical", "staff_admin"] },
+  { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
+  { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },
+  { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin"] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["medical", "staff_admin"] },
 ];
 
 export default function Header() {
@@ -28,11 +29,12 @@ export default function Header() {
   const { user, isAuthenticated, isLoading, signOut, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Keep all routes reachable in unauthenticated demo mode, but never offer
-  // Dashboard to an authenticated patient.
-  const visibleNavigation = isAuthenticated && role === "patient"
-    ? navigationItems.filter((item) => item.roles.includes("patient"))
-    : navigationItems;
+  // Permission-aware navigation: show only the items allowed for the current role.
+  // Guests (not logged in) only see the public doctor schedule table.
+  const visibleNavigation =
+    isAuthenticated && role
+      ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
+      : navigationItems.filter((item) => item.href === "/schedules");
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
