@@ -204,9 +204,17 @@ export default function PatientSearchContent() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-zinc-700 mb-3">
-                <Phone className="size-4 text-zinc-400" />
-                {patient.phone || 'ไม่มีข้อมูลเบอร์โทร'}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-700 mb-3">
+                <div className="flex items-center gap-1.5">
+                  <Phone className="size-4 text-zinc-400" />
+                  <span>{patient.phone || 'ไม่มีเบอร์โทร'}</span>
+                </div>
+                {patient.emergency_phone && (
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                    <span className="font-medium text-zinc-600">เบอร์ฉุกเฉิน:</span>
+                    <span>{patient.emergency_phone}</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -215,10 +223,16 @@ export default function PatientSearchContent() {
                     <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5">
                       <AlertCircle className="size-3.5 text-amber-600" /> ประวัติแพ้ยา
                     </p>
-                    <HealthBadge status={patient.allergy_status ?? null} />
+                    <HealthBadge
+                      status={
+                        patient.allergies?.trim()
+                          ? 'yes'
+                          : patient.allergy_status ?? null
+                      }
+                    />
                   </div>
-                  {patient.allergy_status === 'yes' ? (
-                    <p className="text-xs text-zinc-700 mt-1 font-medium">{patient.allergies || 'ไม่ได้ระบุรายละเอียด'}</p>
+                  {patient.allergies?.trim() || patient.allergy_status === 'yes' ? (
+                    <p className="text-xs text-zinc-700 mt-1 font-medium">{patient.allergies || 'มีประวัติแพ้ยา (ไม่ระบุรายละเอียด)'}</p>
                   ) : (
                     <p className="text-xs text-zinc-400 mt-1">ไม่มีประวัติแพ้ยา</p>
                   )}
@@ -228,10 +242,16 @@ export default function PatientSearchContent() {
                     <p className="text-xs font-medium text-rose-800 flex items-center gap-1.5">
                       <HeartPulse className="size-3.5 text-rose-600" /> โรคประจำตัว
                     </p>
-                    <HealthBadge status={patient.chronic_disease_status ?? null} />
+                    <HealthBadge
+                      status={
+                        patient.chronic_diseases?.trim()
+                          ? 'yes'
+                          : patient.chronic_disease_status ?? null
+                      }
+                    />
                   </div>
-                  {patient.chronic_disease_status === 'yes' ? (
-                    <p className="text-xs text-zinc-700 mt-1 font-medium">{patient.chronic_diseases || 'ไม่ได้ระบุรายละเอียด'}</p>
+                  {patient.chronic_diseases?.trim() || patient.chronic_disease_status === 'yes' ? (
+                    <p className="text-xs text-zinc-700 mt-1 font-medium">{patient.chronic_diseases || 'มีโรคประจำตัว (ไม่ระบุรายละเอียด)'}</p>
                   ) : (
                     <p className="text-xs text-zinc-400 mt-1">ไม่มีโรคประจำตัว</p>
                   )}
