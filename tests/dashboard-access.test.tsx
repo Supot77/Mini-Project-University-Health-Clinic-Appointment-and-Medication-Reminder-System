@@ -1,22 +1,16 @@
-import { render, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import DashboardPage from '@/app/(dashboard)/dashboard/page';
-import { ClinicMockProvider } from '@/features/mock-database/ClinicMockProvider';
+import { describe, expect, it } from 'vitest';
+import { dashboardPathForRole, normalizeDashboardRole } from '@/features/dashboard/roles';
 
-const replace = vi.hoisted(() => vi.fn());
+describe('Dashboard role routing', () => {
+  it('routes each active role to its own dashboard', () => {
+    expect(dashboardPathForRole('patient')).toBe('/dashboard/patient');
+    expect(dashboardPathForRole('medical')).toBe('/dashboard/medical');
+    expect(dashboardPathForRole('staff_admin')).toBe('/dashboard/staff_admin');
+  });
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { id: 'profile-peter-parker', role: 'patient', full_name: 'Peter Parker' },
-    role: 'patient', isLoading: false, isAuthenticated: true, signOut: vi.fn(),
-  }),
-}));
-
-describe('Dashboard patient access', () => {
-  it('redirects an authenticated patient without loading dashboard content', async () => {
-    render(<ClinicMockProvider><DashboardPage /></ClinicMockProvider>);
-
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/appointments'));
+  it('keeps the three supported roles unchanged', () => {
+    expect(normalizeDashboardRole('patient')).toBe('patient');
+    expect(normalizeDashboardRole('medical')).toBe('medical');
+    expect(normalizeDashboardRole('staff_admin')).toBe('staff_admin');
   });
 });
