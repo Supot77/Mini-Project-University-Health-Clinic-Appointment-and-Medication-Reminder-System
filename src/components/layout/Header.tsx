@@ -23,7 +23,7 @@ const navigationItems: NavigationItem[] = [
   { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "medical", "staff_admin"] },
   { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
   { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },
-  { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin"] },
+  { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin", "medical"] },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["medical", "staff_admin"] },
 ];
 

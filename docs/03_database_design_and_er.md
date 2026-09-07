@@ -13,6 +13,21 @@
 - ตาราง normalized รุ่นเก่า เช่น `reschedule_proposals`, `prescription_items`, `dispensing_items`, `stock_reservations`, `email_jobs` และ `broadcasts` ไม่อยู่ใน scope ปัจจุบัน
 - คอลัมน์ compatibility ที่ยังอยู่ใน 11 ตารางไม่ใช่หลักฐานว่าเปิดใช้ workflow เก่าแล้ว
 
+## RLS สำหรับค้นหาผู้ป่วย
+
+ผู้ใช้ role `medical` และ `staff_admin` อ่านข้อมูลใน `profiles` ของผู้ป่วยได้ เพื่อใช้หน้าค้นหาผู้ป่วย ส่วนผู้ใช้ role `patient` อ่านได้เฉพาะ profile ของตนเองตาม policy เดิม การแก้ policy สำหรับฐานเดิมอยู่ใน `supabase/migrations/08_allow_medical_patient_search.sql`:
+
+```sql
+DROP POLICY IF EXISTS "Staff/Admin can view all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Staff admin and medical can view profiles" ON public.profiles;
+
+CREATE POLICY "Staff admin and medical can view profiles"
+  ON public.profiles FOR SELECT
+  USING (public.get_user_role() IN ('staff_admin', 'medical'));
+```
+
+ต้องรัน migration นี้บนฐาน development/staging หรือฐาน runtime ที่ตรวจสอบ target แล้วก่อนอ้างว่าการค้นหาผู้ป่วยผ่าน RLS ทำงานจริง เอกสารและ migration ใน repository ยังไม่ใช่หลักฐานว่า deploy แล้ว
+
 ## Role contract
 
 | ลำดับ | บทบาท | ค่าใน `profiles.role` | ขอบเขตหลัก |
@@ -281,6 +296,7 @@ erDiagram
 2. `supabase/migrations/02_rls.sql`
 3. `supabase/migrations/06_consolidate_roles.sql`
 4. `supabase/migrations/07_add_contract_fields.sql`
+5. `supabase/migrations/08_allow_medical_patient_search.sql`
 
 ไม่ต้องรัน `03_normalized_transactions.sql`, `04_broadcast_notification_type.sql` หรือ `05_simplify_broadcast_recipients.sql` เพราะเป็น migration ของแบบ normalized รุ่นเก่า
 
