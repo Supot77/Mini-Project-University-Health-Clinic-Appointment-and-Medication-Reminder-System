@@ -9,6 +9,7 @@ const broadcastTypeUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migra
 const broadcastRecipientUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/05_simplify_broadcast_recipients.sql'), 'utf8');
 const roleUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/06_consolidate_roles.sql'), 'utf8');
 const contractFieldsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/07_add_contract_fields.sql'), 'utf8');
+const patientSearchRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/08_allow_medical_patient_search.sql'), 'utf8');
 
 const normalizedTables = [
   'reschedule_proposals',
@@ -65,6 +66,12 @@ describe('normalized transaction migration', () => {
     expect(roleUpgrade).toContain("WHEN 'staff' THEN 'staff_admin'");
     expect(roleUpgrade).toContain("WHEN 'admin' THEN 'staff_admin'");
     expect(roleUpgrade).toContain("CHECK (role IN ('patient', 'medical', 'staff_admin'))");
+  });
+
+  it('allows medical users to read patient profiles in existing databases', () => {
+    expect(patientSearchRlsUpgrade).toContain('DROP POLICY IF EXISTS "Staff/Admin can view all profiles"');
+    expect(patientSearchRlsUpgrade).toContain("public.get_user_role() IN ('staff_admin', 'medical')");
+    expect(patientSearchRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
   });
 
   it('creates every approved transaction table and enables default-deny RLS', () => {

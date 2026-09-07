@@ -56,6 +56,16 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
   });
 
+  it("shows patient search to medical users", () => {
+    authState.user = { full_name: "Doctor Demo" };
+    authState.isAuthenticated = true;
+    authState.role = "medical";
+
+    render(<Header />);
+
+    expect(screen.getByRole("link", { name: /ค้นหาผู้ป่วย/ })).toBeInTheDocument();
+  });
+
   it("opens an accessible mobile menu", () => {
     render(<Header />);
     const toggle = screen.getByRole("button", { name: "เปิดเมนู" });
