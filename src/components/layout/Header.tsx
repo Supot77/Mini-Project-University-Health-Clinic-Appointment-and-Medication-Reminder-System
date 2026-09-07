@@ -7,7 +7,6 @@ import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, M
 import { useAuth } from "@/hooks/useAuth";
 import type { UserRole } from "@/types/database";
 
-type NavigationRole = "patient" | "staff" | "doctor" | "pharmacist" | "admin";
 type NavigationRole = UserRole;
 
 interface NavigationItem {
