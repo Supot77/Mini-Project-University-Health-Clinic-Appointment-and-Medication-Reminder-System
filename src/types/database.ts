@@ -1,27 +1,96 @@
 // Persisted contract for migrations 01-03. Runtime still uses mock repositories.
 
-export const userRoles = ['patient', 'medical', 'staff_admin'] as const;
+export const userRoles = [
+  'patient',
+  'medical',
+  'staff_admin',
+] as const;
+
 export type UserRole = (typeof userRoles)[number];
 
-export type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rejected';
+export type AppointmentStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show'
+  | 'rejected';
 
-export type SlotStatus = 'available' | 'full' | 'closed';
+export type SlotStatus =
+  | 'available'
+  | 'full'
+  | 'closed';
 
-export type MedicationReminderStatus = 'pending_confirmation' | 'active' | 'completed' | 'cancelled' | 'paused';
+export type MedicationReminderStatus =
+  | 'pending_confirmation'
+  | 'active'
+  | 'completed'
+  | 'cancelled'
+  | 'paused';
 
-export type MedicationLogStatus = 'pending' | 'taken' | 'missed';
+export type MedicationLogStatus =
+  | 'pending'
+  | 'taken'
+  | 'missed';
 
-export type NotificationType = 'reminder' | 'appointment' | 'broadcast' | 'system';
+export type NotificationType =
+  | 'reminder'
+  | 'appointment'
+  | 'broadcast'
+  | 'system';
 
-export type InventoryAction = 'add' | 'dispense' | 'adjust' | 'damage';
+export type InventoryAction =
+  | 'add'
+  | 'dispense'
+  | 'adjust'
+  | 'damage';
 
-export type PatientType = 'student' | 'employee';
-export type HealthDeclarationStatus = 'yes' | 'no' | 'unknown';
-export type RescheduleProposalStatus = 'pending' | 'accepted' | 'alternative_selected' | 'auto_confirmed' | 'rejected' | 'expired' | 'withdrawn' | 'superseded';
-export type PrescriptionItemStatus = 'active' | 'partially_dispensed' | 'dispensed' | 'cancelled';
-export type StockReservationStatus = 'active' | 'consumed' | 'released' | 'expired';
-export type EmailJobType = 'dose_advance' | 'dose_final_repeat' | 'staff_override' | 'appointment' | 'backorder_ready';
-export type EmailJobStatus = 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled' | 'skipped_paused';
+export type PatientType =
+  | 'student'
+  | 'employee';
+
+export type HealthDeclarationStatus =
+  | 'yes'
+  | 'no'
+  | 'unknown';
+
+export type RescheduleProposalStatus =
+  | 'pending'
+  | 'accepted'
+  | 'alternative_selected'
+  | 'auto_confirmed'
+  | 'rejected'
+  | 'expired'
+  | 'withdrawn'
+  | 'superseded';
+
+export type PrescriptionItemStatus =
+  | 'active'
+  | 'partially_dispensed'
+  | 'dispensed'
+  | 'cancelled';
+
+export type StockReservationStatus =
+  | 'active'
+  | 'consumed'
+  | 'released'
+  | 'expired';
+
+export type EmailJobType =
+  | 'dose_advance'
+  | 'dose_final_repeat'
+  | 'staff_override'
+  | 'appointment'
+  | 'backorder_ready';
+
+export type EmailJobStatus =
+  | 'pending'
+  | 'processing'
+  | 'sent'
+  | 'failed'
+  | 'cancelled'
+  | 'skipped_paused';
 
 // ----- Table Interfaces -----
 
@@ -36,13 +105,17 @@ export interface Profile {
   chronic_diseases: string | null;
   role: UserRole;
   avatar_url: string | null;
+
   patient_type?: PatientType | null;
   employee_id?: string | null;
   organization?: string | null;
+
   allergy_status?: HealthDeclarationStatus | null;
   chronic_disease_status?: HealthDeclarationStatus | null;
+
   is_active?: boolean;
   permission_version?: number;
+
   created_at: string;
   updated_at: string;
 }
@@ -104,7 +177,9 @@ export interface MedicalRecord {
   doctor_id: string; // FK → doctors.id
   diagnosis: string | null;
   treatment_notes: string | null;
-  prescribed_medications: PrescribedMedication[] | null; // JSONB
+  prescribed_medications:
+    | PrescribedMedication[]
+    | null; // JSONB
   created_at: string;
   updated_at: string;
 }
@@ -308,26 +383,31 @@ export interface Broadcast {
 
 // ----- Joined / Extended Types -----
 
-export interface DoctorWithProfile extends Doctor {
+export interface DoctorWithProfile
+  extends Doctor {
   profile?: Profile;
   department?: Department;
 }
 
-export interface AppointmentSlotWithDoctor extends AppointmentSlot {
+export interface AppointmentSlotWithDoctor
+  extends AppointmentSlot {
   doctor?: DoctorWithProfile;
 }
 
-export interface AppointmentWithDetails extends Appointment {
+export interface AppointmentWithDetails
+  extends Appointment {
   slot?: AppointmentSlotWithDoctor;
   patient?: Profile;
 }
 
-export interface MedicalRecordWithDetails extends MedicalRecord {
+export interface MedicalRecordWithDetails
+  extends MedicalRecord {
   appointment?: Appointment;
   patient?: Profile;
   doctor?: DoctorWithProfile;
 }
 
-export interface MedicationReminderWithMedication extends MedicationReminder {
+export interface MedicationReminderWithMedication
+  extends MedicationReminder {
   medication?: Medication;
 }
