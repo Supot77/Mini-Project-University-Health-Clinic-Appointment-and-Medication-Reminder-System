@@ -33,7 +33,7 @@ CREATE POLICY "Users can view own profile"
 CREATE POLICY "Staff/Admin can view all profiles"
   ON public.profiles FOR SELECT
   USING (
-    public.get_user_role() IN ('staff', 'doctor', 'pharmacist', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
 CREATE POLICY "Users can update own profile"
@@ -54,7 +54,7 @@ CREATE POLICY "Authenticated users can view departments"
 CREATE POLICY "Staff/Admin can manage departments"
   ON public.departments FOR ALL
   USING (
-    public.get_user_role() IN ('staff', 'admin')
+    public.get_user_role() = 'staff_admin'
   );
 
 -- ========================================
@@ -74,7 +74,7 @@ CREATE POLICY "Authenticated users can view slots"
 CREATE POLICY "Staff/Admin can manage slots"
   ON public.appointment_slots FOR ALL
   USING (
-    public.get_user_role() IN ('staff', 'admin')
+    public.get_user_role() = 'staff_admin'
   );
 
 -- ========================================
@@ -84,10 +84,10 @@ CREATE POLICY "Patients can view own appointments"
   ON public.appointments FOR SELECT
   USING (user_id = auth.uid());
 
-CREATE POLICY "Staff/Doctor can view all appointments"
+CREATE POLICY "Staff/Medical can view all appointments"
   ON public.appointments FOR SELECT
   USING (
-    public.get_user_role() IN ('staff', 'doctor', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
 CREATE POLICY "Patients can create appointments"
@@ -98,10 +98,10 @@ CREATE POLICY "Patients can update own appointments"
   ON public.appointments FOR UPDATE
   USING (user_id = auth.uid());
 
-CREATE POLICY "Staff can update any appointment"
+CREATE POLICY "Staff/Medical can update any appointment"
   ON public.appointments FOR UPDATE
   USING (
-    public.get_user_role() IN ('staff', 'doctor', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
 -- ========================================
@@ -111,10 +111,10 @@ CREATE POLICY "Patients can view own medical records"
   ON public.medical_records FOR SELECT
   USING (patient_id = auth.uid());
 
-CREATE POLICY "Doctors can view and create medical records"
+CREATE POLICY "Medical can view and create medical records"
   ON public.medical_records FOR ALL
   USING (
-    public.get_user_role() IN ('doctor', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
 -- ========================================
@@ -124,25 +124,25 @@ CREATE POLICY "Anyone can view medications"
   ON public.medications FOR SELECT
   USING (true);
 
-CREATE POLICY "Pharmacist/Admin can manage medications"
+CREATE POLICY "Medical/Staff/Admin can manage medications"
   ON public.medications FOR ALL
   USING (
-    public.get_user_role() IN ('pharmacist', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
 -- ========================================
 -- INVENTORY_LOGS
 -- ========================================
-CREATE POLICY "Pharmacist/Admin can view inventory logs"
+CREATE POLICY "Medical/Staff/Admin can view inventory logs"
   ON public.inventory_logs FOR SELECT
   USING (
-    public.get_user_role() IN ('pharmacist', 'staff', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
-CREATE POLICY "Pharmacist can create inventory logs"
+CREATE POLICY "Medical can create inventory logs"
   ON public.inventory_logs FOR INSERT
   WITH CHECK (
-    public.get_user_role() IN ('pharmacist', 'admin')
+    public.get_user_role() IN ('medical', 'staff_admin')
   );
 
 -- ========================================

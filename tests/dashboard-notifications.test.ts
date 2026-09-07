@@ -20,7 +20,7 @@ describe('role-based dashboard requirements', () => {
     }
   });
 
-  it('limits a doctor to their own schedule and queue', async () => {
+  it('limits medical staff with a doctor profile to their own schedule and queue', async () => {
     const repositories = createClinicRepositories(new ClinicMockDatabase(0));
     const strange = await repositories.dashboard.getView('medical', 'profile-stephen-strange', '2026-09-07');
     const xavier = await repositories.dashboard.getView('medical', 'profile-charles-xavier', '2026-09-07');

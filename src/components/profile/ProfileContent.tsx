@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { getProfile, updateProfile } from "@/services/authService";
@@ -19,15 +19,12 @@ import {
   X,
   Check,
   Loader2,
-  Users,
 } from "lucide-react";
 
 const roleLabels: Record<string, string> = {
   patient: "ผู้ป่วย",
-  staff: "เจ้าหน้าที่",
-  doctor: "แพทย์",
-  pharmacist: "เภสัชกร",
-  admin: "ผู้ดูแลระบบ",
+  medical: "แพทย์/เภสัชกร",
+  staff_admin: "เจ้าหน้าที่/แอดมิน",
 };
 
 type HealthStatus = "yes" | "no" | "unknown";
@@ -83,7 +80,7 @@ export default function ProfileContent() {
     );
     setChronicDetail(data?.chronic_diseases ?? "");
 
-    if (data?.role === "doctor") {
+    if (data?.role === "medical") {
       const { data: doctorData } = await supabase
         .from("doctors")
         .select("specialty, department:departments(name)")
@@ -95,11 +92,13 @@ export default function ProfileContent() {
 
   useEffect(() => {
     if (!user) {
-      setIsLoading(false);
-      return;
+      const timer = window.setTimeout(() => setIsLoading(false), 0);
+      return () => window.clearTimeout(timer);
     }
     let active = true;
-    setIsLoading(true);
+    startTransition(() => setIsLoading(true));
+    // The async loader synchronizes this component with the authenticated profile.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProfile()
       .catch((err) => {
         if (active)
@@ -505,94 +504,41 @@ export default function ProfileContent() {
         </>
       )}
 
-      {role === "staff" && (
-        <section className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-6">
-          <h2 className="text-lg font-semibold text-zinc-900 flex items-center gap-2 mb-4">
-            <Users className="size-5 text-amber-500" />
-            งานบริหารจัดการ
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link
-              href="/schedules"
-              className="rounded-xl bg-amber-50 border border-amber-100 p-4 hover:border-amber-300 transition"
-            >
-              <p className="text-sm font-medium text-amber-700 mb-1">
-                ตารางแพทย์
-              </p>
-              <p className="text-xs text-zinc-500">
-                จัดการรอบตรวจและวันลาแพทย์
-              </p>
-            </Link>
-            <Link
-              href="/departments"
-              className="rounded-xl bg-amber-50 border border-amber-100 p-4 hover:border-amber-300 transition"
-            >
-              <p className="text-sm font-medium text-amber-700 mb-1">
-                จัดการแผนก
-              </p>
-              <p className="text-xs text-zinc-500">เพิ่ม/แก้ไขแผนกการรักษา</p>
-            </Link>
-          </div>
-          <p className="mt-3 text-xs text-zinc-400">
-            📋 ส่วนนี้ดึงข้อมูลจากงานของ ช้อป
-          </p>
-        </section>
-      )}
-
-      {role === "doctor" && (
+      {role === "medical" && (
         <section className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-6">
           <h2 className="text-lg font-semibold text-zinc-900 flex items-center gap-2 mb-4">
             <Stethoscope className="size-5 text-emerald-500" />
-            ข้อมูลการปฏิบัติงาน
+            งานแพทย์และเภสัชกรรม
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
-              <p className="text-xs font-medium text-emerald-700 mb-1">
-                ความเชี่ยวชาญ
-              </p>
-              <p className="text-sm text-zinc-700">
-                {doctorInfo?.specialty || "ยังไม่ได้ระบุ"}
-              </p>
+              <p className="text-xs font-medium text-emerald-700 mb-1">ความเชี่ยวชาญ</p>
+              <p className="text-sm text-zinc-700">{doctorInfo?.specialty || "งานจ่ายยา/งานแพทย์"}</p>
             </div>
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
               <p className="text-xs font-medium text-emerald-700 mb-1">แผนก</p>
-              <p className="text-sm text-zinc-700">
-                {doctorInfo?.department?.name || "ยังไม่ได้ระบุ"}
-              </p>
+              <p className="text-sm text-zinc-700">{doctorInfo?.department?.name || "คลังยาและจ่ายยา"}</p>
             </div>
+            <Link href="/pharmacy" className="rounded-xl bg-violet-50 border border-violet-100 p-4 hover:border-violet-300 transition">
+              <p className="text-xs font-medium text-violet-700 mb-1 flex items-center gap-1"><Pill className="size-3.5" />คลังยา</p>
+              <p className="text-sm text-zinc-700">ตรวจสต๊อกและจ่ายยาเต็มครั้งเดียว</p>
+            </Link>
           </div>
         </section>
       )}
 
-      {role === "pharmacist" && (
-        <section className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-6">
-          <h2 className="text-lg font-semibold text-zinc-900 flex items-center gap-2 mb-4">
-            <Pill className="size-5 text-violet-500" />
-            งานคลังยา
-          </h2>
-          <div className="rounded-xl bg-zinc-50 border border-zinc-100 p-6 text-center">
-            <p className="text-sm text-zinc-500">
-              สรุปงานคลังยาที่รับผิดชอบจะแสดงที่นี่
-            </p>
-            <p className="text-xs text-zinc-400 mt-1">
-              📋 ส่วนนี้ดึงข้อมูลจากงานของ กัญจน์
-            </p>
-          </div>
-        </section>
-      )}
-
-      {role === "admin" && (
+      {role === "staff_admin" && (
         <section className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-6">
           <h2 className="text-lg font-semibold text-zinc-900 flex items-center gap-2 mb-4">
             <ShieldCheck className="size-5 text-indigo-500" />
-            เครื่องมือผู้ดูแลระบบ
+            งานเจ้าหน้าที่และผู้ดูแลระบบ
           </h2>
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:underline"
-          >
-            ไปที่แผงควบคุมผู้ดูแลระบบ →
-          </Link>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/schedules" className="rounded-xl bg-amber-50 border border-amber-100 p-4 hover:border-amber-300 transition"><p className="text-sm font-medium text-amber-700 mb-1">ตารางแพทย์</p><p className="text-xs text-zinc-500">จัดการรอบตรวจและวันลาแพทย์</p></Link>
+            <Link href="/departments" className="rounded-xl bg-amber-50 border border-amber-100 p-4 hover:border-amber-300 transition"><p className="text-sm font-medium text-amber-700 mb-1">จัดการแผนก</p><p className="text-xs text-zinc-500">เพิ่ม/แก้ไขแผนกการรักษา</p></Link>
+            <Link href="/appointments" className="rounded-xl bg-amber-50 border border-amber-100 p-4 hover:border-amber-300 transition"><p className="text-sm font-medium text-amber-700 mb-1">นัดหมาย</p><p className="text-xs text-zinc-500">อนุมัติและจัดการนัดด้วยมือ</p></Link>
+            <Link href="/dashboard" className="rounded-xl bg-indigo-50 border border-indigo-100 p-4 hover:border-indigo-300 transition"><p className="text-sm font-medium text-indigo-700 mb-1">Dashboard/Broadcast</p><p className="text-xs text-zinc-500">ดูภาพรวมและส่งประกาศ</p></Link>
+          </div>
         </section>
       )}
     </div>

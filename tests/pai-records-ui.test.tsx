@@ -18,10 +18,10 @@ describe('Pai records UI preview', () => {
     expect(screen.getByRole('button', { name: /เปิดผลตรวจ REC-002/ })).toBeInTheDocument();
   });
 
-  it('lets the doctor save a draft and complete only the saved diagnosis', async () => {
+  it('lets medical staff save a draft and complete only the saved diagnosis', async () => {
     render(<RecordsWorkspace />);
     await screen.findByRole('button', { name: /เปิดผลตรวจ REC-002/ });
-    fireEvent.click(screen.getByRole('button', { name: 'แพทย์', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'แพทย์/เภสัชกร', exact: true }));
     await screen.findByRole('form', { name: 'บันทึกผลตรวจตัวอย่าง' });
     fireEvent.click(screen.getByRole('button', { name: 'ปิดตรวจ', exact: true }));
     expect(screen.getByRole('alert')).toHaveTextContent('กรอกและบันทึกผลวินิจฉัย');
@@ -38,7 +38,7 @@ describe('Pai records UI preview', () => {
   it('requires an amendment reason and offers no edit for a dispensed item or another doctor', async () => {
     render(<RecordsWorkspace />);
     await screen.findByRole('button', { name: /เปิดผลตรวจ REC-002/ });
-    fireEvent.click(screen.getByRole('button', { name: 'แพทย์', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'แพทย์/เภสัชกร', exact: true }));
     fireEvent.click(await screen.findByRole('button', { name: /เปิดผลตรวจ REC-002/ }));
     expect(screen.getAllByRole('button', { name: 'แก้ไขส่วนค้าง' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'แก้ไขส่วนค้าง' }));
