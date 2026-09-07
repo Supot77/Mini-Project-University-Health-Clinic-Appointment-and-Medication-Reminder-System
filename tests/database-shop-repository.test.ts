@@ -110,4 +110,55 @@ describe('DatabaseShopRepository', () => {
     expect(invalidResult.ok).toBe(false);
     expect(mockClient.from).not.toHaveBeenCalled();
   });
+
+  it('toggles department is_active status correctly', async () => {
+    const mockSelect = vi.fn().mockResolvedValue({
+      data: [{ id: 'dept-1', is_active: false }],
+      error: null,
+    });
+    const mockEq = vi.fn().mockReturnValue({ select: mockSelect });
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+    const mockFrom = vi.fn().mockReturnValue({ update: mockUpdate });
+
+    const mockClient = { from: mockFrom } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+
+    // ปิดใช้งานแผนกเดิมที่เปิดอยู่ (currentActive: true -> nextState: false)
+    const result = await repo.toggleDepartment('dept-1', true);
+    expect(result.ok).toBe(true);
+    expect(result.value).toBe('disabled');
+    expect(mockFrom).toHaveBeenCalledWith('departments');
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ is_active: false }),
+    );
+    expect(mockEq).toHaveBeenCalledWith('id', 'dept-1');
+
+    // กรณีไม่มีแถวถูกอัปเดต (เช่น RLS บล็อก หรือไม่พบ id)
+    mockSelect.mockResolvedValueOnce({ data: [], error: null });
+    const failResult = await repo.toggleDepartment('dept-nonexistent', true);
+    expect(failResult.ok).toBe(false);
+    expect(failResult.error).toContain('ไม่พบข้อมูลแผนก');
+  });
+
+  it('toggles doctor availability via profiles table', async () => {
+    const mockSelect = vi.fn().mockResolvedValue({
+      data: [{ id: 'doc-1', is_active: false }],
+      error: null,
+    });
+    const mockEq = vi.fn().mockReturnValue({ select: mockSelect });
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+    const mockFrom = vi.fn().mockReturnValue({ update: mockUpdate });
+
+    const mockClient = { from: mockFrom } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+
+    // ปิดใช้งานแพทย์ (active -> nextIsActive: false)
+    const result = await repo.toggleDoctor('doc-1', 'active');
+    expect(result.ok).toBe(true);
+    expect(mockFrom).toHaveBeenCalledWith('profiles');
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ is_active: false }),
+    );
+    expect(mockEq).toHaveBeenCalledWith('id', 'doc-1');
+  });
 });

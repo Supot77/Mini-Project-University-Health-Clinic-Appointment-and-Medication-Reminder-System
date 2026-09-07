@@ -132,7 +132,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       input: Omit<ScheduleDepartment, 'id' | 'isActive'>,
       id?: string,
     ): Promise<ShopResult<ScheduleDepartment>> => {
-      if (dbRepo) {
+      const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
+      if (dbRepo && isDbId) {
         try {
           const result = await dbRepo.saveDepartment(input, snapshot.departments, id);
           if (result.ok) {
@@ -151,7 +152,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   const handleToggleDepartment = useCallback(
     async (id: string): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>> => {
-      if (dbRepo) {
+      const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (dbRepo && isDbId) {
         const target = snapshot.departments.find((d) => d.id === id);
         if (target) {
           try {
@@ -176,7 +178,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       input: Omit<ScheduleDoctor, 'id'>,
       id?: string,
     ): Promise<ShopResult<ScheduleDoctor>> => {
-      if (dbRepo) {
+      const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
+      if (dbRepo && isDbId) {
         try {
           const result = await dbRepo.saveDoctor(input, snapshot.doctors, id);
           if (result.ok) {
@@ -195,7 +198,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   const handleToggleDoctor = useCallback(
     async (id: string): Promise<ShopResult<ScheduleDoctor | 'deleted'>> => {
-      if (dbRepo) {
+      const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (dbRepo && isDbId) {
         const target = snapshot.doctors.find((d) => d.id === id);
         if (target) {
           try {

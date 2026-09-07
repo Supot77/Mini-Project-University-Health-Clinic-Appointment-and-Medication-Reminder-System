@@ -196,15 +196,19 @@ export class DatabaseShopRepository {
     currentActive: boolean,
   ): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>> {
     const nextState = !currentActive;
-    const { error } = await this.client
+    const { data, error } = await this.client
       .from('departments')
       .update({
         is_active: nextState,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, is_active');
 
     if (error) return { ok: false, error: error.message || 'ไม่สามารถเปลี่ยนสถานะแผนกได้' };
+    if (!data || data.length === 0) {
+      return { ok: false, error: 'ไม่พบข้อมูลแผนก หรือไม่มีสิทธิ์แก้ไขสถานะ (ต้องเป็น staff_admin)' };
+    }
     return { ok: true, value: nextState ? 'enabled' : 'disabled' };
   }
 
@@ -272,15 +276,19 @@ export class DatabaseShopRepository {
     currentAvailability: string,
   ): Promise<ShopResult<ScheduleDoctor | 'deleted'>> {
     const nextIsActive = currentAvailability === 'inactive';
-    const { error } = await this.client
+    const { data, error } = await this.client
       .from('profiles')
       .update({
         is_active: nextIsActive,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, is_active');
 
     if (error) return { ok: false, error: error.message || 'ไม่สามารถเปลี่ยนสถานะแพทย์ได้' };
+    if (!data || data.length === 0) {
+      return { ok: false, error: 'ไม่พบบัญชีแพทย์ หรือไม่มีสิทธิ์แก้ไขสถานะแพทย์นี้' };
+    }
 
     return {
       ok: true,

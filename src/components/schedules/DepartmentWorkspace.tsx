@@ -165,10 +165,12 @@ export default function DepartmentWorkspace() {
   };
 
   const toggleDepartment = async (department: ScheduleDepartment) => {
+    setFormError('');
+    setNotice('');
     const impact = doctors.some((doctor) => doctor.departmentId === department.id)
       ? ' แพทย์และประวัติเดิมจะยังคงเชื่อมกับแผนกนี้'
       : '';
-    if (!window.confirm(department.isActive ? `ยืนยันการ${impact ? 'ปิดใช้งาน' : 'ลบ'} “${department.name}”?${impact}` : `เปิดใช้งาน “${department.name}” อีกครั้ง?`)) return;
+    if (!window.confirm(department.isActive ? `ยืนยันการปิดใช้งานแผนก “${department.name}”?${impact}` : `ยืนยันการเปิดใช้งานแผนก “${department.name}” อีกครั้ง?`)) return;
 
     setIsSaving(true);
     const result = await persistDepartmentToggle(department.id);
@@ -177,6 +179,10 @@ export default function DepartmentWorkspace() {
     if (!result.ok) {
       setFormError(result.error);
       return;
+    }
+
+    if (result.value === 'disabled') {
+      setShowInactive(true);
     }
 
     setNotice(result.value === 'deleted' ? 'ลบแผนกแล้ว' : result.value === 'disabled' ? 'ปิดใช้งานแผนกแล้ว' : 'เปิดใช้งานแผนกแล้ว');
@@ -236,8 +242,10 @@ export default function DepartmentWorkspace() {
   };
 
   const toggleDoctor = async (doctor: ScheduleDoctor) => {
+    setFormError('');
+    setNotice('');
     const hasReferences = Boolean(doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id));
-    const action = doctor.availability === 'inactive' ? 'เปิดใช้งาน' : hasReferences ? 'ปิดใช้งาน' : 'ลบ';
+    const action = doctor.availability === 'inactive' ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
     const impact = hasReferences ? ' รอบและประวัติเดิมจะยังคงอยู่' : '';
     if (!window.confirm(`${action} ${doctor.fullName}?${impact}`)) return;
 
@@ -248,6 +256,10 @@ export default function DepartmentWorkspace() {
     if (!result.ok) {
       setFormError(result.error);
       return;
+    }
+
+    if (doctor.availability !== 'inactive') {
+      setShowInactive(true);
     }
 
     setNotice(result.value === 'deleted' ? 'ลบแพทย์แล้ว' : doctor.availability === 'inactive' ? 'เปิดใช้งานแพทย์แล้ว' : 'ปิดใช้งานแพทย์แล้ว');
@@ -401,7 +413,7 @@ export default function DepartmentWorkspace() {
       </section>
 
       {/* Notifications Banner */}
-      <div aria-live="polite">
+      <div aria-live="polite" className="space-y-3">
         {notice && (
           <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
             <span className="flex items-center gap-2">
@@ -413,6 +425,23 @@ export default function DepartmentWorkspace() {
               onClick={() => setNotice('')}
               className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100"
               aria-label="ปิดแจ้งเตือน"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
+        {formError && !departmentDrawerOpen && !doctorDrawerOpen && (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
+            <span className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+              {formError}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFormError('')}
+              className="rounded-lg p-1 text-rose-700 hover:bg-rose-100"
+              aria-label="ปิดข้อความแจ้งเตือน"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
