@@ -37,27 +37,26 @@ export interface DashboardView {
   roleCounts: Array<{ role: UserRole; count: number }>;
 }
 
-export interface BroadcastAudience {
-  all: boolean;
-  roles: UserRole[];
-}
-
 export interface SendBroadcastInput {
   actorId: string;
   actorRole: UserRole;
-  notificationType: NotificationType;
   title: string;
   message: string;
-  audience: BroadcastAudience;
   requestKey: string;
+}
+
+export interface BroadcastHistoryItem {
+  id: string;
+  title: string;
+  message: string;
+  sentAt: string;
+  recipientCount: number;
 }
 
 export const roleLabels: Record<UserRole, string> = {
   patient: 'ผู้ป่วย',
-  staff: 'เจ้าหน้าที่',
-  doctor: 'แพทย์',
-  pharmacist: 'เภสัชกร',
-  admin: 'ผู้ดูแลระบบ',
+  staff_admin: 'เจ้าหน้าที่และผู้ดูแลระบบ',
+  medical: 'บุคลากรทางการแพทย์',
 };
 
 export const dashboardRangeLabels: Record<DashboardRange, string> = {
