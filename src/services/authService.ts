@@ -61,17 +61,42 @@ export async function resetPassword(email: string) {
   if (error) throw error;
 }
 
-export async function searchPatients(query: string): Promise<Profile[]> {
+export interface SearchPatientsResult {
+  patients: Profile[];
+  hasMore: boolean;
+  totalCount: number;
+}
+
+export async function searchPatients(
+  query: string = '',
+  page: number = 0,
+  pageSize: number = 10
+): Promise<SearchPatientsResult> {
   const trimmed = query.trim();
-  if (!trimmed) return [];
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
 
-  const { data, error } = await supabase
+  let req = supabase
     .from('profiles')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('role', 'patient')
-    .or(`student_id.ilike.%${trimmed}%,phone.ilike.%${trimmed}%`)
-    .limit(20);
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
+  if (trimmed) {
+    req = req.or(`full_name.ilike.%${trimmed}%,student_id.ilike.%${trimmed}%,phone.ilike.%${trimmed}%`);
+  }
+
+  const { data, count, error } = await req;
   if (error) throw error;
-  return data ?? [];
+
+  const total = count ?? 0;
+  const patients = data ?? [];
+  const hasMore = from + patients.length < total;
+
+  return {
+    patients,
+    hasMore,
+    totalCount: total,
+  };
 }
