@@ -7,10 +7,12 @@ import {
 } from '@/mocks/scheduleData';
 import type {
   DoctorWeeklySchedule,
+  DoctorAvailabilityTemplate,
   ScheduleDepartment,
   ScheduleDoctor,
   ScheduleSlot,
 } from '@/types/schedule';
+import type { UserRole } from '@/types/database';
 import {
   deriveSlotStatus,
   validateDepartmentName,
@@ -27,6 +29,7 @@ export class MockShopRepository implements ShopRepository {
     slots: structuredClone(MOCK_SLOTS),
     doctorAccounts: structuredClone(MOCK_DOCTOR_ACCOUNT_OPTIONS),
     weeklySchedules: structuredClone(MOCK_WEEKLY_SCHEDULES),
+    availabilityTemplates: [],
   };
 
   snapshot(): ShopSnapshot {
@@ -108,9 +111,17 @@ export class MockShopRepository implements ShopRepository {
     return { ok: true, value: slot };
   }
 
-  toggleSlot(id: string): ShopResult<ScheduleSlot> {
+  toggleSlot(id: string, actorId?: string, role?: UserRole): ShopResult<ScheduleSlot> {
     const slot = this.state.slots.find((item) => item.id === id);
     if (!slot) return { ok: false, error: 'ไม่พบรอบตรวจ' };
+
+    if (role === 'medical' && actorId) {
+      const doctor = this.state.doctors.find((d) => d.profileId === actorId || d.id === actorId);
+      if (!doctor || slot.doctorId !== doctor.id) {
+        return { ok: false, error: 'ไม่มีสิทธิ์จัดการรอบตรวจของแพทย์ท่านอื่น' };
+      }
+    }
+
     if (slot.status === 'closed' && slot.closedReason === 'doctor_leave') return { ok: false, error: 'รอบนี้ปิดอัตโนมัติจากวันลา ต้องจัดการที่คำขอวันลา' };
     const next = slot.status === 'closed'
       ? { ...slot, status: deriveSlotStatus(slot.bookedCount, slot.maxCapacity), closedReason: undefined }
@@ -156,6 +167,36 @@ export class MockShopRepository implements ShopRepository {
       }
     }
     return { ok: true, value: created };
+  }
+
+  getDoctorTemplates(doctorId: string): DoctorAvailabilityTemplate[] {
+    const templates = this.state.availabilityTemplates?.filter((t) => t.doctorId === doctorId) ?? [];
+    return [...templates].sort((a, b) => b.usageCount - a.usageCount || b.lastUsedAt.localeCompare(a.lastUsedAt));
+  }
+
+  saveDoctorTemplate(input: Omit<DoctorAvailabilityTemplate, 'id' | 'usageCount' | 'lastUsedAt'>): ShopResult<DoctorAvailabilityTemplate> {
+    if (!this.state.availabilityTemplates) {
+      this.state.availabilityTemplates = [];
+    }
+    const now = new Date().toISOString();
+    const existing = this.state.availabilityTemplates.find(
+      (t) => t.doctorId === input.doctorId && t.startTime === input.startTime && t.endTime === input.endTime && t.defaultCapacity === input.defaultCapacity
+    );
+    if (existing) {
+      existing.usageCount += 1;
+      existing.lastUsedAt = now;
+      if (input.label) existing.label = input.label;
+      return { ok: true, value: structuredClone(existing) };
+    }
+    const newTemplate: DoctorAvailabilityTemplate = {
+      ...input,
+      id: crypto.randomUUID(),
+      usageCount: 1,
+      lastUsedAt: now,
+      label: input.label || `${input.startTime}–${input.endTime} (${input.defaultCapacity} คน)`,
+    };
+    this.state.availabilityTemplates.push(newTemplate);
+    return { ok: true, value: structuredClone(newTemplate) };
   }
 }
 

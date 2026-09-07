@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { createShopRepository } from '../data/repositoryFactory';
 import type { ShopRepository, ShopSnapshot } from '../domain/repository';
-import type { DoctorWeeklySchedule, ScheduleDepartment, ScheduleDoctor } from '@/types/schedule';
+import type { DoctorWeeklySchedule, DoctorAvailabilityTemplate, ScheduleDepartment, ScheduleDoctor } from '@/types/schedule';
+import type { UserRole } from '@/types/database';
 import type { ShopResult, SlotInput } from '../domain/rules';
 
 interface ShopContextValue extends ShopSnapshot {
@@ -12,9 +13,11 @@ interface ShopContextValue extends ShopSnapshot {
   saveDoctor(input: Omit<ScheduleDoctor, 'id'>, id?: string): ShopResult<ScheduleDoctor>;
   toggleDoctor(id: string): ShopResult<ScheduleDoctor | 'deleted'>;
   saveSlot(input: SlotInput, id?: string): ShopResult<ShopSnapshot['slots'][number]>;
-  toggleSlot(id: string): ShopResult<ShopSnapshot['slots'][number]>;
+  toggleSlot(id: string, actorId?: string, role?: UserRole): ShopResult<ShopSnapshot['slots'][number]>;
   saveWeeklySchedule(input: Omit<DoctorWeeklySchedule, 'id'>, id?: string): ShopResult<DoctorWeeklySchedule>;
   generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number>;
+  getDoctorTemplates(doctorId: string): DoctorAvailabilityTemplate[];
+  saveDoctorTemplate(input: Omit<DoctorAvailabilityTemplate, 'id' | 'usageCount' | 'lastUsedAt'>): ShopResult<DoctorAvailabilityTemplate>;
 }
 
 const ShopContext = createContext<ShopContextValue | null>(null);
@@ -35,9 +38,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     saveDoctor: (input, id) => run(() => repository.saveDoctor(input, id)),
     toggleDoctor: (id) => run(() => repository.toggleDoctor(id)),
     saveSlot: (input, id) => run(() => repository.saveSlot(input, id)),
-    toggleSlot: (id) => run(() => repository.toggleSlot(id)),
+    toggleSlot: (id, actorId, role) => run(() => repository.toggleSlot(id, actorId, role)),
     saveWeeklySchedule: (input, id) => run(() => repository.saveWeeklySchedule(input, id)),
     generateSlotsForRange: (startDate, endDate, today) => run(() => repository.generateSlotsForRange(startDate, endDate, today)),
+    getDoctorTemplates: (doctorId) => repository.getDoctorTemplates(doctorId),
+    saveDoctorTemplate: (input) => run(() => repository.saveDoctorTemplate(input)),
   }), [repository, run, snapshot]);
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

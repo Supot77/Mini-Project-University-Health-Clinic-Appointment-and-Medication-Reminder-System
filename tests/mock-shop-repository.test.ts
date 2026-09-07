@@ -107,4 +107,93 @@ describe('MockShopRepository', () => {
     expect(repository.toggleDoctor(doctor.id)).toMatchObject({ ok: true });
     expect(repository.saveWeeklySchedule({ doctorId: doctor.id, weekday: 1, startTime: '08:30', endTime: '09:00', slotDurationMinutes: 30, defaultCapacity: 1, isActive: true })).toMatchObject({ ok: false, field: 'doctorId' });
   });
+
+  it('prevents medical role from closing or modifying slots of another doctor', () => {
+    const repository = new MockShopRepository();
+    const doctors = repository.snapshot().doctors;
+    expect(doctors.length).toBeGreaterThanOrEqual(2);
+    const doctor1 = doctors[0];
+    const doctor2 = doctors[1];
+
+    // หา slot ของ doctor2
+    const slotDoctor2 = repository.snapshot().slots.find((s) => s.doctorId === doctor2.id);
+    expect(slotDoctor2).toBeDefined();
+    if (!slotDoctor2) return;
+
+    // doctor1 (medical) พยายาม toggle slot ของ doctor2 -> ต้องถูกปฏิเสธ
+    const failResult = repository.toggleSlot(slotDoctor2.id, doctor1.profileId, 'medical');
+    expect(failResult).toMatchObject({
+      ok: false,
+      error: 'ไม่มีสิทธิ์จัดการรอบตรวจของแพทย์ท่านอื่น',
+    });
+
+    // staff_admin สามารถ toggle slot ของ doctor2 ได้
+    const adminResult = repository.toggleSlot(slotDoctor2.id, 'admin-id', 'staff_admin');
+    expect(adminResult.ok).toBe(true);
+  });
+
+  it('allows medical role to toggle their own slot', () => {
+    const repository = new MockShopRepository();
+    const doctor = repository.snapshot().doctors[0];
+    const ownSlot = repository.snapshot().slots.find((s) => s.doctorId === doctor.id);
+    expect(ownSlot).toBeDefined();
+    if (!ownSlot) return;
+
+    const result = repository.toggleSlot(ownSlot.id, doctor.profileId, 'medical');
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not return recommendations when doctor has no prior history', () => {
+    const repository = new MockShopRepository();
+    const doctor = repository.snapshot().doctors[0];
+
+    // ตอนเริ่มต้นหมอยังไม่มีประวัติ
+    const templates = repository.getDoctorTemplates(doctor.id);
+    expect(templates).toEqual([]);
+  });
+
+  it('records doctor availability templates and increments usage count for repeated patterns', () => {
+    const repository = new MockShopRepository();
+    const doctor = repository.snapshot().doctors[0];
+
+    // บันทึกครั้งที่ 1
+    const res1 = repository.saveDoctorTemplate({
+      doctorId: doctor.id,
+      startTime: '08:30',
+      endTime: '12:00',
+      defaultCapacity: 10,
+    });
+    expect(res1.ok).toBe(true);
+
+    const history1 = repository.getDoctorTemplates(doctor.id);
+    expect(history1.length).toBe(1);
+    expect(history1[0].usageCount).toBe(1);
+
+    // บันทึกซ้ำ pattern เดิม
+    const res2 = repository.saveDoctorTemplate({
+      doctorId: doctor.id,
+      startTime: '08:30',
+      endTime: '12:00',
+      defaultCapacity: 10,
+    });
+    expect(res2.ok).toBe(true);
+
+    const history2 = repository.getDoctorTemplates(doctor.id);
+    expect(history2.length).toBe(1);
+    expect(history2[0].usageCount).toBe(2);
+
+    // บันทึกอีก pattern หนึ่ง
+    repository.saveDoctorTemplate({
+      doctorId: doctor.id,
+      startTime: '13:00',
+      endTime: '16:00',
+      defaultCapacity: 8,
+    });
+
+    const history3 = repository.getDoctorTemplates(doctor.id);
+    expect(history3.length).toBe(2);
+    // ตรวจสอบว่า pattern ที่ใช้บ่อยกว่าอยู่ลำดับแรก
+    expect(history3[0].usageCount).toBe(2);
+    expect(history3[1].usageCount).toBe(1);
+  });
 });

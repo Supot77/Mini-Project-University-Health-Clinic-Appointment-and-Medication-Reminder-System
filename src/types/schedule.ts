@@ -73,6 +73,17 @@ export interface DoctorWeeklySchedule {
   isActive: boolean;
 }
 
+export interface DoctorAvailabilityTemplate {
+  id: string;
+  doctorId: string;
+  label?: string;
+  startTime: string;
+  endTime: string;
+  defaultCapacity: number;
+  usageCount: number;
+  lastUsedAt: string;
+}
+
 
 export interface DoctorAccountOption {
   profileId: string;

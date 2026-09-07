@@ -75,3 +75,4 @@ export interface DoctorAvailabilityTemplate {
   - Availability templates are saved and retrieved per doctor.
   - Empty history returns zero recommendations.
 - `npm run build`: Production Next.js 16.3 Turbopack build completes successfully.
+
