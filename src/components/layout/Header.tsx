@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { useState, type ComponentType } from "react";
 import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, Umbrella, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import type { UserRole } from "@/types/database";
 
 type NavigationRole = "patient" | "staff" | "doctor" | "pharmacist" | "admin";
+type NavigationRole = UserRole;
 
 interface NavigationItem {
   href: string;

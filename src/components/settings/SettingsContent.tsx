@@ -9,9 +9,18 @@ const STORAGE_KEY = "wu-clinic-theme";
 
 export default function SettingsContent() {
   const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      return saved === "dark" ? "dark" : "light";
+    }
+    return "light";
+  });
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
     const initialTheme: Theme =
       saved === "dark" ? "dark" : "light";

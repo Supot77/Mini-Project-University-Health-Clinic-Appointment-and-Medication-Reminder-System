@@ -655,6 +655,7 @@ export function createClinicRepositories(
               deleted_at: null,
               created_at: now,
             });
+          });
 
             recipientIds.forEach(
               (userId) => {
@@ -685,6 +686,11 @@ export function createClinicRepositories(
             });
           },
         );
+          return mockResult.ok({
+            recipientCount: recipientIds.size,
+            created: true,
+          });
+        });
       },
     },
 
