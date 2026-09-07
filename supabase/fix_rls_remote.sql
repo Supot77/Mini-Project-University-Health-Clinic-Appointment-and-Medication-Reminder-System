@@ -31,6 +31,7 @@ DROP POLICY IF EXISTS "Staff/Admin can view all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Staff/Admin can manage departments" ON public.departments;
 DROP POLICY IF EXISTS "Staff admin can manage departments" ON public.departments;
 DROP POLICY IF EXISTS "Staff/Admin can manage slots" ON public.appointment_slots;
+DROP POLICY IF EXISTS "Doctors can manage own slots" ON public.appointment_slots;
 DROP POLICY IF EXISTS "Staff/Doctor can view all appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Staff/Medical can view all appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Staff can update any appointment" ON public.appointments;
@@ -53,7 +54,27 @@ CREATE POLICY "Staff/Admin can manage departments"
   TO authenticated
   USING (public.get_user_role() IN ('staff_admin', 'staff', 'admin'))
   WITH CHECK (public.get_user_role() IN ('staff_admin', 'staff', 'admin'));
-CREATE POLICY "Staff/Admin can manage slots" ON public.appointment_slots FOR ALL USING (public.get_user_role() = 'staff_admin');
+CREATE POLICY "Staff/Admin can manage slots"
+  ON public.appointment_slots
+  FOR ALL
+  TO authenticated
+  USING (public.get_user_role() IN ('staff_admin', 'staff', 'admin'))
+  WITH CHECK (public.get_user_role() IN ('staff_admin', 'staff', 'admin'));
+CREATE POLICY "Doctors can manage own slots"
+  ON public.appointment_slots
+  FOR ALL
+  TO authenticated
+  USING (public.get_user_role() IN ('medical', 'doctor') AND doctor_id = auth.uid())
+  WITH CHECK (public.get_user_role() IN ('medical', 'doctor') AND doctor_id = auth.uid());
+
+-- เปิดให้อ่านรอบตรวจได้ทั่วไป (Public Read) ไม่ติด 403
+DROP POLICY IF EXISTS "Authenticated users can view slots" ON public.appointment_slots;
+DROP POLICY IF EXISTS "Anyone can view slots" ON public.appointment_slots;
+CREATE POLICY "Anyone can view slots"
+  ON public.appointment_slots
+  FOR SELECT
+  USING (true);
+
 CREATE POLICY "Staff/Doctor can view all appointments" ON public.appointments FOR SELECT USING (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Staff can update any appointment" ON public.appointments FOR UPDATE USING (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Doctors can view and create medical records" ON public.medical_records FOR ALL USING (public.get_user_role() = 'medical');
@@ -64,3 +85,20 @@ CREATE POLICY "Anyone can view medications" ON public.medications FOR SELECT USI
 CREATE POLICY "Pharmacist/Admin can manage medications" ON public.medications FOR ALL USING (public.get_user_role() = 'staff_admin');
 CREATE POLICY "Pharmacist/Admin can view inventory logs" ON public.inventory_logs FOR SELECT USING (public.get_user_role() = 'staff_admin');
 CREATE POLICY "Pharmacist can create inventory logs" ON public.inventory_logs FOR INSERT WITH CHECK (public.get_user_role() = 'staff_admin');
+
+-- เปิดให้อ่านโปรไฟล์แพทย์และข้อมูลแพทย์ได้ทั่วไป เพื่อให้ชื่อแพทย์แสดงในตารางตรวจและนัดหมาย
+DROP POLICY IF EXISTS "Anyone can view medical profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Anyone can view doctor profiles" ON public.profiles;
+CREATE POLICY "Anyone can view medical profiles"
+  ON public.profiles FOR SELECT
+  USING (
+    role = 'medical'
+    OR EXISTS (SELECT 1 FROM public.doctors WHERE doctors.id = profiles.id)
+  );
+
+DROP POLICY IF EXISTS "Authenticated users can view doctors" ON public.doctors;
+DROP POLICY IF EXISTS "Anyone can view doctors" ON public.doctors;
+CREATE POLICY "Anyone can view doctors"
+  ON public.doctors FOR SELECT
+  USING (true);
+

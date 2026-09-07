@@ -23,7 +23,8 @@ function LoginForm() {
       await signIn(email, password);
 
       const redirect = searchParams.get('redirect');
-      router.push(redirect || '/dashboard');
+      router.push(redirect || '/profile');
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error

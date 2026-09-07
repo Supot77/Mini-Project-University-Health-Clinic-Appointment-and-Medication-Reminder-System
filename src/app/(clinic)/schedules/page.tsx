@@ -1,9 +1,7 @@
 import ScheduleWorkspace from '@/components/schedules/ScheduleWorkspace';
 import { requireRole } from '@/lib/requireRole';
-import { redirect } from 'next/navigation';
 
 export default async function SchedulesPage() {
-  const { role, user } = await requireRole(['medical', 'staff_admin']);
-  if (role === 'patient') redirect('/dashboard');
+  const { role, user } = await requireRole(['patient', 'medical', 'staff_admin']);
   return <ScheduleWorkspace role={role} actorId={user.id} />;
 }

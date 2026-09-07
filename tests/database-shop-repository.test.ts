@@ -71,6 +71,38 @@ describe('DatabaseShopRepository', () => {
     });
   });
 
+  it('handles doctor rows with null profile gracefully without fallback initials becoming "ไ"', async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        order: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'doc-2',
+              specialty: 'เวชปฏิบัติทั่วไป',
+              department_id: 'dept-2',
+              profile: null,
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    const mockClient = { from: mockFrom } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+    const doctors = await repo.fetchDoctors();
+
+    expect(doctors.length).toBe(1);
+    expect(doctors[0]).toMatchObject({
+      id: 'doc-2',
+      fullName: 'ไม่ระบุชื่อ',
+      initials: 'DR',
+      specialty: 'เวชปฏิบัติทั่วไป',
+      departmentId: 'dept-2',
+      availability: 'active',
+    });
+  });
+
   it('validates department input before querying database', async () => {
     const mockClient = { from: vi.fn() } as unknown as SupabaseClient;
     const repo = new DatabaseShopRepository(mockClient);
@@ -160,5 +192,176 @@ describe('DatabaseShopRepository', () => {
       expect.objectContaining({ is_active: false }),
     );
     expect(mockEq).toHaveBeenCalledWith('id', 'doc-1');
+  });
+
+  it('maps database appointment_slots rows to ScheduleSlot domain models', async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        order: vi.fn().mockReturnValue({
+          order: vi.fn().mockResolvedValue({
+            data: [
+              {
+                id: 'slot-1',
+                doctor_id: 'doc-1',
+                slot_date: '2026-09-08',
+                start_time: '09:00:00',
+                end_time: '12:00:00',
+                max_capacity: 10,
+                booked_count: 3,
+                status: 'available',
+                created_at: '2026-09-08T00:00:00Z',
+                updated_at: '2026-09-08T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+        }),
+      }),
+    });
+
+    const mockClient = { from: mockFrom } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+    const slots = await repo.fetchSlots();
+
+    expect(slots.length).toBe(1);
+    expect(slots[0]).toMatchObject({
+      id: 'slot-1',
+      doctorId: 'doc-1',
+      slotDate: '2026-09-08',
+      startTime: '09:00',
+      endTime: '12:00',
+      maxCapacity: 10,
+      bookedCount: 3,
+      status: 'available',
+      hasHistory: true,
+    });
+  });
+
+  it('validates slot before inserting into database', async () => {
+    const mockClient = { from: vi.fn() } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+
+    const validDoctorId = 'a0000000-0000-0000-0000-000000000001';
+
+    // Rejects non-UUID doctor ID
+    const mockDocResult = await repo.saveSlot(
+      {
+        doctorId: 'profile-stephen-strange',
+        slotDate: '2026-09-08',
+        startTime: '09:00',
+        endTime: '09:30',
+        maxCapacity: 5,
+      },
+      [],
+      [],
+      [],
+    );
+    expect(mockDocResult.ok).toBe(false);
+    expect(mockDocResult.error).toContain('ไอดีแพทย์ไม่ถูกต้อง');
+
+    // Invalid time: end before start
+    const result = await repo.saveSlot(
+      {
+        doctorId: validDoctorId,
+        slotDate: '2026-09-08',
+        startTime: '12:00',
+        endTime: '09:00',
+        maxCapacity: 5,
+      },
+      [],
+      [{ id: validDoctorId, profileId: validDoctorId, fullName: 'หมอสมชาย', email: '', initials: 'SC', specialty: 'ทั่วไป', departmentId: 'dept-1', availability: 'active' }],
+      [{ id: 'dept-1', name: 'อายุรกรรม', description: '', isActive: true }],
+    );
+
+    expect(result.ok).toBe(false);
+    expect(mockClient.from).not.toHaveBeenCalled();
+  });
+
+  it('inserts valid slot into appointment_slots table', async () => {
+    const validDoctorId = 'a0000000-0000-0000-0000-000000000001';
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: 'new-slot-1',
+        doctor_id: validDoctorId,
+        slot_date: '2026-09-08',
+        start_time: '09:00:00',
+        end_time: '12:00:00',
+        max_capacity: 5,
+        booked_count: 0,
+        status: 'available',
+      },
+      error: null,
+    });
+    const mockSelect = vi.fn().mockReturnValue({ single: mockSingle });
+    const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
+    const mockFrom = vi.fn().mockReturnValue({ insert: mockInsert });
+
+    const mockClient = { from: mockFrom } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+
+    const result = await repo.saveSlot(
+      {
+        doctorId: validDoctorId,
+        slotDate: '2026-09-08',
+        startTime: '09:00',
+        endTime: '12:00',
+        maxCapacity: 5,
+      },
+      [],
+      [{ id: validDoctorId, profileId: validDoctorId, fullName: 'หมอสมชาย', email: '', initials: 'SC', specialty: 'ทั่วไป', departmentId: 'dept-1', availability: 'active' }],
+      [{ id: 'dept-1', name: 'อายุรกรรม', description: '', isActive: true }],
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.id).toBe('new-slot-1');
+      expect(result.value.startTime).toBe('09:00');
+    }
+    expect(mockFrom).toHaveBeenCalledWith('appointment_slots');
+  });
+
+  it('toggles slot status to closed in appointment_slots', async () => {
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: 'slot-1',
+        doctor_id: 'doc-1',
+        slot_date: '2026-09-08',
+        start_time: '09:00:00',
+        end_time: '12:00:00',
+        max_capacity: 5,
+        booked_count: 0,
+        status: 'closed',
+      },
+      error: null,
+    });
+    const mockSelect = vi.fn().mockReturnValue({ single: mockSingle });
+    const mockEq = vi.fn().mockReturnValue({ select: mockSelect });
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+    const mockFrom = vi.fn().mockReturnValue({ update: mockUpdate });
+
+    const mockClient = { from: mockFrom } as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+
+    const currentSlot = {
+      id: 'slot-1',
+      doctorId: 'doc-1',
+      slotDate: '2026-09-08',
+      startTime: '09:00',
+      endTime: '12:00',
+      maxCapacity: 5,
+      bookedCount: 0,
+      status: 'available' as const,
+      hasHistory: false,
+    };
+
+    const result = await repo.toggleSlot('slot-1', currentSlot, 'admin-1', 'staff_admin');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.status).toBe('closed');
+    }
+    expect(mockFrom).toHaveBeenCalledWith('appointment_slots');
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'closed' }),
+    );
   });
 });

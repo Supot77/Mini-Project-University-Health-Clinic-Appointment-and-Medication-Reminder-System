@@ -23,7 +23,7 @@ const navigationItems: NavigationItem[] = [
   { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
   { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },
   { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin", "medical"] },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["medical", "staff_admin"] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["patient", "medical", "staff_admin"] },
 ];
 
 export default function Header() {
@@ -34,9 +34,9 @@ export default function Header() {
   // Permission-aware navigation: show only the items allowed for the current role.
   // Guests (not logged in) only see the public doctor schedule table.
   const visibleNavigation =
-  isAuthenticated && role
-    ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
-    : navigationItems.filter((item) => item.roles.includes("patient"));
+    isAuthenticated && role
+      ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
+      : navigationItems.filter((item) => item.roles.includes("patient") && item.href !== "/dashboard");
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 

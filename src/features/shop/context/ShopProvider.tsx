@@ -18,6 +18,7 @@ import type {
   DoctorAvailabilityTemplate,
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleSlot,
 } from '@/types/schedule';
 import type { UserRole } from '@/types/database';
 import type { ShopResult, SlotInput } from '../domain/rules';
@@ -32,17 +33,24 @@ interface ShopContextValue extends ShopSnapshot {
   toggleDepartment(id: string): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>>;
   saveDoctor(input: Omit<ScheduleDoctor, 'id'>, id?: string): Promise<ShopResult<ScheduleDoctor>>;
   toggleDoctor(id: string): Promise<ShopResult<ScheduleDoctor | 'deleted'>>;
-  saveSlot(input: SlotInput, id?: string): ShopResult<ShopSnapshot['slots'][number]>;
+  saveSlot(
+    input: SlotInput,
+    id?: string,
+  ): Promise<ShopResult<ScheduleSlot>> | ShopResult<ScheduleSlot>;
   toggleSlot(
     id: string,
     actorId?: string,
     role?: UserRole,
-  ): ShopResult<ShopSnapshot['slots'][number]>;
+  ): Promise<ShopResult<ScheduleSlot>> | ShopResult<ScheduleSlot>;
   saveWeeklySchedule(
     input: Omit<DoctorWeeklySchedule, 'id'>,
     id?: string,
   ): ShopResult<DoctorWeeklySchedule>;
-  generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number>;
+  generateSlotsForRange(
+    startDate: string,
+    endDate: string,
+    today: string,
+  ): Promise<ShopResult<number>> | ShopResult<number>;
   getDoctorTemplates(doctorId: string): DoctorAvailabilityTemplate[];
   saveDoctorTemplate(
     input: Omit<DoctorAvailabilityTemplate, 'id' | 'usageCount' | 'lastUsedAt'>,
@@ -52,10 +60,6 @@ interface ShopContextValue extends ShopSnapshot {
 const ShopContext = createContext<ShopContextValue | null>(null);
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [repository] = useState<ShopRepository>(() => createShopRepository());
-  const [snapshot, setSnapshot] = useState<ShopSnapshot>(() => repository.snapshot());
-  const [isLoading, setIsLoading] = useState(true);
-
   const supabaseClient = useMemo(() => {
     try {
       return createClient();
@@ -68,21 +72,39 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     return supabaseClient ? new DatabaseShopRepository(supabaseClient) : null;
   }, [supabaseClient]);
 
+  const [repository] = useState<ShopRepository>(() => createShopRepository());
+  const [snapshot, setSnapshot] = useState<ShopSnapshot>(() => {
+    // When Supabase is configured, initialize empty so mock data never appears in real database mode
+    if (typeof window !== 'undefined' || process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return {
+        departments: [],
+        doctors: [],
+        slots: [],
+        weeklySchedules: [],
+        doctorAccounts: [],
+      };
+    }
+    return repository.snapshot();
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
   const refresh = useCallback(async () => {
     if (!dbRepo) return;
     try {
-      const [deptList, docList, accountList] = await Promise.all([
+      const [deptList, docList, accountList, slotList] = await Promise.all([
         dbRepo.fetchDepartments(),
         dbRepo.fetchDoctors(),
         dbRepo.fetchDoctorAccounts(),
+        dbRepo.fetchSlots(),
       ]);
 
-      setSnapshot((current) => ({
-        ...current,
-        departments: deptList.length > 0 ? deptList : current.departments,
-        doctors: docList.length > 0 ? docList : current.doctors,
-        doctorAccounts: accountList.length > 0 ? accountList : current.doctorAccounts,
-      }));
+      setSnapshot({
+        departments: deptList,
+        doctors: docList,
+        slots: slotList,
+        doctorAccounts: accountList,
+        weeklySchedules: [],
+      });
     } catch (err) {
       console.warn('ShopProvider refresh error:', err);
     }
@@ -93,21 +115,23 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     (async () => {
       if (dbRepo) {
         try {
-          const [deptList, docList, accountList] = await Promise.all([
+          const [deptList, docList, accountList, slotList] = await Promise.all([
             dbRepo.fetchDepartments(),
             dbRepo.fetchDoctors(),
             dbRepo.fetchDoctorAccounts(),
+            dbRepo.fetchSlots(),
           ]);
           if (isMounted) {
-            setSnapshot((current) => ({
-              ...current,
-              departments: deptList.length > 0 ? deptList : current.departments,
-              doctors: docList.length > 0 ? docList : current.doctors,
-              doctorAccounts: accountList.length > 0 ? accountList : current.doctorAccounts,
-            }));
+            setSnapshot({
+              departments: deptList,
+              doctors: docList,
+              slots: slotList,
+              doctorAccounts: accountList,
+              weeklySchedules: [],
+            });
           }
         } catch (err) {
-          console.warn('ShopProvider initial load fallback:', err);
+          console.warn('ShopProvider initial load error:', err);
         }
       }
       if (isMounted) setIsLoading(false);
@@ -133,16 +157,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       id?: string,
     ): Promise<ShopResult<ScheduleDepartment>> => {
       const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
-      if (dbRepo && isDbId) {
+      if (dbRepo) {
+        if (!isDbId) {
+          return { ok: false, error: 'รหัสแผนกไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
         try {
           const result = await dbRepo.saveDepartment(input, snapshot.departments, id);
           if (result.ok) {
             await refresh();
-            return result;
           }
           return result;
         } catch (err) {
-          console.error('Database saveDepartment failed, falling back to mock:', err);
+          return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกแผนก' };
         }
       }
       return run(() => repository.saveDepartment(input, id));
@@ -153,20 +179,23 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const handleToggleDepartment = useCallback(
     async (id: string): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>> => {
       const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (dbRepo && isDbId) {
+      if (dbRepo) {
+        if (!isDbId) {
+          return { ok: false, error: 'รหัสแผนกไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
         const target = snapshot.departments.find((d) => d.id === id);
         if (target) {
           try {
             const result = await dbRepo.toggleDepartment(id, target.isActive);
             if (result.ok) {
               await refresh();
-              return result;
             }
             return result;
           } catch (err) {
-            console.error('Database toggleDepartment failed, falling back to mock:', err);
+            return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะแผนก' };
           }
         }
+        return { ok: false, error: 'ไม่พบแผนกที่ต้องการแก้ไข' };
       }
       return run(() => repository.toggleDepartment(id));
     },
@@ -179,16 +208,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       id?: string,
     ): Promise<ShopResult<ScheduleDoctor>> => {
       const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
-      if (dbRepo && isDbId) {
+      if (dbRepo) {
+        if (!isDbId) {
+          return { ok: false, error: 'รหัสแพทย์ไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
         try {
           const result = await dbRepo.saveDoctor(input, snapshot.doctors, id);
           if (result.ok) {
             await refresh();
-            return result;
           }
           return result;
         } catch (err) {
-          console.error('Database saveDoctor failed, falling back to mock:', err);
+          return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูลแพทย์' };
         }
       }
       return run(() => repository.saveDoctor(input, id));
@@ -199,24 +230,113 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const handleToggleDoctor = useCallback(
     async (id: string): Promise<ShopResult<ScheduleDoctor | 'deleted'>> => {
       const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (dbRepo && isDbId) {
+      if (dbRepo) {
+        if (!isDbId) {
+          return { ok: false, error: 'รหัสแพทย์ไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
         const target = snapshot.doctors.find((d) => d.id === id);
         if (target) {
           try {
             const result = await dbRepo.toggleDoctor(id, target.availability);
             if (result.ok) {
               await refresh();
-              return result;
             }
             return result;
           } catch (err) {
-            console.error('Database toggleDoctor failed, falling back to mock:', err);
+            return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะแพทย์' };
           }
         }
+        return { ok: false, error: 'ไม่พบแพทย์ที่ต้องการแก้ไข' };
       }
       return run(() => repository.toggleDoctor(id));
     },
     [dbRepo, refresh, repository, run, snapshot.doctors],
+  );
+
+  const handleSaveSlot = useCallback(
+    async (input: SlotInput, id?: string): Promise<ShopResult<ScheduleSlot>> => {
+      const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
+      const isDbDoctor = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.doctorId);
+      if (dbRepo) {
+        if (!isDbDoctor) {
+          return { ok: false, error: 'รหัสแพทย์ไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
+        if (id && !isDbId) {
+          return { ok: false, error: 'รหัสรอบตรวจไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
+        try {
+          const result = await dbRepo.saveSlot(
+            input,
+            snapshot.slots,
+            snapshot.doctors,
+            snapshot.departments,
+            id,
+          );
+          if (result.ok) {
+            await refresh();
+          }
+          return result;
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกรอบตรวจ' };
+        }
+      }
+      return run(() => repository.saveSlot(input, id));
+    },
+    [dbRepo, refresh, repository, run, snapshot.departments, snapshot.doctors, snapshot.slots],
+  );
+
+  const handleToggleSlot = useCallback(
+    async (
+      id: string,
+      actorId?: string,
+      role?: UserRole,
+    ): Promise<ShopResult<ScheduleSlot>> => {
+      const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (dbRepo) {
+        if (!isDbId) {
+          return { ok: false, error: 'รหัสรอบตรวจไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        }
+        const target = snapshot.slots.find((s) => s.id === id);
+        if (target) {
+          try {
+            const result = await dbRepo.toggleSlot(id, target, actorId, role);
+            if (result.ok) {
+              await refresh();
+            }
+            return result;
+          } catch (err) {
+            return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการปรับสถานะรอบตรวจ' };
+          }
+        }
+        return { ok: false, error: 'ไม่พบรอบตรวจที่ต้องการแก้ไข' };
+      }
+      return run(() => repository.toggleSlot(id, actorId, role));
+    },
+    [dbRepo, refresh, repository, run, snapshot.slots],
+  );
+
+  const handleGenerateSlotsForRange = useCallback(
+    async (startDate: string, endDate: string, today: string): Promise<ShopResult<number>> => {
+      if (dbRepo) {
+        try {
+          const result = await dbRepo.generateSlotsForRange(
+            startDate,
+            endDate,
+            today,
+            snapshot.weeklySchedules,
+            snapshot.slots,
+          );
+          if (result.ok) {
+            await refresh();
+          }
+          return result;
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการสร้างรอบตรวจ' };
+        }
+      }
+      return run(() => repository.generateSlotsForRange(startDate, endDate, today));
+    },
+    [dbRepo, refresh, repository, run, snapshot.slots, snapshot.weeklySchedules],
   );
 
   const value = useMemo<ShopContextValue>(
@@ -228,11 +348,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       toggleDepartment: handleToggleDepartment,
       saveDoctor: handleSaveDoctor,
       toggleDoctor: handleToggleDoctor,
-      saveSlot: (input, id) => run(() => repository.saveSlot(input, id)),
-      toggleSlot: (id, actorId, role) => run(() => repository.toggleSlot(id, actorId, role)),
+      saveSlot: handleSaveSlot,
+      toggleSlot: handleToggleSlot,
       saveWeeklySchedule: (input, id) => run(() => repository.saveWeeklySchedule(input, id)),
-      generateSlotsForRange: (startDate, endDate, today) =>
-        run(() => repository.generateSlotsForRange(startDate, endDate, today)),
+      generateSlotsForRange: handleGenerateSlotsForRange,
       getDoctorTemplates: (doctorId) => repository.getDoctorTemplates(doctorId),
       saveDoctorTemplate: (input) => run(() => repository.saveDoctorTemplate(input)),
     }),
@@ -244,6 +363,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       handleToggleDepartment,
       handleSaveDoctor,
       handleToggleDoctor,
+      handleSaveSlot,
+      handleToggleSlot,
+      handleGenerateSlotsForRange,
       run,
       repository,
     ],

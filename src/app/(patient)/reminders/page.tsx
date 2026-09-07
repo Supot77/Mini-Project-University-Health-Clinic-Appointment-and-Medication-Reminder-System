@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+
+const isUuid = (val?: string | null): boolean =>
+  typeof val === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 import { 
-  Pill, ChevronRight, X, Check, Plus, CalendarIcon, 
-  Trash2, Database, AlertCircle, RefreshCw, Sparkles, CheckCircle2,
-  User, AlertTriangle, ShieldAlert, CheckCircle, Pencil
+  Pill, X, Check, Plus, CalendarIcon, 
+  Trash2, AlertCircle, RefreshCw, Sparkles, CheckCircle2,
+  User, AlertTriangle, CheckCircle, Pencil
 } from 'lucide-react';
 import { useClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
 import { useAuth } from '@/hooks/useAuth';
@@ -53,12 +58,60 @@ interface MedicationDisplayItem {
   isActive?: boolean;
 }
 
+// ฟังก์ชันแปลงเวลาเป็นภาษาไทย (เช้า, กลางวัน, เย็น, ก่อนนอน)
+function formatTimeToThai(time: string) {
+  const hour = parseInt(time.split(':')[0], 10);
+  if (hour >= 5 && hour < 11) return `เช้า ${time} น.`;
+  if (hour >= 11 && hour < 15) return `กลางวัน ${time} น.`;
+  if (hour >= 15 && hour < 20) return `เย็น ${time} น.`;
+  return `ก่อนนอน ${time} น.`;
+}
+
+// Helper แปลง Reminder Model เป็น UI Item
+function mapReminderToDisplay(reminder: MedicationReminderWithMedication): MedicationDisplayItem {
+  const times = reminder.reminder_times.map((t) => formatTimeToThai(t));
+  const med = reminder.medication;
+  const desc = med?.description ? ` (${med.description})` : '';
+  const dosage = (med as unknown as { dosage?: string })?.dosage ?? `1 ${med?.type ?? 'เม็ด'}`;
+  const instruction = reminder.status === 'paused'
+    ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
+    : `รับทาน ครั้งละ ${dosage} · วันละ ${reminder.reminder_times.length} ครั้ง${desc}`;
+
+  return {
+    id: reminder.id,
+    medicationId: reminder.medication_id,
+    name: med?.name ?? 'ยาไม่ระบุชื่อ',
+    category: med?.category ?? 'ยาทั่วไป',
+    dosageInstruction: instruction,
+    times: times,
+    rawTimes: reminder.reminder_times || ['08:00', '18:00'],
+    startDate: reminder.start_date,
+    endDate: reminder.end_date,
+    stockInfo: `เหลือ ${med?.stock ?? 30} ${med?.type ?? 'เม็ด'}`,
+    nextDoseMinutes: 20,
+    isActive: reminder.status !== 'paused',
+  };
+}
+
 export default function RemindersPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, role } = useAuth();
   const { repositories } = useClinicMockDatabase();
 
-  // รายชื่อและผู้ป่วยที่เลือก
-  const [selectedPatientId, setSelectedPatientId] = useState<string>('profile-peter-parker');
+  const [selectedPatientOverride, setSelectedPatientOverride] = useState<string | null>(null);
+
+  // คำนวณผู้ป่วยที่เลือกอย่างปลอดภัยและสอดคล้องกับบทบาท
+  const selectedPatientId = useMemo(() => {
+    if (role === 'patient') {
+      return (user && isUuid(user.id)) ? user.id : 'profile-peter-parker';
+    }
+    if (selectedPatientOverride) {
+      return selectedPatientOverride;
+    }
+    if (user && isUuid(user.id)) {
+      return user.id;
+    }
+    return 'profile-peter-parker';
+  }, [role, user, selectedPatientOverride]);
 
   const [medicationList, setMedicationList] = useState<MedicationDisplayItem[]>([]);
   const [availableMeds, setAvailableMeds] = useState<Medication[]>([]);
@@ -90,14 +143,24 @@ export default function RemindersPage() {
 
   // รายชื่อผู้ป่วยทั้งหมด (รวมผู้ใช้ปัจจุบันถ้ามี)
   const allPatients = useMemo(() => {
-    if (user && !CLINIC_PATIENTS.some(p => p.id === user.id)) {
-      return [
-        { id: user.id, name: user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)', studentId: 'บัญชีฉัน', allergies: null },
-        ...CLINIC_PATIENTS,
-      ];
+    if (user) {
+      const currentPatientOpt: PatientOption = {
+        id: user.id,
+        name: user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
+        studentId: (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+        allergies: null,
+      };
+
+      if (role === 'patient') {
+        return [currentPatientOpt];
+      }
+
+      if (!CLINIC_PATIENTS.some((p) => p.id === user.id)) {
+        return [currentPatientOpt, ...CLINIC_PATIENTS];
+      }
     }
     return CLINIC_PATIENTS;
-  }, [user]);
+  }, [user, role]);
 
   // ข้อมูลผู้ป่วยที่เลือก
   const currentPatient = useMemo(() => {
@@ -111,43 +174,8 @@ export default function RemindersPage() {
     }, 3500);
   };
 
-  // ฟังก์ชันแปลงเวลาเป็นภาษาไทย (เช้า, กลางวัน, เย็น, ก่อนนอน)
-  const formatTimeToThai = (time: string) => {
-    const hour = parseInt(time.split(':')[0], 10);
-    if (hour >= 5 && hour < 11) return `เช้า ${time} น.`;
-    if (hour >= 11 && hour < 15) return `กลางวัน ${time} น.`;
-    if (hour >= 15 && hour < 20) return `เย็น ${time} น.`;
-    return `ก่อนนอน ${time} น.`;
-  };
-
-  // Helper แปลง Reminder Model เป็น UI Item
-  const mapReminderToDisplay = (reminder: MedicationReminderWithMedication): MedicationDisplayItem => {
-    const times = reminder.reminder_times.map((t) => formatTimeToThai(t));
-    const med = reminder.medication;
-    const desc = med?.description ? ` (${med.description})` : '';
-    const dosage = (med as unknown as { dosage?: string })?.dosage ?? `1 ${med?.type ?? 'เม็ด'}`;
-    const instruction = reminder.status === 'paused'
-      ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
-      : `รับทาน ครั้งละ ${dosage} · วันละ ${reminder.reminder_times.length} ครั้ง${desc}`;
-
-    return {
-      id: reminder.id,
-      medicationId: reminder.medication_id,
-      name: med?.name ?? 'ยาไม่ระบุชื่อ',
-      category: med?.category ?? 'ยาทั่วไป',
-      dosageInstruction: instruction,
-      times: times,
-      rawTimes: reminder.reminder_times || ['08:00', '18:00'],
-      startDate: reminder.start_date,
-      endDate: reminder.end_date,
-      stockInfo: `เหลือ ${med?.stock ?? 30} ${med?.type ?? 'เม็ด'}`,
-      nextDoseMinutes: 20,
-      isActive: reminder.status !== 'paused',
-    };
-  };
-
   // ดึงข้อมูลยาของผู้ป่วยที่เลือก
-  const loadData = async (patientId: string) => {
+  const loadData = useCallback(async (patientId: string) => {
     setIsLoading(true);
     try {
       // 1. ดึงรายการยาจาก Supabase medications (พร้อม fallback)
@@ -164,12 +192,18 @@ export default function RemindersPage() {
       setAvailableMeds(meds);
       setIsDbConnected(true);
 
-      // 2. ดึงจาก Supabase reminders โดยอิงตาม patientId ที่เลือก
-      const dbReminders = await getReminders(patientId);
-      if (dbReminders && dbReminders.length > 0) {
-        setMedicationList(dbReminders.map(mapReminderToDisplay));
-        setIsLoading(false);
-        return;
+      // 2. ถ้า patientId เป็น UUID ให้ดึงจาก Supabase reminders
+      if (isUuid(patientId)) {
+        try {
+          const dbReminders = await getReminders(patientId);
+          if (dbReminders && dbReminders.length > 0) {
+            setMedicationList(dbReminders.map(mapReminderToDisplay));
+            setIsLoading(false);
+            return;
+          }
+        } catch (dbErr) {
+          console.warn('Could not fetch reminders from Supabase for patient:', patientId, dbErr);
+        }
       }
 
       // 3. Fallback: ดึงจาก mock repository ตาม patientId
@@ -180,28 +214,32 @@ export default function RemindersPage() {
         setMedicationList([]);
       }
     } catch (err) {
-      console.error('Error connecting to Supabase database:', err);
-      const { data: mockMeds } = await repositories.medications.list();
-      if (mockMeds && mockMeds.length > 0) {
-        setAvailableMeds(mockMeds as Medication[]);
-      }
-      const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
-      if (mockData) {
-        setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-      } else {
-        setMedicationList([]);
+      console.error('Error loading reminders data:', err);
+      try {
+        const { data: mockMeds } = await repositories.medications.list();
+        if (mockMeds && mockMeds.length > 0) {
+          setAvailableMeds(mockMeds as Medication[]);
+        }
+        const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
+        if (mockData) {
+          setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
+        } else {
+          setMedicationList([]);
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback error:', fallbackErr);
       }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [repositories.medications, repositories.reminders]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       void loadData(selectedPatientId);
     }, 0);
     return () => clearTimeout(timer);
-  }, [selectedPatientId]);
+  }, [loadData, selectedPatientId]);
 
   // สลับสถานะเปิด/ปิดการแจ้งเตือนยา (Toggle)
   const handleToggle = async (id: string) => {
@@ -281,7 +319,11 @@ export default function RemindersPage() {
   const handleSeedSample = async () => {
     setIsSaving(true);
     try {
-      const targetUserId = user?.id || selectedPatientId;
+      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
+      if (!targetUserId) {
+        showToast('กรุณาเข้าสู่ระบบด้วยบัญชีจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
+        return;
+      }
       const seeded = await seedSampleReminders(targetUserId);
       if (seeded && seeded.length > 0) {
         setMedicationList(seeded.map(mapReminderToDisplay));
@@ -326,23 +368,45 @@ export default function RemindersPage() {
 
     setIsSaving(true);
     try {
-      const targetUserId = user?.id || selectedPatientId;
+      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
       
-      const created = await createReminder({
-        user_id: targetUserId,
-        medication_id: selectedMedId,
-        reminder_times: selectedTimes.sort(),
-        start_date: startDate,
-        end_date: endDate || null,
-      });
+      if (targetUserId) {
+        const created = await createReminder({
+          user_id: targetUserId,
+          medication_id: selectedMedId,
+          reminder_times: selectedTimes.sort(),
+          start_date: startDate,
+          end_date: endDate || null,
+        });
 
-      if (created) {
-        setMedicationList((prev) => [mapReminderToDisplay(created), ...prev]);
-        showToast(`จ่ายยาและบันทึก "${created.medication?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ`);
-      } else {
-        await loadData(selectedPatientId);
+        if (created) {
+          setMedicationList((prev) => [mapReminderToDisplay(created), ...prev]);
+          showToast(`จ่ายยาและบันทึก "${created.medication?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ`);
+          setIsAddModalOpen(false);
+          setSelectedMedId('');
+          setSelectedTimes(['08:00', '18:00']);
+          return;
+        }
       }
 
+      // Fallback UI เมื่อเป็น mock user หรือไม่มี target user id ใน Supabase
+      const med = availableMeds.find((m) => m.id === selectedMedId);
+      const newItem: MedicationDisplayItem = {
+        id: `reminder-local-${Date.now()}`,
+        medicationId: selectedMedId,
+        name: med?.name ?? 'ยาที่เลือก',
+        category: med?.category,
+        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
+        times: selectedTimes.sort().map(formatTimeToThai),
+        rawTimes: selectedTimes.sort(),
+        startDate: startDate,
+        endDate: endDate || null,
+        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
+        nextDoseMinutes: 15,
+        isActive: true,
+      };
+      setMedicationList((prev) => [newItem, ...prev]);
+      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
       setIsAddModalOpen(false);
       setSelectedMedId('');
       setSelectedTimes(['08:00', '18:00']);
@@ -525,32 +589,47 @@ export default function RemindersPage() {
             </div>
 
               {/* --- 1. แถบเลือกผู้ป่วย (Patient Selector เอาไว้จ่ายยา) --- */}
-              <div className="flex items-center gap-3 bg-white border border-slate-200 p-2 rounded-2xl shadow-2xs">
-                <div className="flex items-center gap-2 px-2 text-slate-600">
-                  <User size={18} className="text-blue-600 shrink-0" />
-                  <span className="text-xs font-bold whitespace-nowrap">ผู้ป่วย:</span>
-                </div>
-                <select
-                  value={selectedPatientId}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition cursor-pointer"
-                >
-                  {allPatients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.studentId}) {p.allergies ? `[⚠️ ${p.allergies}]` : ''}
-                    </option>
-                  ))}
-                </select>
+              {role !== 'patient' ? (
+                <div className="flex items-center gap-3 bg-white border border-slate-200 p-2 rounded-2xl shadow-2xs">
+                  <div className="flex items-center gap-2 px-2 text-slate-600">
+                    <User size={18} className="text-blue-600 shrink-0" />
+                    <span className="text-xs font-bold whitespace-nowrap">ผู้ป่วย:</span>
+                  </div>
+                  <select
+                    value={selectedPatientId}
+                    onChange={(e) => setSelectedPatientOverride(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition cursor-pointer"
+                  >
+                    {allPatients.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.studentId}) {p.allergies ? `[⚠️ ${p.allergies}]` : ''}
+                      </option>
+                    ))}
+                  </select>
 
-                <button 
-                  onClick={() => void loadData(selectedPatientId)} 
-                  title="รีเฟรชข้อมูลผู้ป่วย"
-                  disabled={isLoading}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
-                >
-                  <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                </button>
-              </div>
+                  <button 
+                    onClick={() => void loadData(selectedPatientId)} 
+                    title="รีเฟรชข้อมูลผู้ป่วย"
+                    disabled={isLoading}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-2xs">
+                  <User size={16} className="text-blue-600 shrink-0" />
+                  <span className="text-xs font-bold text-slate-700">{user?.full_name || 'บัญชีของคุณ'}</span>
+                  <button 
+                    onClick={() => void loadData(selectedPatientId)} 
+                    title="รีเฟรชข้อมูลยา"
+                    disabled={isLoading}
+                    className="ml-1 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* แถบแจ้งเตือนข้อมูลผู้ป่วยและการแพ้ยา */}
