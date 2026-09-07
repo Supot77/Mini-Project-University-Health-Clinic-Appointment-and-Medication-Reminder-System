@@ -97,18 +97,18 @@ describe('appointment preview repository', () => {
     expect(seats(after, '2026-09-14-1-09:00')).toBe(seats(before, '2026-09-14-1-09:00') - 1);
   });
 
-  it('allows staff approval while restricting patients and doctors to permitted transitions and appointments', () => {
+  it('allows staff/admin approval while restricting patients and medical staff to permitted transitions and appointments', () => {
     const repository = createAppointmentPreviewRepository();
     const before = repository.snapshot();
 
-    expect(repository.changeStatus('APT-002', 'confirmed', 'doctor').ok).toBe(false);
+    expect(repository.changeStatus('APT-002', 'confirmed', 'medical').ok).toBe(false);
     expect(repository.changeStatus('APT-002', 'confirmed', 'patient').ok).toBe(false);
-    expect(repository.changeStatus('APT-004', 'in_progress', 'doctor').ok).toBe(false);
-    expect(repository.changeStatus('APT-002', 'no_show', 'staff').ok).toBe(false);
+    expect(repository.changeStatus('APT-004', 'in_progress', 'medical').ok).toBe(false);
+    expect(repository.changeStatus('APT-002', 'no_show', 'medical').ok).toBe(false);
     expect(repository.snapshot()).toEqual(before);
 
-    expect(repository.changeStatus('APT-002', 'confirmed', 'staff').ok).toBe(true);
-    expect(repository.changeStatus('APT-001', 'in_progress', 'doctor').ok).toBe(true);
+    expect(repository.changeStatus('APT-002', 'confirmed', 'staff_admin').ok).toBe(true);
+    expect(repository.changeStatus('APT-001', 'in_progress', 'medical').ok).toBe(true);
     expect(repository.snapshot().appointments.find((item) => item.id === 'APT-002')?.status).toBe('confirmed');
     expect(repository.snapshot().appointments.find((item) => item.id === 'APT-001')?.status).toBe('in_progress');
   });

@@ -34,7 +34,7 @@ describe("Header", () => {
   it("keeps every main route reachable while editing in demo mode", () => {
     authState.user = { full_name: "Admin Demo" };
     authState.isAuthenticated = true;
-    authState.role = "admin";
+    authState.role = "staff_admin";
 
     render(<Header />);
 

@@ -1,4 +1,4 @@
-export type RecordPreview = 'patient' | 'doctor';
+export type RecordPreview = 'patient' | 'medical';
 
 export interface DemoPrescriptionItem {
   id: string;

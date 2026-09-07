@@ -237,8 +237,8 @@ export default function DepartmentWorkspace() {
         <div className="grid gap-px bg-white/10 sm:grid-cols-3">
           {[
             [Database, 'Database', 'รอ migration + RLS'],
-            [UserRoundCheck, 'Auth · ฟีม', 'รับบัญชี role doctor'],
-            [Link2, 'Booking · ปาย', 'ส่งต่อ doctor/slot IDs'],
+            [UserRoundCheck, 'Auth · ฟีม', 'รับบัญชี role medical'],
+            [Link2, 'Booking · ปาย', 'ส่งต่อ medical/slot IDs'],
           ].map(([Icon, label, detail]) => {
             const ItemIcon = Icon as typeof Database;
             return (
@@ -380,12 +380,12 @@ export default function DepartmentWorkspace() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Auth handoff</p>
               <h2 id="doctor-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingDoctorId ? 'แก้ไขข้อมูลแพทย์' : 'ผูกบัญชีแพทย์กับคลินิก'}</h2>
-              <p className="mt-1 text-sm text-slate-500">บัญชีและ role เป็นงานของฟีม ส่วนช้อปกำหนดแผนกและความเชี่ยวชาญ</p>
+              <p className="mt-1 text-sm text-slate-500">บัญชีและ role เป็นงานของฟีม ส่วนช้อปกำหนดแผนกและความเชี่ยวชาญทางการแพทย์</p>
             </div>
             <button type="button" onClick={() => setDoctorFormOpen(false)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="ปิดแบบฟอร์ม"><X className="h-5 w-5" aria-hidden="true" /></button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">บัญชีที่มี role doctor</span><select value={doctorDraft.profileId} disabled={Boolean(editingDoctorId)} onChange={(event) => selectDoctorAccount(event.target.value)} className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}><option value="">เลือกบัญชีแพทย์</option>{editingDoctorId && <option value={doctorDraft.profileId}>{doctorDraft.fullName} · {doctorDraft.email}</option>}{!editingDoctorId && doctorAccounts.filter((account) => !doctors.some((doctor) => doctor.profileId === account.profileId)).map((account) => <option key={account.profileId} value={account.profileId}>{account.fullName} · {account.email}</option>)}</select></label>
+            <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">บัญชีที่มี role medical</span><select value={doctorDraft.profileId} disabled={Boolean(editingDoctorId)} onChange={(event) => selectDoctorAccount(event.target.value)} className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}><option value="">เลือกบัญชีแพทย์</option>{editingDoctorId && <option value={doctorDraft.profileId}>{doctorDraft.fullName} · {doctorDraft.email}</option>}{!editingDoctorId && doctorAccounts.filter((account) => !doctors.some((doctor) => doctor.profileId === account.profileId)).map((account) => <option key={account.profileId} value={account.profileId}>{account.fullName} · {account.email}</option>)}</select></label>
             <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">แผนก</span><select value={doctorDraft.departmentId} onChange={(event) => setDoctorDraft((current) => ({ ...current, departmentId: event.target.value }))} className={inputClass}><option value="">เลือกแผนก</option>{departments.filter((department) => department.isActive).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
             <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">สถานะ</span><select value={doctorDraft.availability} onChange={(event) => setDoctorDraft((current) => ({ ...current, availability: event.target.value as DoctorAvailability }))} className={inputClass}><option value="active">พร้อมออกตรวจ</option><option value="on_leave">ลา</option><option value="inactive">ปิดใช้งาน</option></select></label>
             <label className="space-y-1.5 md:col-span-2 xl:col-span-4"><span className="text-sm font-medium text-slate-700">ความเชี่ยวชาญ</span><input value={doctorDraft.specialty} onChange={(event) => setDoctorDraft((current) => ({ ...current, specialty: event.target.value }))} className={inputClass} /></label>

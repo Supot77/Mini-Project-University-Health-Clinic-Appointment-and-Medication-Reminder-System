@@ -1,4 +1,9 @@
-import type { AppointmentStatus, Notification, NotificationType, UserRole } from '@/types/database';
+import type {
+  AppointmentStatus,
+  Notification,
+  NotificationType,
+  UserRole,
+} from '@/types/database';
 
 export type DashboardRange = 'today' | '7d' | '30d';
 
@@ -20,7 +25,11 @@ export interface DashboardView {
   title: string;
   description: string;
   metrics: DashboardMetric[];
-  appointmentStatuses: Array<{ status: AppointmentStatus; label: string; count: number }>;
+  appointmentStatuses: Array<{
+    status: AppointmentStatus;
+    label: string;
+    count: number;
+  }>;
   appointmentQueue: Array<{
     id: string;
     queueNumber: number | null;
@@ -31,33 +40,50 @@ export interface DashboardView {
     doctorName: string;
     departmentName: string;
   }>;
-  departmentLoads: Array<{ departmentId: string; departmentName: string; appointmentCount: number; capacity: number }>;
-  medicationAlerts: Array<{ id: string; name: string; stock: number; minimumStock: number; expiryDate: string | null; lowStock: boolean; expired: boolean }>;
+  departmentLoads: Array<{
+    departmentId: string;
+    departmentName: string;
+    appointmentCount: number;
+    capacity: number;
+  }>;
+  medicationAlerts: Array<{
+    id: string;
+    name: string;
+    stock: number;
+    minimumStock: number;
+    expiryDate: string | null;
+    lowStock: boolean;
+    expired: boolean;
+  }>;
   recentNotifications: Notification[];
   roleCounts: Array<{ role: UserRole; count: number }>;
-}
-
-export interface BroadcastAudience {
-  all: boolean;
-  roles: UserRole[];
 }
 
 export interface SendBroadcastInput {
   actorId: string;
   actorRole: UserRole;
-  notificationType: NotificationType;
   title: string;
   message: string;
-  audience: BroadcastAudience;
   requestKey: string;
+  notificationType: NotificationType;
+  audience: {
+    all: boolean;
+    roles: UserRole[];
+  };
+}
+
+export interface BroadcastHistoryItem {
+  id: string;
+  title: string;
+  message: string;
+  sentAt: string;
+  recipientCount: number;
 }
 
 export const roleLabels: Record<UserRole, string> = {
-  patient: 'ผู้ป่วย',
-  staff: 'เจ้าหน้าที่',
-  doctor: 'แพทย์',
-  pharmacist: 'เภสัชกร',
-  admin: 'ผู้ดูแลระบบ',
+  patient: 'ผู้ใช้งาน',
+  staff_admin: 'เจ้าหน้าที่',
+  medical: 'บุคลากรทางการแพทย์',
 };
 
 export const dashboardRangeLabels: Record<DashboardRange, string> = {
