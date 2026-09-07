@@ -48,6 +48,16 @@ export class ClinicMockDatabase {
     return ok(structuredClone(next) as ClinicMockTables[K][number]);
   }
 
+  async deleteById<K extends MockTableName>(table: K, id: string): Promise<DataResult<boolean>> {
+    await this.delay();
+    const rows = this.tables[table] as Array<{ id: string }>;
+    const index = rows.findIndex((item) => item.id === id);
+    if (index < 0) return fail('ไม่พบข้อมูล', 'PGRST116', `${table}.${id}`);
+    rows.splice(index, 1);
+    this.revision += 1;
+    return ok(true);
+  }
+
   async transaction<T>(expectedRevision: number, command: (draft: ClinicMockTables) => DataResult<T>): Promise<DataResult<T>> {
     await this.delay();
     if (expectedRevision !== this.revision) return fail('ข้อมูลถูกเปลี่ยนโดยคำสั่งอื่น', 'MOCK_CONFLICT');

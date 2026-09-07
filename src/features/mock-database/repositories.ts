@@ -133,6 +133,9 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
         });
       },
     },
+    medications: {
+      list: () => database.select('medications'),
+    },
     reminders: {
       list: () => database.select('medication_reminders'),
       listWithMedication: async (userId?: string) => {
@@ -147,6 +150,8 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
       },
       listLogs: () => database.select('medication_logs'),
       updateStatus: (id: string, status: MedicationReminderStatus) => database.updateById('medication_reminders', id, { status, updated_at: new Date().toISOString() }),
+      update: (id: string, changes: Parameters<typeof database.updateById<'medication_reminders'>>[2]) => database.updateById('medication_reminders', id, { ...changes, updated_at: new Date().toISOString() }),
+      delete: (id: string) => database.deleteById('medication_reminders', id),
     },
     notifications: {
       list: () => database.select('notifications'),
