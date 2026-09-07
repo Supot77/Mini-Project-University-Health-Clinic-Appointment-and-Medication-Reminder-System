@@ -34,7 +34,8 @@ export interface ShopRepository {
   toggleSlot(id: string): ShopResult<ScheduleSlot>;
   saveWeeklySchedule(input: Omit<DoctorWeeklySchedule, 'id'>, id?: string): ShopResult<DoctorWeeklySchedule>;
   submitLeave(input: Omit<DoctorLeaveRequest, 'id' | 'status'>): ShopResult<DoctorLeaveRequest>;
-  decideLeave(id: string, status: 'approved' | 'rejected', decidedBy: string, today: string): ShopResult<DoctorLeaveRequest>;
+  decideLeave(id: string, status: 'approved' | 'rejected', decidedBy: string, today: string, decisionNote?: string): ShopResult<DoctorLeaveRequest>;
+  cancelLeave(id: string, requestedBy: string): ShopResult<DoctorLeaveRequest>;
   generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number>;
   reconcileDoctorLeave(today: string): ShopResult<number>;
 }

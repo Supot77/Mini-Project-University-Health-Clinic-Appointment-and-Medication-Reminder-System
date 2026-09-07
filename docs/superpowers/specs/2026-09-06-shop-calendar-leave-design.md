@@ -4,6 +4,8 @@
 
 สถานะ: design สำหรับ review ก่อน implementation
 
+> สถานะเพิ่มเติม: superseded เฉพาะข้อกำหนด mock-only โดย D23 ใน `docs/10_team_decisions.md` หากนำ flow ที่ยังอยู่ใน scope มาใช้ ต้องผ่าน Supabase database repository; mock ใช้เฉพาะ tests/offline demo
+
 ## 1. เป้าหมาย
 
 ปรับปฏิทินของช้อปให้มีมุมมอง Day, Week และ Month ในรูปแบบเรียบคล้าย Google Calendar โดยแสดงข้อมูลรอบตรวจและสถานะวันลาเท่าที่จำเป็นต่อการทำงานของเจ้าหน้าที่ ไม่ทำรายละเอียดระดับ Google Calendar ทั้งหมด

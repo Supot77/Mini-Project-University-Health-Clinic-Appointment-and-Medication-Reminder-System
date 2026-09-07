@@ -138,27 +138,30 @@ export default function ProfileContent() {
 
     let active = true;
 
-    setIsLoading(true);
-    setError(null);
-
-    loadProfile()
-      .catch((err) => {
-        if (active) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "โหลดข้อมูลไม่สำเร็จ",
-          );
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      setIsLoading(true);
+      setError(null);
+      loadProfile()
+        .catch((err) => {
+          if (active) {
+            setError(
+              err instanceof Error
+                ? err.message
+                : "โหลดข้อมูลไม่สำเร็จ",
+            );
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setIsLoading(false);
+          }
+        });
+    }, 0);
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps

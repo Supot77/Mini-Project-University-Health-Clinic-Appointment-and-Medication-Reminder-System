@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ComponentType } from "react";
-import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, UserRound, UserSearch, X } from "lucide-react";
+import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, Umbrella, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import type { UserRole } from "@/types/database";
 
-type NavigationRole = "patient" | "staff" | "doctor" | "pharmacist" | "admin";
+type NavigationRole = UserRole;
 
 interface NavigationItem {
   href: string;
@@ -16,12 +17,14 @@ interface NavigationItem {
 }
 
 const navigationItems: NavigationItem[] = [
-  { href: "/schedules", label: "ตารางแพทย์", icon: CalendarDays, roles: ["patient", "staff", "doctor", "pharmacist", "admin"] },
-  { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "staff", "doctor", "admin"] },
-  { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "admin"] },
-  { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["patient", "pharmacist", "admin"] },
-  { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff"] },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["patient", "staff", "doctor", "pharmacist", "admin"] },
+  { href: "/schedules", label: "ตารางแพทย์", icon: CalendarDays, roles: ["patient", "medical", "staff_admin"] },
+  { href: "/leaves", label: "การลาแพทย์", icon: Umbrella, roles: ["medical", "staff_admin"] },
+  { href: "/departments", label: "จัดการแผนก", icon: Hospital, roles: ["staff_admin"] },
+  { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "medical", "staff_admin"] },
+  { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
+  { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },
+  { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin"] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["medical", "staff_admin"] },
 ];
 
 export default function Header() {

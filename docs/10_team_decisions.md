@@ -100,13 +100,13 @@
 | --- | --- |
 | 5–7 | ล็อกข้อสรุป Schema และข้อมูลกลาง |
 | 8–11 | พัฒนาฟีเจอร์ |
-| 12–14 | เชื่อมระบบและทดสอบ AC01–AC15 |
+| 12–14 | เชื่อม Supabase และทดสอบ AC01–AC18 |
 | 15 | หยุดเพิ่มฟีเจอร์ |
 | 16–17 | แก้บั๊กและซ้อม |
 | 18 | ส่งผลงาน |
 
 - ก่อนรวม main ต้องผ่าน lint, typecheck, build และกรณีทดสอบหลัก
-- ก่อนนำเสนอต้องผ่าน AC01–AC15 ตาม scope manual ฉบับ D22
+- ก่อนนำเสนอต้องผ่าน AC01–AC18 ตาม scope manual ของ D22 และ database-first/role UI ของ D23
 - รองรับ Chrome รุ่นปัจจุบัน ทดสอบขั้นต่ำมือถือ 360px และ Desktop 1280px งานหลักใช้คีย์บอร์ดได้ มี loading/empty/error ชัดเจน
 
 ## D02 / D21 — สถานะขอบเขตและการปรับเอกสาร
@@ -127,20 +127,32 @@
 - Reminder เป็นรายการที่ `staff_admin` กรอกเองเพื่อแสดงในเว็บ ผู้ป่วยกดบันทึกว่า “กินแล้ว” หรือ “ยังไม่ได้บันทึก” เอง ไม่มีรอบเวลา missed การเตือนซ้ำ หรือ email
 - Broadcast เป็นการส่งคำสั่งด้วยมือของ `staff_admin` เท่านั้น ไม่มีการส่งตามเวลาและไม่มีการคำนวณผู้รับซับซ้อน
 - คงเฉพาะ validation พื้นฐาน สิทธิ์ผู้ใช้ ความสัมพันธ์ของข้อมูล และการไม่บันทึกข้อมูลเมื่อคำสั่งไม่ผ่าน ไม่เพิ่มข้อยกเว้นย่อยที่ไม่จำเป็นต่อการสาธิต
-- ข้อมูลจริง ฐานข้อมูล migration และ service ภายนอกยังไม่ถูกเปิดใช้จากการเปลี่ยนเอกสารครั้งนี้ ต้องปรับโค้ดและ schema ในงาน implementation แยกต่างหาก
-
 รายการนอก scope อย่างชัดเจน: การเลื่อนนัดอัตโนมัติ/รอครบเวลา, การแบ่งจ่ายและยาค้าง, การกันยา, การตรวจสถานะตามเวลา, worker/email, retry, pause reminder, การบันทึกย้อนหลังตามเส้นตาย และการแก้ใบสั่งแบบ version
+
+## D23 — Database-first และ UI แยกตามบทบาท
+
+เจ้าของโครงการอนุมัติให้ยกเลิกข้อห้ามแบบ mock-only ที่ขัดกับข้อนี้ และเริ่มเปลี่ยนระบบเป็น database-first โดยยังคง business scope แบบ manual ของ D22
+
+- Runtime หลักใช้ Supabase จริงผ่าน database repository ภายใต้ contract เดียวกับ mock repository
+- Mock repository ใช้สำหรับ automated tests และ offline demo ที่ระบุชัด ไม่เป็น production runtime และไม่มี silent fallback เมื่อเชื่อมฐานล้มเหลว
+- ใช้ session ของผู้ใช้กับ RLS/RPC เป็นขอบเขตสิทธิ์ ห้ามใช้ `service_role` ใน browser หรือเผยแพร่ secret
+- Migration, seed และ database integration รันกับ development/staging ได้เมื่อยืนยัน target, review diff และสำรองข้อมูลตามความเสี่ยง ห้าม destructive reset กับ production
+- `patient`, `medical`, `staff_admin` ต้องมี guarded entry page/dashboard ของตน เมื่อ data/action/permission ต่างกันให้แยก role-specific page/container/component
+- Shared presentational component ใช้ร่วมกันได้ Production UI ไม่มีตัวเลือกสลับ role แทน session จริง
+- Unit/component tests ยัง deterministic และไม่เรียกฐานจริง Database integration/RLS tests แยกชุดและรายงาน target กับผลจริง
 
 ## งานติดตามที่ยังไม่ใช่ข้อกำหนดเพิ่ม
 
 | งานติดตาม | ผู้เกี่ยวข้อง | ผลที่ต้องได้ |
 | --- | --- | --- |
-| ตรวจ migration/RLS สำหรับ role canonical | ฟีม/ผู้ดูแลฐานข้อมูล | ยืนยันผลกับฐานทดลองก่อน deploy; งาน mock ห้ามเรียกฐานจริง |
+| ตรวจ migration/RLS สำหรับ role canonical | ฟีม/ผู้ดูแลฐานข้อมูล | ยืนยัน target, backup และผลกับฐาน development/staging ก่อน deploy |
+| เปลี่ยน repository factory เป็น database-first | ทุกเจ้าของโมดูล | Runtime ใช้ Supabase; unit/component tests inject mock ผ่าน contract เดียวกัน |
+| แยก entry page/container ตาม role | ฟีม/เฮิร์บและเจ้าของ flow | route guard, service permission และ RLS ปฏิเสธ role ที่ไม่เกี่ยวข้อง |
 | ตรวจ contract ระหว่างโมดูลและข้อมูลเดโม | ทุกเจ้าของโมดูล | ยืนยัน role 3 ค่า จำนวนบัญชี 17 บัญชี และ flow manual เดียวกัน |
 | ตรวจ UI 360px/1280px, keyboard, loading, empty, error | ทุกเจ้าของโมดูลและคู่ตรวจ | บันทึกผลจริงก่อนนำเสนอ |
 | ระบุไฟล์ส่ง ผู้สาธิต ผู้รวมโค้ด และผู้ดูแลไฟล์กลาง | ทุกคน | เติมชื่อจริงใน [09](09_implementation_plan.md) โดยไม่ขยาย scope |
 
-สถานะข้อกำหนดและ role contract: ตกลงแล้วและมี migration/types ใน repository แต่ยังไม่รันกับฐานจริงหรือยืนยันการตรวจรับ ดูแผนลงมือใน [09](09_implementation_plan.md) และเกณฑ์ใน [08](08_system_rules_and_acceptance.md)
+สถานะข้อกำหนดและ role contract: ตกลงใช้ database-first และ UI แยกตาม role แล้ว การมี migration/types ใน repository ยังไม่ยืนยันว่า deploy หรือผ่าน database integration/RLS ดูแผนลงมือใน [09](09_implementation_plan.md) และเกณฑ์ใน [08](08_system_rules_and_acceptance.md)
 
 ## เตรียมก่อนประชุมครั้งถัดไป
 

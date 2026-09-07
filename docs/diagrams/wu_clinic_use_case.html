@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Use Case Diagram · WU Clinic Booking</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+Thai:wght@400;500;600&family=Noto+Serif+Thai:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #f5f5f5;
+      --paper-2: #ececec;
+      --ink: #2d3142;
+      --muted: #4f5d75;
+      --soft: #7a8399;
+      --rule: rgba(45,49,66,0.14);
+      --accent: #eb6c36;
+      --accent-tint: rgba(235,108,54,0.08);
+      --font-sans: 'Geist', 'Noto Sans Thai', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', 'Noto Serif Thai', serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      min-height: 100vh;
+      padding: 48px 32px 40px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+    .frame { max-width: 1240px; margin: 0 auto; }
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin-bottom: 24px;
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.12;
+    }
+    .diagram-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.36);
+      padding: 24px;
+    }
+    svg { display: block; width: 100%; min-width: 1120px; height: auto; }
+    .caption {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 24px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .caption strong { color: var(--ink); font-weight: 600; }
+    .footer {
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid var(--rule);
+      color: var(--soft);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.06em;
+    }
+    @media (max-width: 720px) {
+      body { padding: 28px 16px; }
+      .diagram-wrap { padding: 12px; }
+      .caption { grid-template-columns: 1fr; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <p class="eyebrow">UML · USE CASE · WU CLINIC BOOKING</p>
+    <h1>Use Case Diagram — ระบบจองคลินิกสุขภาพ</h1>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 1200 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="wu-clinic-use-case-title wu-clinic-use-case-desc">
+        <title id="wu-clinic-use-case-title">Use Case Diagram — ระบบจองคลินิกสุขภาพ</title>
+        <desc id="wu-clinic-use-case-desc">แผนภาพ Use Case แสดงความสัมพันธ์ระหว่างผู้ป่วย บุคลากรทางการแพทย์ เจ้าหน้าที่หรือแอดมิน และกรณีใช้งานหลักของระบบจองคลินิกสุขภาพ</desc>
+        <defs>
+          <marker id="wu-clinic-use-case-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+          </marker>
+          <marker id="wu-clinic-use-case-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+          </marker>
+        </defs>
+
+        <rect width="1200" height="680" fill="#f5f5f5"/>
+
+        <!-- system boundary -->
+        <rect x="272" y="64" width="796" height="548" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1.2"/>
+        <rect x="296" y="80" width="244" height="28" rx="4" fill="#f5f5f5" stroke="rgba(45,49,66,0.18)" stroke-width="0.8"/>
+        <text x="316" y="98" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">ระบบจองคลินิกสุขภาพ</text>
+        <text x="1040" y="98" text-anchor="end" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="8" letter-spacing="0.08em">MOCK SCOPE · MANUAL</text>
+
+        <!-- associations: patient -->
+        <path d="M 144 300 H 208 V 124 H 480" fill="none" stroke="#4f5d75" stroke-width="1"/>
+        <path d="M 144 312 H 224 V 248 H 672" fill="none" stroke="#4f5d75" stroke-width="1"/>
+        <path d="M 144 324 H 240 V 372 H 320" fill="none" stroke="#eb6c36" stroke-width="1.2"/>
+        <path d="M 144 336 H 256 V 496 H 320" fill="none" stroke="#4f5d75" stroke-width="1"/>
+
+        <!-- associations: medical -->
+        <path d="M 1116 280 H 1048 V 372 H 588" fill="none" stroke="#eb6c36" stroke-width="1.2"/>
+        <path d="M 1116 292 H 1064 V 248 H 960" fill="none" stroke="#4f5d75" stroke-width="1"/>
+        <path d="M 1116 304 H 1080 V 496 H 960" fill="none" stroke="#4f5d75" stroke-width="1"/>
+
+        <!-- associations: staff/admin -->
+        <path d="M 1116 476 H 1000 V 124 H 800" fill="none" stroke="#4f5d75" stroke-width="1"/>
+        <path d="M 1116 488 H 1024 V 248 H 928" fill="none" stroke="#4f5d75" stroke-width="1"/>
+        <path d="M 1116 500 H 1040 V 496 H 928" fill="none" stroke="#4f5d75" stroke-width="1"/>
+
+        <!-- include relation: appointment depends on schedule -->
+        <path d="M 452 284 V 336" fill="none" stroke="#7a8399" stroke-width="0.8" stroke-dasharray="4 4" marker-end="url(#wu-clinic-use-case-arrow)"/>
+        <rect x="464" y="296" width="96" height="16" rx="4" fill="#f5f5f5"/>
+        <text x="512" y="307" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="8" letter-spacing="0.04em">&lt;&lt;include&gt;&gt;</text>
+
+        <!-- actors -->
+        <g aria-label="ผู้ป่วย patient">
+          <circle cx="120" cy="276" r="12" fill="#f5f5f5" stroke="#2d3142" stroke-width="1.2"/>
+          <path d="M 120 288 V 324 M 96 300 H 144 M 120 324 L 104 348 M 120 324 L 136 348" fill="none" stroke="#2d3142" stroke-width="1.2" stroke-linecap="round"/>
+          <text x="120" y="372" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">ผู้ป่วย</text>
+          <text x="120" y="388" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">patient</text>
+        </g>
+
+        <g aria-label="บุคลากรทางการแพทย์ medical">
+          <circle cx="1152" cy="256" r="12" fill="#f5f5f5" stroke="#2d3142" stroke-width="1.2"/>
+          <path d="M 1152 268 V 304 M 1128 280 H 1176 M 1152 304 L 1136 328 M 1152 304 L 1168 328" fill="none" stroke="#2d3142" stroke-width="1.2" stroke-linecap="round"/>
+          <text x="1152" y="352" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">แพทย์ / เภสัชกร</text>
+          <text x="1152" y="368" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">medical</text>
+        </g>
+
+        <g aria-label="เจ้าหน้าที่หรือแอดมิน staff_admin">
+          <circle cx="1152" cy="452" r="12" fill="#f5f5f5" stroke="#2d3142" stroke-width="1.2"/>
+          <path d="M 1152 464 V 500 M 1128 476 H 1176 M 1152 500 L 1136 524 M 1152 500 L 1168 524" fill="none" stroke="#2d3142" stroke-width="1.2" stroke-linecap="round"/>
+          <text x="1152" y="548" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">เจ้าหน้าที่ / แอดมิน</text>
+          <text x="1152" y="564" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">staff_admin</text>
+        </g>
+
+        <!-- use cases -->
+        <g aria-label="จัดการสมาชิกและ session">
+          <ellipse cx="640" cy="124" rx="160" ry="36" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="640" y="121" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">จัดการสมาชิกและ session</text>
+          <text x="640" y="137" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">FR-01 · FR-02</text>
+        </g>
+
+        <g aria-label="ดูแผนก แพทย์ และ slot">
+          <ellipse cx="800" cy="248" rx="128" ry="36" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="800" y="245" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">ดูแผนก แพทย์ และ slot</text>
+          <text x="800" y="261" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">FR-03 · FR-04</text>
+        </g>
+
+        <g aria-label="จองหรือเลื่อนนัดหมาย">
+          <ellipse cx="452" cy="372" rx="132" ry="36" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="452" y="369" text-anchor="middle" fill="#eb6c36" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">จองหรือเลื่อนนัดหมาย</text>
+          <text x="452" y="385" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">FR-05 · FR-06</text>
+        </g>
+
+        <g aria-label="บันทึกผลตรวจและจ่ายยา">
+          <ellipse cx="800" cy="372" rx="128" ry="36" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="800" y="369" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">บันทึกผลตรวจและจ่ายยา</text>
+          <text x="800" y="385" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">FR-07 · FR-08</text>
+        </g>
+
+        <g aria-label="จัดการเตือนและบันทึกมื้อยา">
+          <ellipse cx="452" cy="496" rx="132" ry="36" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="452" y="493" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">จัดการเตือนและบันทึกมื้อยา</text>
+          <text x="452" y="509" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">FR-09 · FR-10</text>
+        </g>
+
+        <g aria-label="จัดการ Broadcast และ Dashboard">
+          <ellipse cx="800" cy="496" rx="128" ry="36" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="800" y="493" text-anchor="middle" fill="#2d3142" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12" font-weight="600">จัดการ Broadcast และ Dashboard</text>
+          <text x="800" y="509" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono', monospace" font-size="9">FR-11 · FR-12</text>
+        </g>
+
+        <!-- legend -->
+        <line x1="40" y1="616" x2="1160" y2="616" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+        <text x="40" y="644" fill="#4f5d75" font-family="'Geist Mono', monospace" font-size="8" letter-spacing="0.14em">LEGEND</text>
+        <circle cx="144" cy="640" r="8" fill="#f5f5f5" stroke="#2d3142" stroke-width="1"/>
+        <path d="M 144 648 V 660 M 136 652 H 152" fill="none" stroke="#2d3142" stroke-width="1"/>
+        <text x="164" y="644" fill="#4f5d75" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12">Actor</text>
+        <ellipse cx="276" cy="644" rx="32" ry="12" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+        <text x="324" y="648" fill="#4f5d75" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12">Use case</text>
+        <rect x="432" y="632" width="32" height="24" rx="4" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+        <text x="484" y="648" fill="#4f5d75" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12">System boundary</text>
+        <path d="M 684 644 H 724" fill="none" stroke="#7a8399" stroke-width="0.8" stroke-dasharray="4 4" marker-end="url(#wu-clinic-use-case-arrow)"/>
+        <text x="744" y="648" fill="#4f5d75" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12">&lt;&lt;include&gt;&gt;</text>
+        <path d="M 900 644 H 940" fill="none" stroke="#4f5d75" stroke-width="1"/>
+        <text x="960" y="648" fill="#4f5d75" font-family="'Geist', 'Noto Sans Thai', sans-serif" font-size="12">Association</text>
+      </svg>
+    </div>
+
+    <div class="caption">
+      <p><strong>Scope:</strong> role contract ปัจจุบัน 3 ค่า — <code>patient</code>, <code>medical</code>, <code>staff_admin</code>. ขอบเขตนี้สะท้อนระบบ mock/manual ตามเอกสารทีม</p>
+      <p><strong>Focus:</strong> นัดหมายเป็น use case หลัก; รวมตาราง, ผลตรวจ, ยา, เตือน, Broadcast และ Dashboard ระดับภาพรวม</p>
+    </div>
+    <p class="footer">WU CLINIC BOOKING · DIAGRAM-DESIGN · STATIC HTML · 2026-09-07</p>
+  </main>
+</body>
+</html>
