@@ -4,7 +4,6 @@ import type {
   ScheduleDoctor,
   ScheduleSlot,
   DoctorWeeklySchedule,
-  DoctorLeaveRequest,
 } from '@/types/schedule';
 import type { ShopResult, SlotInput } from './rules';
 
@@ -14,7 +13,6 @@ export interface ShopSnapshot {
   slots: ScheduleSlot[];
   doctorAccounts: DoctorAccountOption[];
   weeklySchedules: DoctorWeeklySchedule[];
-  leaveRequests: DoctorLeaveRequest[];
 }
 
 /**
@@ -33,9 +31,5 @@ export interface ShopRepository {
   saveSlot(input: SlotInput, id?: string): ShopResult<ScheduleSlot>;
   toggleSlot(id: string): ShopResult<ScheduleSlot>;
   saveWeeklySchedule(input: Omit<DoctorWeeklySchedule, 'id'>, id?: string): ShopResult<DoctorWeeklySchedule>;
-  submitLeave(input: Omit<DoctorLeaveRequest, 'id' | 'status'>): ShopResult<DoctorLeaveRequest>;
-  decideLeave(id: string, status: 'approved' | 'rejected', decidedBy: string, today: string, decisionNote?: string): ShopResult<DoctorLeaveRequest>;
-  cancelLeave(id: string, requestedBy: string): ShopResult<DoctorLeaveRequest>;
   generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number>;
-  reconcileDoctorLeave(today: string): ShopResult<number>;
 }

@@ -6,7 +6,6 @@ import type {
   ScheduleDoctor,
   ScheduleSlot,
   DoctorWeeklySchedule,
-  DoctorLeaveRequest,
 } from '@/types/schedule';
 
 export const MOCK_WEEK_START = '2026-09-07';
@@ -86,45 +85,3 @@ export const MOCK_WEEKLY_SCHEDULES: DoctorWeeklySchedule[] = MOCK_DOCTORS.flatMa
     },
   ]),
 );
-
-export const MOCK_LEAVE_REQUESTS: DoctorLeaveRequest[] = [
-  {
-    id: 'leave-1',
-    doctorId: 'profile-shuri-udaku',
-    startDate: '2026-09-07',
-    endDate: '2026-09-09',
-    leaveType: 'academic',
-    reason: 'เข้าร่วมประชุมสัมมนาเทคโนโลยีการแพทย์ขั้นสูง ณ ศูนย์ประชุมนานาชาติ',
-    status: 'approved',
-    requestedBy: 'profile-shuri-udaku',
-    decidedBy: 'profile-leslie-knope',
-    decidedAt: '2026-09-05T09:30:00.000Z',
-    decisionNote: 'อนุมัติเรียบร้อย ได้ปิดรอบตรวจที่เกี่ยวข้องแล้ว',
-    createdAt: '2026-09-04T10:00:00.000Z',
-  },
-  {
-    id: 'leave-2',
-    doctorId: 'profile-stephen-strange',
-    startDate: '2026-09-10',
-    endDate: '2026-09-11',
-    leaveType: 'vacation',
-    reason: 'ลาพักผ่อนประจำปี',
-    status: 'pending',
-    requestedBy: 'profile-stephen-strange',
-    createdAt: '2026-09-07T08:15:00.000Z',
-  },
-  {
-    id: 'leave-3',
-    doctorId: 'profile-meredith-grey',
-    startDate: '2026-09-01',
-    endDate: '2026-09-02',
-    leaveType: 'sick',
-    reason: 'มีอาการไข้หวัด พักฟื้นตามคำแนะนำแพทย์',
-    status: 'approved',
-    requestedBy: 'profile-meredith-grey',
-    decidedBy: 'profile-nick-fury',
-    decidedAt: '2026-09-01T07:45:00.000Z',
-    decisionNote: 'รับทราบและอนุมัติ',
-    createdAt: '2026-09-01T07:00:00.000Z',
-  },
-];

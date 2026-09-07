@@ -2,12 +2,10 @@ import {
   MOCK_DEPARTMENTS,
   MOCK_DOCTOR_ACCOUNT_OPTIONS,
   MOCK_DOCTORS,
-  MOCK_LEAVE_REQUESTS,
   MOCK_SLOTS,
   MOCK_WEEKLY_SCHEDULES,
 } from '@/mocks/scheduleData';
 import type {
-  DoctorLeaveRequest,
   DoctorWeeklySchedule,
   ScheduleDepartment,
   ScheduleDoctor,
@@ -29,7 +27,6 @@ export class MockShopRepository implements ShopRepository {
     slots: structuredClone(MOCK_SLOTS),
     doctorAccounts: structuredClone(MOCK_DOCTOR_ACCOUNT_OPTIONS),
     weeklySchedules: structuredClone(MOCK_WEEKLY_SCHEDULES),
-    leaveRequests: structuredClone(MOCK_LEAVE_REQUESTS),
   };
 
   snapshot(): ShopSnapshot {
@@ -143,56 +140,6 @@ export class MockShopRepository implements ShopRepository {
     return { ok: true, value: schedule };
   }
 
-  submitLeave(input: Omit<DoctorLeaveRequest, 'id' | 'status'>): ShopResult<DoctorLeaveRequest> {
-    if (!this.state.doctors.some((doctor) => doctor.id === input.doctorId)) return { ok: false, error: 'ไม่พบแพทย์', field: 'doctorId' };
-    if (!input.startDate || !input.endDate || input.startDate > input.endDate) return { ok: false, error: 'ช่วงวันลาไม่ถูกต้อง', field: 'startDate' };
-    if (!input.reason.trim()) return { ok: false, error: 'กรอกเหตุผลวันลา', field: 'reason' };
-    const conflict = this.state.leaveRequests.some((leave) => leave.doctorId === input.doctorId && leave.status !== 'rejected' && input.startDate <= leave.endDate && input.endDate >= leave.startDate);
-    if (conflict) return { ok: false, error: 'ช่วงวันลาทับกับคำขอเดิม', field: 'startDate' };
-    const request: DoctorLeaveRequest = {
-      ...input,
-      leaveType: input.leaveType ?? 'personal',
-      id: crypto.randomUUID(),
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    this.state.leaveRequests = [...this.state.leaveRequests, request];
-    return { ok: true, value: request };
-  }
-
-  decideLeave(
-    id: string,
-    status: 'approved' | 'rejected',
-    decidedBy: string,
-    today: string,
-    decisionNote?: string,
-  ): ShopResult<DoctorLeaveRequest> {
-    const leave = this.state.leaveRequests.find((item) => item.id === id);
-    if (!leave) return { ok: false, error: 'ไม่พบคำขอวันลา' };
-    if (leave.status !== 'pending') return { ok: false, error: 'คำขอวันลานี้ถูกตัดสินแล้ว' };
-    const next: DoctorLeaveRequest = {
-      ...leave,
-      status,
-      decidedBy,
-      decidedAt: new Date().toISOString(),
-      decisionNote: decisionNote?.trim() || undefined,
-    };
-    this.state.leaveRequests = this.state.leaveRequests.map((item) => item.id === id ? next : item);
-    if (status === 'approved') this.reconcileDoctorLeave(today);
-    return { ok: true, value: next };
-  }
-
-  cancelLeave(id: string, requestedBy?: string): ShopResult<DoctorLeaveRequest> {
-    const leave = this.state.leaveRequests.find((item) => item.id === id);
-    if (!leave) return { ok: false, error: 'ไม่พบคำขอวันลา' };
-    if (leave.status !== 'pending') return { ok: false, error: 'ยกเลิกได้เฉพาะคำขอที่รออนุมัติเท่านั้น' };
-    if (requestedBy && leave.requestedBy && leave.requestedBy !== requestedBy) {
-      return { ok: false, error: 'ไม่มีสิทธิ์ยกเลิกคำขอนี้' };
-    }
-    this.state.leaveRequests = this.state.leaveRequests.filter((item) => item.id !== id);
-    return { ok: true, value: leave };
-  }
-
   generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number> {
     if (!startDate || !endDate || startDate > endDate) return { ok: false, error: 'ช่วงวันที่สร้างรอบไม่ถูกต้อง' };
     let created = 0;
@@ -208,20 +155,7 @@ export class MockShopRepository implements ShopRepository {
         }
       }
     }
-    this.reconcileDoctorLeave(today);
     return { ok: true, value: created };
-  }
-
-  reconcileDoctorLeave(today: string): ShopResult<number> {
-    let changed = 0;
-    const approved = this.state.leaveRequests.filter((leave) => leave.status === 'approved');
-    this.state.slots = this.state.slots.map((slot) => {
-      const inLeave = slot.slotDate >= today && approved.some((leave) => leave.doctorId === slot.doctorId && slot.slotDate >= leave.startDate && slot.slotDate <= leave.endDate);
-      if (inLeave && slot.status !== 'closed' && slot.closedReason !== 'manual') { changed += 1; return { ...slot, status: 'closed' as const, closedReason: 'doctor_leave' as const }; }
-      if (!inLeave && slot.closedReason === 'doctor_leave') { changed += 1; return { ...slot, status: deriveSlotStatus(slot.bookedCount, slot.maxCapacity), closedReason: undefined }; }
-      return slot;
-    });
-    return { ok: true, value: changed };
   }
 }
 

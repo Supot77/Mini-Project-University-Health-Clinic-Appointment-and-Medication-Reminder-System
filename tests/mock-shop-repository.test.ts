@@ -83,33 +83,21 @@ describe('MockShopRepository', () => {
     expect(repository.snapshot().doctors.some((doctor) => doctor.id === result.value.id)).toBe(false);
   });
 
-  it('generates recurring slots and closes only future slots for approved leave', () => {
+  it('generates recurring slots for date range', () => {
     const repository = new MockShopRepository();
     const generated = repository.generateSlotsForRange('2026-09-07', '2026-09-07', '2026-09-07');
     expect(generated).toMatchObject({ ok: true });
-    const before = repository.snapshot();
-    const submitted = repository.submitLeave({ doctorId: 'profile-stephen-strange', startDate: '2026-09-07', endDate: '2026-09-07', reason: 'ลาพักร้อน', requestedBy: 'profile-stephen-strange' });
-    expect(submitted).toMatchObject({ ok: true, value: { status: 'pending' } });
-    if (!submitted.ok) return;
-    expect(repository.snapshot().slots.filter((slot) => slot.doctorId === 'profile-stephen-strange' && slot.slotDate === '2026-09-07' && slot.closedReason === 'doctor_leave')).toHaveLength(0);
-    expect(repository.decideLeave(submitted.value.id, 'approved', 'mock-staff', '2026-09-07')).toMatchObject({ ok: true, value: { status: 'approved' } });
-    const after = repository.snapshot();
-    const affected = after.slots.filter((slot) => slot.doctorId === 'profile-stephen-strange' && slot.slotDate === '2026-09-07');
-    expect(affected.length).toBeGreaterThan(0);
-    expect(affected.every((slot) => slot.status === 'closed' && slot.closedReason === 'doctor_leave')).toBe(true);
-    expect(affected.reduce((sum, slot) => sum + slot.bookedCount, 0)).toBe(before.slots.filter((slot) => slot.doctorId === 'profile-stephen-strange' && slot.slotDate === '2026-09-07').reduce((sum, slot) => sum + slot.bookedCount, 0));
+    const slots = repository.snapshot().slots.filter((slot) => slot.slotDate === '2026-09-07');
+    expect(slots.length).toBeGreaterThan(0);
   });
 
-  it('does not allow overlapping weekly schedules or duplicate leave requests', () => {
+  it('does not allow overlapping weekly schedules', () => {
     const repository = new MockShopRepository();
     const schedule = repository.snapshot().weeklySchedules.find((item) => item.doctorId === 'profile-stephen-strange' && item.weekday === 1);
     expect(schedule).toBeDefined();
     if (!schedule) return;
     const scheduleInput = { doctorId: schedule.doctorId, weekday: schedule.weekday, slotDurationMinutes: schedule.slotDurationMinutes, defaultCapacity: schedule.defaultCapacity, isActive: schedule.isActive, startTime: schedule.startTime, endTime: schedule.endTime };
     expect(repository.saveWeeklySchedule({ ...scheduleInput, startTime: '09:00', endTime: '10:00' })).toMatchObject({ ok: false });
-    const first = repository.submitLeave({ doctorId: 'profile-stephen-strange', startDate: '2026-09-14', endDate: '2026-09-15', reason: 'อบรม', requestedBy: 'profile-stephen-strange' });
-    expect(first.ok).toBe(true);
-    expect(repository.submitLeave({ doctorId: 'profile-stephen-strange', startDate: '2026-09-15', endDate: '2026-09-16', reason: 'ซ้ำ', requestedBy: 'profile-stephen-strange' })).toMatchObject({ ok: false });
   });
   it('requires an active doctor and department before saving recurring schedule', () => {
     const repository = new MockShopRepository();

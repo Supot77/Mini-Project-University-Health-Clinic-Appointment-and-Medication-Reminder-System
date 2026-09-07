@@ -197,7 +197,10 @@ export default function RemindersPage() {
   };
 
   useEffect(() => {
-    void loadData(selectedPatientId);
+    const timer = setTimeout(() => {
+      void loadData(selectedPatientId);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [selectedPatientId]);
 
   // สลับสถานะเปิด/ปิดการแจ้งเตือนยา (Toggle)
