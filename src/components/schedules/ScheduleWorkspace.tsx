@@ -16,12 +16,14 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Umbrella,
   Users,
   X,
 } from 'lucide-react';
 import { MOCK_WEEK_START } from '@/mocks/scheduleData';
 import { useShop } from '@/features/shop/context/ShopProvider';
 import type { DoctorLeaveRequest, DoctorWeeklySchedule, ScheduleSlot, ScheduleSlotStatus } from '@/types/schedule';
+import type { UserRole } from '@/types/database';
 
 const inputClass =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition-[border-color,box-shadow] focus:border-sky-500 focus:ring-4 focus:ring-sky-100';
@@ -31,7 +33,7 @@ const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.�
 const DEMO_TODAY = '2026-09-07';
 
 type CalendarView = 'day' | 'week' | 'month';
-type ManagementPanel = 'schedule' | 'leave' | null;
+type ManagementPanel = 'schedule' | null;
 
 interface SlotDraft {
   doctorId: string;
@@ -77,8 +79,11 @@ function formatWeekRange(start: string) {
   return `${formatShortDate(start)} – ${formatShortDate(end)} ${parseClinicDate(end).getUTCFullYear() + 543}`;
 }
 
-export default function ScheduleWorkspace() {
-  const { departments, doctors, slots, weeklySchedules, leaveRequests, saveSlot: persistSlot, toggleSlot: persistSlotToggle, submitLeave, decideLeave, saveWeeklySchedule } = useShop();
+export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; actorId: string }) {
+  const { departments, doctors, slots, weeklySchedules, leaveRequests, saveSlot: persistSlot, toggleSlot: persistSlotToggle, saveWeeklySchedule } = useShop();
+  const visibleLeaveRequests = role === 'staff_admin'
+    ? leaveRequests
+    : leaveRequests.filter((leave) => doctors.find((doctor) => doctor.id === leave.doctorId)?.profileId === actorId);
   const [weekStart, setWeekStart] = useState(MOCK_WEEK_START);
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -89,9 +94,7 @@ export default function ScheduleWorkspace() {
   const [draft, setDraft] = useState<SlotDraft>(emptySlotDraft);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
-  const [leaveFormOpen, setLeaveFormOpen] = useState(false);
   const [managementPanel, setManagementPanel] = useState<ManagementPanel>(null);
-  const [leaveDraft, setLeaveDraft] = useState({ doctorId: '', startDate: DEMO_TODAY, endDate: DEMO_TODAY, reason: '' });
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState<Omit<DoctorWeeklySchedule, 'id'>>({ doctorId: '', weekday: 1, startTime: '08:30', endTime: '12:00', slotDurationMinutes: 30, defaultCapacity: 1, isActive: true });
@@ -230,9 +233,9 @@ export default function ScheduleWorkspace() {
             <button type="button" onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? 1 : calendarView === 'month' ? 28 : 7))} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/8 hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300" aria-label="ช่วงถัดไป"><ChevronRight className="h-5 w-5" aria-hidden="true" /></button>
             <button type="button" onClick={jumpToDemoWeek} className="hidden min-h-11 items-center gap-2 rounded-xl bg-white/8 px-3 text-xs font-semibold text-slate-200 hover:bg-white/15 sm:flex"><RefreshCw className="h-4 w-4" aria-hidden="true" />รีเซ็ตเดโม</button>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => setManagementPanel((current) => current === 'schedule' ? null : 'schedule')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${managementPanel === 'schedule' ? 'bg-white text-[#0a2540]' : 'border border-white/15 bg-white/8 text-white hover:bg-white/15'}`} aria-expanded={managementPanel === 'schedule'}><Clock3 className="h-4 w-4" aria-hidden="true" />จัดการตาราง</button>
-              <button type="button" onClick={() => setManagementPanel((current) => current === 'leave' ? null : 'leave')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${managementPanel === 'leave' ? 'bg-violet-400 text-slate-950' : 'border border-white/15 bg-white/8 text-white hover:bg-white/15'}`} aria-expanded={managementPanel === 'leave'}><Ban className="h-4 w-4" aria-hidden="true" />การลา{leaveRequests.filter((leave) => leave.status === 'pending').length > 0 && <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold text-slate-950">{leaveRequests.filter((leave) => leave.status === 'pending').length}</span>}</button>
-              <button type="button" onClick={() => openSlotForm()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-bold text-[#0a2540] shadow-sm hover:bg-sky-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"><Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจ</button>
+              {role === 'staff_admin' && <button type="button" onClick={() => setManagementPanel((current) => current === 'schedule' ? null : 'schedule')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${managementPanel === 'schedule' ? 'bg-white text-[#0a2540]' : 'border border-white/15 bg-white/8 text-white hover:bg-white/15'}`} aria-expanded={managementPanel === 'schedule'}><Clock3 className="h-4 w-4" aria-hidden="true" />จัดการตาราง</button>}
+              <Link href="/leaves" className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/15"><Umbrella className="h-4 w-4" aria-hidden="true" />การลาแพทย์{leaveRequests.filter((leave) => leave.status === 'pending').length > 0 && <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold text-slate-950">{leaveRequests.filter((leave) => leave.status === 'pending').length}</span>}</Link>
+              {role === 'staff_admin' && <button type="button" onClick={() => openSlotForm()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-bold text-[#0a2540] shadow-sm hover:bg-sky-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"><Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจ</button>}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -279,24 +282,8 @@ export default function ScheduleWorkspace() {
       </section>
       )}
 
-      {managementPanel === 'leave' && (
-      <section className="order-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80" aria-labelledby="leave-title">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Doctor leave</p><h2 id="leave-title" className="mt-1 text-xl font-bold text-slate-950">วันลาและการปิดรอบอัตโนมัติ</h2><p className="mt-1 text-sm text-slate-500">คำขอลาต้องรอเจ้าหน้าที่อนุมัติ ระบบจึงปิดเฉพาะรอบอนาคต</p></div>
-          <button type="button" onClick={() => setLeaveFormOpen((current) => !current)} className="flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700"><Plus className="h-4 w-4" aria-hidden="true" />ส่งคำขอลา</button>
-        </div>
-        {leaveFormOpen && <div className="mt-4 grid gap-3 rounded-xl bg-violet-50 p-4 ring-1 ring-violet-100 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="space-y-1.5 lg:col-span-2"><span className="text-sm font-medium text-slate-700">แพทย์</span><select value={leaveDraft.doctorId} onChange={(event) => setLeaveDraft((current) => ({ ...current, doctorId: event.target.value }))} className={inputClass}><option value="">เลือกแพทย์</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>)}</select></label>
-          <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">เริ่มลา</span><input type="date" value={leaveDraft.startDate} onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))} className={inputClass} /></label>
-          <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">สิ้นสุด</span><input type="date" value={leaveDraft.endDate} onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))} className={inputClass} /></label>
-          <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">เหตุผล</span><input value={leaveDraft.reason} onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))} className={inputClass} placeholder="เช่น ลาพักร้อน" /></label>
-          <div className="flex items-end lg:col-span-5"><button type="button" onClick={() => { const result = submitLeave({ ...leaveDraft, requestedBy: 'mock-doctor' }); if (!result.ok) { setFormError(result.error); return; } setNotice('ส่งคำขอลาแล้ว รอเจ้าหน้าที่อนุมัติ'); setLeaveFormOpen(false); setLeaveDraft({ doctorId: '', startDate: DEMO_TODAY, endDate: DEMO_TODAY, reason: '' }); }} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67]">ส่งคำขอ</button></div>
-        </div>}
-        {leaveRequests.length > 0 && <div className="mt-4 grid gap-2">{leaveRequests.map((leave) => { const doctor = doctors.find((item) => item.id === leave.doctorId); return <div key={leave.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm"><div><strong>{doctor?.fullName ?? 'ไม่พบแพทย์'}</strong><span className="ml-2 text-slate-500">{leave.startDate} – {leave.endDate} · {leave.reason}</span></div><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${leave.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : leave.status === 'rejected' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>{leave.status === 'pending' ? 'รออนุมัติ' : leave.status === 'approved' ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ'}</span>{leave.status === 'pending' && <><button type="button" onClick={() => decideLeave(leave.id, 'approved', 'mock-staff', DEMO_TODAY)} className="min-h-9 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700">อนุมัติ</button><button type="button" onClick={() => decideLeave(leave.id, 'rejected', 'mock-staff', DEMO_TODAY)} className="min-h-9 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">ปฏิเสธ</button></>}</div></div>; })}</div>}
-      </section>
-      )}
 
-      {calendarView !== 'week' && <div className="order-5"><CalendarBoard view={calendarView} days={displayDays} slots={visibleSlots} leaves={leaveRequests} doctors={doctors} departments={departments} onCreate={openSlotForm} onEdit={openSlotForm} onToggle={toggleClosed} /></div>}
+      {calendarView !== 'week' && <div className="order-5"><CalendarBoard view={calendarView} days={displayDays} slots={visibleSlots} leaves={visibleLeaveRequests} doctors={doctors} departments={departments} onCreate={openSlotForm} onEdit={openSlotForm} onToggle={toggleClosed} /></div>}
 
       <section className={`order-5 hidden overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80 lg:block ${calendarView === 'week' ? '' : '!hidden'}`} aria-label="ปฏิทินตารางตรวจรายสัปดาห์">
         <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
@@ -324,7 +311,9 @@ export default function ScheduleWorkspace() {
 
       <aside className="order-9 grid gap-4 rounded-2xl bg-slate-900 p-5 text-white lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex items-start gap-3"><div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-400/15 text-sky-300"><Database className="h-5 w-5" aria-hidden="true" /></div><div><h2 className="font-bold">จุดเชื่อมต่อหลังบ้าน</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">ช้อปดูแลโครงสร้างรอบและการเปิด–ปิด ปายดูแล booking/cancel และ `booked_count` เฮิร์บอ่านข้อมูลไปคำนวณ Dashboard ทุกคำสั่งจริงต้องตรวจ RLS และ constraint ในฐานข้อมูลอีกครั้ง</p></div></div>
-        <Link href="/departments" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/8 px-4 text-sm font-semibold hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300">จัดการแผนกและแพทย์<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+        {role === 'staff_admin' && (
+          <Link href="/departments" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/8 px-4 text-sm font-semibold hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300">จัดการแผนกและแพทย์<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+        )}
       </aside>
     </div>
   );

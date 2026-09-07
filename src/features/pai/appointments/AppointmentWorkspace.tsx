@@ -17,11 +17,11 @@ function Status({ value }: { value: AppointmentStatus }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusClasses[value]}`}>{statusLabels[value]}</span>;
 }
 
-export default function AppointmentWorkspace() {
+export default function AppointmentWorkspace({ role: initialRole = 'patient', allowRolePreview = true }: { role?: PreviewRole; allowRolePreview?: boolean }) {
   const sharedMock = useOptionalClinicMockDatabase();
   const [repository] = useState(() => createAppointmentPreviewRepository(sharedMock ? appointmentSnapshotFromSharedMock(sharedMock.database.snapshot()) : undefined));
   const [snapshot, setSnapshot] = useState(() => repository.snapshot());
-  const [role, setRole] = useState<PreviewRole>('patient');
+  const [role, setRole] = useState<PreviewRole>(initialRole);
   const [tab, setTab] = useState('upcoming');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -58,9 +58,9 @@ export default function AppointmentWorkspace() {
   }
 
   function changeView(value: PreviewRole) {
+    if (!allowRolePreview) return;
     setRole(value); setTab(value === 'patient' ? 'upcoming' : 'queue'); setSearch(''); setStatusFilter('all'); setBookingOpen(false); setCancelId(null); setRescheduleId(null); setNotice(''); setFormError('');
   }
-
   function openReschedule(item: DemoAppointment) {
     setRescheduleId(item.id); setProposedSlotId(''); setProposalReason(''); setFormError(''); setNotice(''); setBookingOpen(false);
   }
@@ -82,7 +82,7 @@ export default function AppointmentWorkspace() {
 
       <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div><p className="font-semibold text-slate-800">{role === 'patient' ? 'สวัสดี คุณณัฐชา' : role === 'medical' ? 'คิวและงานยาของบุคลากรทางการแพทย์' : 'พื้นที่จัดการนัดหมายและงานเจ้าหน้าที่'}</p><p className="mt-1 text-xs text-slate-500">{role === 'patient' ? 'นัดหมายของผู้ป่วยตัวอย่าง · ณัฐชา ใจดี' : 'รายชื่อและคิวทั้งหมดในหน้านี้เป็นข้อมูลสมมติ'}</p></div>
-        <label className="grid gap-1.5 text-xs font-medium text-slate-500">มุมมองตัวอย่าง<select className={inputClass} value={role} onChange={(event) => changeView(event.target.value as PreviewRole)}><option value="patient">ผู้ป่วย</option><option value="medical">แพทย์/เภสัชกร</option><option value="staff_admin">เจ้าหน้าที่/แอดมิน</option></select></label>
+        {allowRolePreview && <label className="grid gap-1.5 text-xs font-medium text-slate-500">มุมมองตัวอย่าง<select className={inputClass} value={role} onChange={(event) => changeView(event.target.value as PreviewRole)}><option value="patient">ผู้ป่วย</option><option value="medical">แพทย์/เภสัชกร</option><option value="staff_admin">เจ้าหน้าที่/แอดมิน</option></select></label>}
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">

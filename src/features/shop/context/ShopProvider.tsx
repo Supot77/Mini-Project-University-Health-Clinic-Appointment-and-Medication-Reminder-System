@@ -15,7 +15,8 @@ interface ShopContextValue extends ShopSnapshot {
   toggleSlot(id: string): ShopResult<ShopSnapshot['slots'][number]>;
   saveWeeklySchedule(input: Omit<DoctorWeeklySchedule, 'id'>, id?: string): ShopResult<DoctorWeeklySchedule>;
   submitLeave(input: Omit<DoctorLeaveRequest, 'id' | 'status'>): ShopResult<DoctorLeaveRequest>;
-  decideLeave(id: string, status: 'approved' | 'rejected', decidedBy: string, today: string): ShopResult<DoctorLeaveRequest>;
+  decideLeave(id: string, status: 'approved' | 'rejected', decidedBy: string, today: string, decisionNote?: string): ShopResult<DoctorLeaveRequest>;
+  cancelLeave(id: string, requestedBy: string): ShopResult<DoctorLeaveRequest>;
   generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number>;
 }
 
@@ -40,9 +41,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     toggleSlot: (id) => run(() => repository.toggleSlot(id)),
     saveWeeklySchedule: (input, id) => run(() => repository.saveWeeklySchedule(input, id)),
     submitLeave: (input) => run(() => repository.submitLeave(input)),
-    decideLeave: (id, status, decidedBy, today) => run(() => repository.decideLeave(id, status, decidedBy, today)),
+    decideLeave: (id, status, decidedBy, today, decisionNote) => run(() => repository.decideLeave(id, status, decidedBy, today, decisionNote)),
+    cancelLeave: (id, requestedBy) => run(() => repository.cancelLeave(id, requestedBy)),
     generateSlotsForRange: (startDate, endDate, today) => run(() => repository.generateSlotsForRange(startDate, endDate, today)),
   }), [repository, run, snapshot]);
+
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
 }
 

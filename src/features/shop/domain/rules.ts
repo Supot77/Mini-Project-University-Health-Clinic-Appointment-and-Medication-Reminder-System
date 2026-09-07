@@ -117,3 +117,19 @@ export function validateDepartmentName(
   }
   return success(true);
 }
+
+export function countAffectedSlots(
+  slots: ScheduleSlot[],
+  doctorId: string,
+  startDate: string,
+  endDate: string,
+): number {
+  if (!doctorId || !startDate || !endDate || startDate > endDate) return 0;
+  return slots.filter(
+    (slot) =>
+      slot.doctorId === doctorId &&
+      slot.slotDate >= startDate &&
+      slot.slotDate <= endDate &&
+      slot.status !== 'closed',
+  ).length;
+}

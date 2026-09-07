@@ -6,9 +6,10 @@
 
 1. ใช้ FR ใน [11](11_functional_requirements.md) และเกณฑ์ใน [08](08_system_rules_and_acceptance.md) เป็นขอบเขตปัจจุบัน
 2. ตัด worker, cron, email, retry, catch-up, status transition ตามเวลา และ schema สำหรับแบ่งจ่าย/กันยา/ยาค้างออกจากงานใหม่
-3. แยก UI จาก service/repository contract และใช้ mock ที่ deterministic ต่อไป
+3. แยก UI จาก service/repository contract ใช้ Supabase database repository เป็น runtime หลัก และใช้ mock ที่ deterministic เฉพาะ automated tests/offline demo
 4. แก้เฉพาะไฟล์ในขอบเขตของโมดูล เพิ่ม test สำหรับ success, validation, permission และยืนยันว่า error ไม่เปลี่ยน state
-5. ไม่รัน migration, seed หรือ request ไปฐานข้อมูลจริงจากงานนี้
+5. รัน migration/seed หรือ database integration กับ development/staging ได้หลังยืนยัน target, review diff, สำรองข้อมูลตามความเสี่ยง และได้รับอนุญาตก่อนกระทบ remote database
+6. ทุก role มี guarded entry page/dashboard และแยก role-specific page/container เมื่อ data, action หรือ permission ต่างกัน โดย reuse shared presentational components
 
 ## Role contract
 
@@ -18,14 +19,15 @@
 
 | ลำดับ | งาน | ผลลัพธ์ |
 | --- | --- | --- |
-| 1 | Auth/profile/role | สมัคร login session และสิทธิ์พื้นฐาน |
-| 2 | Schedule | `staff_admin` กรอกแผนก แพทย์ slot และปิด slot ด้วยมือ |
-| 3 | Appointment | `patient` จอง; `staff_admin` อนุมัติ/ปฏิเสธ/ยกเลิก; `medical` เริ่ม/จบตรวจ |
-| 4 | Medical record | `medical` บันทึกผลตรวจและรายการยา; `patient` อ่านของตน |
-| 5 | Pharmacy | `medical` ตรวจ stock และจ่ายเต็มครั้งเดียว |
-| 6 | Manual reminder | `staff_admin` กรอกรายการเตือน; `patient` บันทึกผลเอง |
-| 7 | Broadcast/dashboard | `staff_admin` ส่งข้อความเอง และแต่ละ role ดูข้อมูลที่บันทึกแล้ว |
-| 8 | ตรวจรับ | รัน tests และตรวจ AC01–AC15 ตาม [08](08_system_rules_and_acceptance.md) |
+| 1 | Database foundation | ตรวจ migration/RLS/RPC, Supabase clients และ repository factory ให้ database เป็น runtime หลัก |
+| 2 | Auth/profile/role shell | สมัคร login session, role guards และ entry page/dashboard สำหรับ 3 roles |
+| 3 | Schedule | Supabase repository; `staff_admin` กรอกแผนก แพทย์ slot และปิด slotด้วยมือ |
+| 4 | Appointment | role-specific containers; `patient` จอง, `staff_admin` ตัดสิน, `medical` เริ่ม/จบตรวจ |
+| 5 | Medical record | `medical` บันทึกผลตรวจ/รายการยา; `patient` อ่านของตนผ่าน RLS |
+| 6 | Pharmacy | `medical` ตรวจ stock และจ่ายเต็มครั้งเดียวผ่าน transaction/RPC ที่จำเป็น |
+| 7 | Manual reminder | `staff_admin` กรอกรายการเตือน; `patient` บันทึกผลเอง |
+| 8 | Broadcast/dashboard | `staff_admin` ส่งข้อความเอง และแต่ละ role ใช้ dashboard/container ของตน |
+| 9 | ตรวจรับ | รัน tests, database integration/RLS และตรวจ AC01–AC18 ตาม [08](08_system_rules_and_acceptance.md) |
 
 ## สัญญาส่งต่องานขั้นต่ำ
 
@@ -55,7 +57,7 @@
 
 ## หลักฐานก่อนส่งงาน
 
-รัน `npm run lint`, `npx --no-install tsc --noEmit`, `npm run test` และ `npm run build` จาก root ในสถานะโค้ดล่าสุด รายงานผลจริงทุกคำสั่ง และระบุส่วนที่ยังไม่ได้ตรวจ ไม่ใช้เอกสารแทนหลักฐานการทดสอบ
+รัน `npm run lint`, `npx --no-install tsc --noEmit`, `npm run test` และ `npm run build` จาก root ในสถานะโค้ดล่าสุด รายงานผลจริงทุกคำสั่ง และระบุส่วนที่ยังไม่ได้ตรวจ งาน database-first ต้องมีหลักฐาน database integration/RLS จากฐาน development หรือ staging แยกจาก unit test ไม่ใช้เอกสารแทนหลักฐานการทดสอบ
 
 ## Dependency ของงาน
 
@@ -70,6 +72,6 @@
 
 ## Definition of Done สำหรับแต่ละโมดูล
 
-โมดูลถือว่าพร้อมส่งต่อเมื่อมี contract ที่ระบุ input/output และ error, ตรวจ role กับความสัมพันธ์ข้อมูล, ครอบคลุม success/validation/permission ใน test และแจ้งผลกระทบต่อไฟล์กลาง หากคำสั่งไม่ผ่านต้องพิสูจน์ว่า state เดิมไม่เปลี่ยน การมีหน้าจอหรือ mock data เพียงอย่างเดียวไม่ถือว่าพร้อมส่งต่อ
+โมดูลถือว่าพร้อมส่งต่อเมื่อมี contract ที่ระบุ input/output และ error, Supabase repository ที่ใช้ session/RLS, mock repository สำหรับ tests, role-specific container เมื่อจำเป็น, ครอบคลุม success/validation/permission และแจ้งผลกระทบต่อไฟล์กลาง หากคำสั่งไม่ผ่านต้องพิสูจน์ว่า state เดิมไม่เปลี่ยน การมีหน้าจอ mock data หรือ query ที่ยังไม่ตรวจ RLS เพียงอย่างเดียวไม่ถือว่าพร้อมส่งต่อ
 
 ผู้รับงานต้องตรวจข้อมูลส่งต่อกับข้อมูลในตารางสัญญา, ทดลองกรณีสำเร็จและกรณีถูกปฏิเสธ แล้วบันทึกข้อจำกัดหรือสิ่งที่ยังไม่ได้ตรวจไว้ก่อนเชื่อมกับโมดูลถัดไป

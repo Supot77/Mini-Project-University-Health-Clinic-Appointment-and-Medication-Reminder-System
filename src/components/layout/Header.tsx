@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ComponentType } from "react";
-import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, UserRound, UserSearch, X } from "lucide-react";
+import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, Umbrella, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type NavigationRole = "patient" | "medical" | "staff_admin";
@@ -17,6 +17,8 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   { href: "/schedules", label: "ตารางแพทย์", icon: CalendarDays, roles: ["patient", "medical", "staff_admin"] },
+  { href: "/leaves", label: "การลาแพทย์", icon: Umbrella, roles: ["medical", "staff_admin"] },
+  { href: "/departments", label: "จัดการแผนก", icon: Hospital, roles: ["staff_admin"] },
   { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "medical", "staff_admin"] },
   { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
   { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },

@@ -149,19 +149,48 @@ export class MockShopRepository implements ShopRepository {
     if (!input.reason.trim()) return { ok: false, error: 'กรอกเหตุผลวันลา', field: 'reason' };
     const conflict = this.state.leaveRequests.some((leave) => leave.doctorId === input.doctorId && leave.status !== 'rejected' && input.startDate <= leave.endDate && input.endDate >= leave.startDate);
     if (conflict) return { ok: false, error: 'ช่วงวันลาทับกับคำขอเดิม', field: 'startDate' };
-    const request: DoctorLeaveRequest = { ...input, id: crypto.randomUUID(), status: 'pending' };
+    const request: DoctorLeaveRequest = {
+      ...input,
+      leaveType: input.leaveType ?? 'personal',
+      id: crypto.randomUUID(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
     this.state.leaveRequests = [...this.state.leaveRequests, request];
     return { ok: true, value: request };
   }
 
-  decideLeave(id: string, status: 'approved' | 'rejected', decidedBy: string, today: string): ShopResult<DoctorLeaveRequest> {
+  decideLeave(
+    id: string,
+    status: 'approved' | 'rejected',
+    decidedBy: string,
+    today: string,
+    decisionNote?: string,
+  ): ShopResult<DoctorLeaveRequest> {
     const leave = this.state.leaveRequests.find((item) => item.id === id);
     if (!leave) return { ok: false, error: 'ไม่พบคำขอวันลา' };
     if (leave.status !== 'pending') return { ok: false, error: 'คำขอวันลานี้ถูกตัดสินแล้ว' };
-    const next = { ...leave, status, decidedBy, decidedAt: new Date().toISOString() };
+    const next: DoctorLeaveRequest = {
+      ...leave,
+      status,
+      decidedBy,
+      decidedAt: new Date().toISOString(),
+      decisionNote: decisionNote?.trim() || undefined,
+    };
     this.state.leaveRequests = this.state.leaveRequests.map((item) => item.id === id ? next : item);
     if (status === 'approved') this.reconcileDoctorLeave(today);
     return { ok: true, value: next };
+  }
+
+  cancelLeave(id: string, requestedBy?: string): ShopResult<DoctorLeaveRequest> {
+    const leave = this.state.leaveRequests.find((item) => item.id === id);
+    if (!leave) return { ok: false, error: 'ไม่พบคำขอวันลา' };
+    if (leave.status !== 'pending') return { ok: false, error: 'ยกเลิกได้เฉพาะคำขอที่รออนุมัติเท่านั้น' };
+    if (requestedBy && leave.requestedBy && leave.requestedBy !== requestedBy) {
+      return { ok: false, error: 'ไม่มีสิทธิ์ยกเลิกคำขอนี้' };
+    }
+    this.state.leaveRequests = this.state.leaveRequests.filter((item) => item.id !== id);
+    return { ok: true, value: leave };
   }
 
   generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number> {

@@ -21,7 +21,9 @@
 
 ## สถานะ implementation
 
-เอกสาร ER แบบแยกตารางและ migration 03 เป็นข้อเสนอจาก scope เดิม ให้ถือเป็นเอกสารอ้างอิงทางประวัติศาสตร์จนกว่าจะปรับ schema ให้ตรง scope ใหม่ runtime ยังใช้ mock และยังไม่ได้รัน migration/RLS/RPC กับฐานจริง
+Design spec และ migration รุ่นเก่ายังเป็นข้อมูลอ้างอิงทางประวัติศาสตร์ ให้ใช้ data contract และลำดับ migration ปัจจุบันใน [03](03_database_design_and_er.md) Runtime เป้าหมายเป็น Supabase database repository; mock เหลือสำหรับ tests/offline demo การ deploy migration/RLS/RPC ต้องมีหลักฐานแยกจากการแก้เอกสาร
+
+แต่ละ role ต้องมี entry page/dashboard ที่ guard ด้วย session จริง และแยก role-specific container/component เมื่อข้อมูลหรือคำสั่งต่างกัน Shared presentational component ใช้ร่วมกันได้ แต่ production UI ต้องไม่มีตัวเลือกสลับ role แทนการตรวจสิทธิ์
 
 ไม่เพิ่ม walk-in, ลากวาง, กราฟขั้นสูง, Web Push, การจ่ายเงิน, หลายสาขาหรือเชื่อมโรงพยาบาลเป็นข้อบังคับ การคืนยาที่จ่ายแล้วและเรื่องที่ยังไม่ตอบดู [10](10_team_decisions.md)
 

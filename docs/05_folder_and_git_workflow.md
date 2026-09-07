@@ -25,7 +25,7 @@
 
 - ก่อนส่ง PR ดึงงานร่วมและแก้ conflict ตรวจ diff ว่าอยู่ในขอบเขต
 - คู่ตรวจรับผิดชอบตรวจซึ่งกันและกัน: ฟีม↔เฮิร์บ ช้อป↔ปาย กัญจน์↔กลอง
-- ก่อนรวม main ต้องผ่าน lint, typecheck, build และกรณีทดสอบหลัก; AC01–AC15 ต้องผ่านก่อนนำเสนอ
+- ก่อนรวม main ต้องผ่าน lint, typecheck, build และกรณีทดสอบหลัก; AC01–AC18 รวม database integration/RLS ต้องผ่านก่อนนำเสนอ
 - ไม่ commit ความลับ .env.local หรือ service_role; .env.example มีเพียงชื่อค่าและ placeholder ไม่ใช่คีย์จริง
 - ผู้รวมโค้ดและผู้ดูแลไฟล์กลางรายบุคคลยังต้องระบุ ไม่ถือว่าคู่ตรวจเป็นผู้อนุมัติทุกการเปลี่ยนแปลงโดยอัตโนมัติ
 
@@ -35,14 +35,15 @@
 
 ```text
 wu-clinic-booking/
-├── src/app/                 # route groups: (auth), (clinic), (patient), (dashboard)
-├── src/components/          # common, layout, schedules, reminders, dashboard
+├── src/app/                 # route groups และ guarded entry page ตาม role
+├── src/components/          # shared presentational components
+├── src/features/            # role-specific containers, domain services และ repositories
 ├── src/context/ src/hooks/  # AuthContext และ hooks
 ├── src/lib/                 # Supabase client/helper
 ├── src/services/            # Auth, Schedule, Appointment, Medication, Reminder, Dashboard
 ├── src/types/               # contract TypeScript กลาง
-├── supabase/migrations/     # schema/RLS และ migration รวม role; ยังไม่รันกับฐานจริง
-├── supabase/seed.sql        # seed เดิม
+├── supabase/migrations/     # schema/RLS/RPC ที่ review และ deploy ตามลำดับ
+├── supabase/seed.sql        # seed สำหรับฐาน development/staging ที่ระบุชัด
 └── docs/                    # ข้อกำหนด แผน Catalog และ SQL อ้างอิง
 ```
 
@@ -62,11 +63,11 @@ wu-clinic-booking/
 
 | พื้นที่ | หน้าที่ | ขอบเขตการแก้ |
 | --- | --- | --- |
-| `src/app` และ `src/components` | route, หน้าจอ และการแสดงสถานะ | ไม่ฝัง mock data หรือกติกาสิทธิ์แทน service |
-| `src/services`, `src/hooks`, `src/features` | คำสั่งและการประสานงานของโมดูล | เรียกผ่าน contract และคืน error ที่ UI ใช้ได้ |
+| `src/app` และ `src/components` | route, role entry page, shared UI และการแสดงสถานะ | แยก role-specific container เมื่อ data/action ต่างกัน ไม่ฝัง query หรือกติกาสิทธิ์แทน service |
+| `src/services`, `src/hooks`, `src/features` | คำสั่ง การประสานงาน และ repository ของโมดูล | runtime ใช้ Supabase repository ผ่าน contract และคืน error ที่ UI ใช้ได้ |
 | `src/types` | type/contract ที่หลายโมดูลใช้ร่วมกัน | เปลี่ยนต้องตรวจผู้ใช้ทุกจุดและแจ้งเจ้าของไฟล์กลาง |
-| `src/mocks` และ mock repository | ข้อมูลสังเคราะห์และ adapter ปัจจุบัน | ต้อง deterministic และไม่เรียก network/ฐานจริง |
-| `supabase/migrations` | แบบ schema/RLS ที่เตรียมไว้ | ห้ามถือว่า deploy แล้ว และห้ามรันฐานจริงจากงาน mock |
+| `src/mocks` และ mock repository | ข้อมูลสังเคราะห์สำหรับ test/offline demo | ต้อง deterministic ไม่เรียก network/ฐานจริง และไม่ถูกเลือกเป็น production runtime |
+| `supabase/migrations` | schema, RLS, RPC และ migration ที่ใช้กับ runtime จริง | รันได้หลังยืนยัน target/review/backup; ห้าม reset production และห้ามถือว่า deploy แล้วหากไม่มีหลักฐาน |
 | `docs` และ `tests` | ข้อกำหนด/แผน และหลักฐานพฤติกรรม | ต้องสอดคล้องกับ role 3 ค่าและ scope manual |
 
 ## เช็กลิสต์ก่อนเปิด PR

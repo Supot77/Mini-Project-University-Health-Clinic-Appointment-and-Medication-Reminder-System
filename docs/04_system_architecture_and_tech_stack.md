@@ -9,9 +9,10 @@ Role contract กลางมี 3 ค่าเท่านั้น: `patient`,
 ## ชั้นการทำงาน
 
 - `src/app` และ components: ฟอร์มและหน้าจอตาม role พร้อม loading/empty/error และ keyboard
+- role-specific pages/containers: แยก data loader, action และ permission boundary เมื่อ role เห็นข้อมูลหรือทำคำสั่งต่างกัน
 - services/hooks: เรียกข้อมูลและคำสั่งผ่าน repository contract
-- mock repository: implementation ที่เปิดใช้ในปัจจุบันและต้อง deterministic
-- database adapter: เตรียม contract ได้ แต่ยังไม่เปิด runtime และห้าม request ฐานจริง
+- database repository: implementation หลักของ runtime เชื่อม Supabase ด้วย session ของผู้ใช้และ RLS/RPC
+- mock repository: implementation สำหรับ automated tests และ offline demo ต้อง deterministic และใช้ contract เดียวกับ database repository
 - ไม่มี worker, cron, queue, email provider, Web Push หรือการเปลี่ยนสถานะตามเวลา
 
 ## หลักการธุรกรรมและสิทธิ์
@@ -36,25 +37,27 @@ Role contract กลางมี 3 ค่าเท่านั้น: `patient`,
 
 ```text
 Next.js App Router
-├── Client UI: ฟอร์มและหน้าตาม role
-├── Services/Repositories: contract และ mock adapter
-└── Supabase (เตรียมไว้): Auth/ฐานข้อมูลสำหรับอนาคต ไม่เปิดใช้ในรอบ mock
+├── Route/layout guards: ตรวจ session และส่งผู้ใช้เข้า entry page ของ role
+├── Role-specific pages/containers: patient, medical, staff_admin
+├── Shared UI: presentational components ที่ไม่มี permission logic
+├── Services/Repositories: domain contract + Supabase implementation
+└── Supabase: Auth, PostgreSQL, RLS และ RPC ที่จำเป็นต่อ transaction
 ```
 
 ## ขอบเขตเทคโนโลยีและการตรวจ
 
-- ใช้ Supabase Auth ได้ตาม implementation ที่มีอยู่ แต่ห้ามเปิด `service_role` ใน browser
-- Automated tests ห้ามใช้ network, บัญชีภายนอก หรือฐานข้อมูลจริง
-- role contract ปัจจุบันใช้ 3 ค่าและมี migration สำหรับรวมค่า legacy; migration ยังไม่ถูกรันกับฐานจริง และ runtime ยังใช้ mock adapter
+- ใช้ Supabase Auth และ database เป็น runtime หลัก แต่ห้ามเปิด `service_role` ใน browser
+- Automated unit/component tests ใช้ mock/fake และห้ามใช้ network หรือฐานจริง; database integration tests แยกชุดและใช้ฐานทดสอบที่ระบุชัด
+- role contract ปัจจุบันใช้ 3 ค่าและ migration/RLS ต้องรองรับค่า canonical เดียวกันก่อน deploy
 - ก่อนส่งมอบต้องผ่าน lint, typecheck, test และ build พร้อมตรวจ Chrome 360px/1280px, keyboard, loading, empty และ error
 
 ## ลำดับการประมวลผลคำสั่ง
 
-1. UI อ่าน session และส่งคำสั่งผ่าน service/repository contract ไม่แก้ mock data ตรง ๆ
-2. service ตรวจ role, input, ความเป็นเจ้าของ และความสัมพันธ์กับข้อมูลที่เกี่ยวข้อง
-3. mock repository อ่านหรือเขียนข้อมูลแบบ deterministic แล้วคืนผลสำเร็จหรือ error
-4. UI แสดงผลลัพธ์และสถานะ loading/empty/error; เมื่อคำสั่งล้มเหลวต้องใช้ข้อมูลเดิม
-5. database adapter ในอนาคตต้องรับ contract เดียวกัน แต่รอบนี้ยังไม่เปิด runtime และไม่เรียกฐานจริง
+1. Route/layout guard อ่าน session และ role จาก Supabase แล้วเลือก entry page หรือ role-specific container ที่ถูกต้อง
+2. UI ส่งคำสั่งผ่าน service/repository contract และไม่เขียน Supabase query หรือ mock data โดยตรง
+3. service ตรวจ role, input, ownership และความสัมพันธ์ข้อมูลก่อนเรียก database repository
+4. database repository ใช้ Supabase client ตาม execution context และให้ RLS/RPC ตรวจสิทธิ์/transaction ซ้ำ
+5. UI แสดง loading/empty/error และคงข้อมูลเดิมเมื่อคำสั่งล้มเหลว; tests inject mock repository ผ่าน contract เดียวกัน
 
 ## จุดเชื่อมระหว่างโมดูล
 
@@ -67,4 +70,4 @@ Next.js App Router
 | Pharmacy → Reminder | รายการจ่ายเต็มและผู้ป่วย | เตือนเฉพาะรายการที่จ่ายเต็ม |
 | ทุกโมดูล → UI | ผลสำเร็จหรือ error | ไม่รายงานสำเร็จเมื่อ state ไม่ได้เปลี่ยนตามคำสั่ง |
 
-ตารางนี้ขยายความจาก contract เดิมเพื่อให้ทีมตรวจจุดเชื่อมตรงกัน ไม่ได้เพิ่ม adapter หรือบริการภายนอกใหม่
+ตารางนี้ขยายความจาก contract เดิมเพื่อให้ทีมตรวจจุดเชื่อมตรงกัน Database repository เป็น adapter ภายนอกหลักเพียงชุดเดียวของ runtime; บริการอื่นยังอยู่นอก scope

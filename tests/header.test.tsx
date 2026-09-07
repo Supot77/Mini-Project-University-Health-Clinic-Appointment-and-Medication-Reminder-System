@@ -39,11 +39,12 @@ describe("Header", () => {
     render(<Header />);
 
     expect(screen.getByRole("link", { name: /Dashboard/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /จัดการแผนก/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /คลังยา/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
   });
 
-  it("hides Dashboard from authenticated patients", () => {
+  it("hides Dashboard and restricted admin links from authenticated patients", () => {
     authState.user = { full_name: "Patient Demo" };
     authState.isAuthenticated = true;
     authState.role = "patient";
@@ -51,6 +52,7 @@ describe("Header", () => {
     render(<Header />);
 
     expect(screen.queryByRole("link", { name: /Dashboard/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /จัดการแผนก/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
   });
 
