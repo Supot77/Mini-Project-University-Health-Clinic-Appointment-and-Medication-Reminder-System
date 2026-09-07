@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { clinicMockTables } from '@/mocks/clinicDatabase';
 import { ClinicMockDatabase } from '@/features/mock-database/engine';
 import { createClinicRepositories } from '@/features/mock-database/repositories';
+import { userRoles } from '@/types/database';
 
 describe('shared clinic mock catalog', () => {
   it('contains the agreed account and catalog totals', () => {
     expect(clinicMockTables.profiles).toHaveLength(17);
-    expect(clinicMockTables.profiles.filter((item) => item.role === 'doctor')).toHaveLength(6);
+    expect(clinicMockTables.profiles.filter((item) => item.role === 'medical')).toHaveLength(7);
     expect(clinicMockTables.profiles.filter((item) => item.role === 'patient')).toHaveLength(8);
+    expect(clinicMockTables.profiles.filter((item) => item.role === 'staff_admin')).toHaveLength(2);
+    expect(new Set(clinicMockTables.profiles.map((item) => item.role))).toEqual(new Set(userRoles));
     expect(clinicMockTables.departments).toHaveLength(4);
     expect(clinicMockTables.medications).toHaveLength(7);
   });
@@ -24,7 +27,7 @@ describe('shared clinic mock catalog', () => {
     clinicMockTables.doctors.forEach((item) => {
       expect(profileIds.has(item.id)).toBe(true);
       expect(departmentIds.has(item.department_id ?? '')).toBe(true);
-      expect(clinicMockTables.profiles.find((profile) => profile.id === item.id)?.role).toBe('doctor');
+      expect(clinicMockTables.profiles.find((profile) => profile.id === item.id)?.role).toBe('medical');
     });
     clinicMockTables.appointment_slots.forEach((item) => expect(doctorIds.has(item.doctor_id)).toBe(true));
     clinicMockTables.appointments.forEach((item) => {

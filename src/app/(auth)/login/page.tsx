@@ -1,11 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/services/authService';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="rounded-2xl border border-zinc-100 bg-white p-8 text-center text-sm text-zinc-500 shadow-xl">กำลังโหลดหน้าเข้าสู่ระบบ…</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
