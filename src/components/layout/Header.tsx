@@ -6,7 +6,7 @@ import { useState, type ComponentType } from "react";
 import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, Umbrella, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-type NavigationRole = "patient" | "medical" | "staff_admin";
+type NavigationRole = "patient" | "staff" | "doctor" | "pharmacist" | "admin";
 
 interface NavigationItem {
   href: string;
@@ -34,9 +34,9 @@ export default function Header() {
   // Permission-aware navigation: show only the items allowed for the current role.
   // Guests (not logged in) only see the public doctor schedule table.
   const visibleNavigation =
-    isAuthenticated && role
-      ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
-      : navigationItems.filter((item) => item.href === "/schedules");
+  isAuthenticated && role
+    ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
+    : navigationItems.filter((item) => item.roles.includes("patient"));
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 

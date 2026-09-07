@@ -134,3 +134,23 @@ body {
   box-shadow: 0 12px 40px rgba(0,0,0,0.12);
   transform: translateY(-4px);
 }
+
+
+/* Settings theme tokens */
+:root {
+  --settings-page-bg: #f8fafc;
+  --settings-page-text: #0a2540;
+  --settings-card: #ffffff;
+  --settings-option: #ffffff;
+  --settings-border: #e2e8f0;
+  --settings-muted: #64748b;
+}
+
+html[data-theme="dark"] {
+  --settings-page-bg: #0f172a;
+  --settings-page-text: #f8fafc;
+  --settings-card: #111827;
+  --settings-option: #1e293b;
+  --settings-border: #334155;
+  --settings-muted: #94a3b8;
+}

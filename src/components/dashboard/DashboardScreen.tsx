@@ -97,13 +97,17 @@ function BroadcastPanel({ actorId, onSent }: { actorId: string; onSent: () => vo
   const requestKey = useRef(crypto.randomUUID());
 
   const loadHistory = useCallback(async () => {
-    const result = await repositories.notifications.listBroadcastHistory();
-    if (!result.error) setHistory(result.data);
+    const result = await repositories.notifications.list();
+    if (!result.error) {
+      const notifications = result.data as unknown as Array<BroadcastHistoryItem & { notification_type?: string }>;
+      setHistory(notifications.filter((item) => item.notification_type === 'broadcast'));
+    }
   }, [repositories]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadHistory(); }, 0);
     return () => window.clearTimeout(timer);
+    
   }, [loadHistory]);
 
   const submit = async (event: FormEvent) => {
@@ -111,10 +115,18 @@ function BroadcastPanel({ actorId, onSent }: { actorId: string; onSent: () => vo
     if (busy) return;
     setBusy(true);
     setError(null);
-    const result = await repositories.notifications.sendBroadcast({
-      actorId, actorRole: 'staff_admin', title, message,
-      requestKey: requestKey.current,
-    });
+   const result = await repositories.notifications.sendBroadcast({
+  actorId,
+  actorRole: 'staff_admin',
+  title,
+  message,
+  requestKey: requestKey.current,
+  notificationType: 'broadcast',
+  audience: {
+    all: false,
+    roles: ['patient', 'medical'],
+  },
+});
     setBusy(false);
     if (result.error) { setError(result.error.message); return; }
     setSuccess(`${result.data.created ? 'ส่ง Broadcast สำเร็จ' : 'คำขอนี้ถูกส่งแล้ว'} · ผู้รับ ${result.data.recipientCount} คน`);
