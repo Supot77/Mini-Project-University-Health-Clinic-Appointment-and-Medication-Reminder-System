@@ -40,7 +40,7 @@ export async function getUnreadCount(userId: string): Promise<number> {
     .from('notifications')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('is_read', false);
+    .is('read_at', null);
   if (error) throw error;
   return count ?? 0;
 }
@@ -48,7 +48,7 @@ export async function getUnreadCount(userId: string): Promise<number> {
 export async function markAsRead(notificationId: string) {
   const { error } = await supabase
     .from('notifications')
-    .update({ is_read: true })
+    .update({ read_at: new Date().toISOString() })
     .eq('id', notificationId);
   if (error) throw error;
 }
@@ -56,9 +56,9 @@ export async function markAsRead(notificationId: string) {
 export async function markAllAsRead(userId: string) {
   const { error } = await supabase
     .from('notifications')
-    .update({ is_read: true })
+    .update({ read_at: new Date().toISOString() })
     .eq('user_id', userId)
-    .eq('is_read', false);
+    .is('read_at', null);
   if (error) throw error;
 }
 
