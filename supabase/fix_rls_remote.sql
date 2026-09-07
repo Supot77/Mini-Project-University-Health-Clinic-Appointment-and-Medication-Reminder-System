@@ -29,6 +29,7 @@ ALTER TABLE public.profiles
 -- 2. ลบ Policy เดิมที่มีปัญหาหรือต้องการแก้ไข
 DROP POLICY IF EXISTS "Staff/Admin can view all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Staff/Admin can manage departments" ON public.departments;
+DROP POLICY IF EXISTS "Staff admin can manage departments" ON public.departments;
 DROP POLICY IF EXISTS "Staff/Admin can manage slots" ON public.appointment_slots;
 DROP POLICY IF EXISTS "Staff/Doctor can view all appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Staff/Medical can view all appointments" ON public.appointments;
@@ -46,7 +47,12 @@ DROP POLICY IF EXISTS "Medical can create inventory logs" ON public.inventory_lo
 
 -- 3. สร้าง Policy ใหม่
 CREATE POLICY "Staff/Admin can view all profiles" ON public.profiles FOR SELECT USING (public.get_user_role() IN ('staff_admin', 'medical'));
-CREATE POLICY "Staff/Admin can manage departments" ON public.departments FOR ALL USING (public.get_user_role() = 'staff_admin');
+CREATE POLICY "Staff/Admin can manage departments"
+  ON public.departments
+  FOR ALL
+  TO authenticated
+  USING (public.get_user_role() IN ('staff_admin', 'staff', 'admin'))
+  WITH CHECK (public.get_user_role() IN ('staff_admin', 'staff', 'admin'));
 CREATE POLICY "Staff/Admin can manage slots" ON public.appointment_slots FOR ALL USING (public.get_user_role() = 'staff_admin');
 CREATE POLICY "Staff/Doctor can view all appointments" ON public.appointments FOR SELECT USING (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Staff can update any appointment" ON public.appointments FOR UPDATE USING (public.get_user_role() IN ('staff_admin', 'medical'));
