@@ -18,18 +18,10 @@ import {
 } from 'lucide-react';
 import { useShop } from '@/features/shop/context/ShopProvider';
 import type {
-  DepartmentTone,
   DoctorAvailability,
   ScheduleDepartment,
   ScheduleDoctor,
 } from '@/types/schedule';
-
-const toneClasses: Record<DepartmentTone, { badge: string; marker: string; wash: string }> = {
-  sky: { badge: 'bg-sky-50 text-sky-700', marker: 'bg-sky-500', wash: 'bg-sky-50/70' },
-  teal: { badge: 'bg-teal-50 text-teal-700', marker: 'bg-teal-500', wash: 'bg-teal-50/70' },
-  amber: { badge: 'bg-amber-50 text-amber-800', marker: 'bg-amber-500', wash: 'bg-amber-50/70' },
-  violet: { badge: 'bg-violet-50 text-violet-700', marker: 'bg-violet-500', wash: 'bg-violet-50/70' },
-};
 
 const inputClass =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100';
@@ -38,10 +30,7 @@ type WorkspaceTab = 'departments' | 'doctors';
 
 interface DepartmentDraft {
   name: string;
-  code: string;
   description: string;
-  room: string;
-  tone: DepartmentTone;
 }
 
 interface DoctorDraft {
@@ -56,10 +45,7 @@ interface DoctorDraft {
 
 const emptyDepartmentDraft: DepartmentDraft = {
   name: '',
-  code: '',
   description: '',
-  room: '',
-  tone: 'sky',
 };
 
 const emptyDoctorDraft: DoctorDraft = {
@@ -73,7 +59,17 @@ const emptyDoctorDraft: DoctorDraft = {
 };
 
 export default function DepartmentWorkspace() {
-  const { departments, doctors, slots, doctorAccounts, saveDepartment: persistDepartment, toggleDepartment: persistDepartmentToggle, saveDoctor: persistDoctor, toggleDoctor: persistDoctorToggle } = useShop();
+  const {
+    departments,
+    doctors,
+    slots,
+    doctorAccounts,
+    isLoading,
+    saveDepartment: persistDepartment,
+    toggleDepartment: persistDepartmentToggle,
+    saveDoctor: persistDoctor,
+    toggleDoctor: persistDoctorToggle,
+  } = useShop();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('departments');
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -86,13 +82,14 @@ export default function DepartmentWorkspace() {
   const [doctorDraft, setDoctorDraft] = useState<DoctorDraft>(emptyDoctorDraft);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const normalizedSearch = search.trim().toLocaleLowerCase('th');
 
   const visibleDepartments = useMemo(
     () =>
       departments.filter((department) => {
-        const matchesSearch = `${department.name} ${department.code} ${department.description}`
+        const matchesSearch = `${department.name} ${department.description}`
           .toLocaleLowerCase('th')
           .includes(normalizedSearch);
         return matchesSearch && (showInactive || department.isActive);
@@ -121,34 +118,36 @@ export default function DepartmentWorkspace() {
       department
         ? {
             name: department.name,
-            code: department.code,
             description: department.description,
-            room: department.room,
-            tone: department.tone,
           }
         : emptyDepartmentDraft,
     );
     setDepartmentFormOpen(true);
   };
 
-  const saveDepartment = () => {
-    const result = persistDepartment(departmentDraft, editingDepartmentId ?? undefined);
+  const saveDepartment = async () => {
+    setFormError('');
+    setIsSaving(true);
+    const result = await persistDepartment(departmentDraft, editingDepartmentId ?? undefined);
+    setIsSaving(false);
     if (!result.ok) { setFormError(result.error); return; }
-    setNotice(editingDepartmentId ? 'อัปเดตข้อมูลแผนกใน mock UI แล้ว' : 'เพิ่มแผนกใหม่ใน mock UI แล้ว');
+    setNotice(editingDepartmentId ? 'อัปเดตข้อมูลแผนกในฐานข้อมูลสำเร็จ' : 'เพิ่มแผนกใหม่ในฐานข้อมูลสำเร็จ');
 
     setDepartmentFormOpen(false);
     setEditingDepartmentId(null);
     setDepartmentDraft(emptyDepartmentDraft);
   };
 
-  const toggleDepartment = (department: ScheduleDepartment) => {
+  const toggleDepartment = async (department: ScheduleDepartment) => {
     const impact = doctors.some((doctor) => doctor.departmentId === department.id)
       ? ' แพทย์และประวัติเดิมจะยังคงเชื่อมกับแผนกนี้'
       : '';
     if (!window.confirm(department.isActive ? `ยืนยันการ${impact ? 'ปิดใช้งาน' : 'ลบ'} “${department.name}”?${impact}` : `เปิดใช้งาน “${department.name}” อีกครั้ง?`)) return;
-    const result = persistDepartmentToggle(department.id);
+    setIsSaving(true);
+    const result = await persistDepartmentToggle(department.id);
+    setIsSaving(false);
     if (!result.ok) { setFormError(result.error); return; }
-    setNotice(result.value === 'deleted' ? 'ลบแผนกที่ยังไม่มีข้อมูลอ้างอิงแล้ว' : result.value === 'disabled' ? 'ปิดใช้งานแผนกแล้ว ประวัติเดิมยังอยู่' : 'เปิดใช้งานแผนกแล้ว');
+    setNotice(result.value === 'deleted' ? 'ลบแผนกแล้ว' : result.value === 'disabled' ? 'ปิดใช้งานแผนกแล้ว' : 'เปิดใช้งานแผนกแล้ว');
   };
 
   const selectDoctorAccount = (profileId: string) => {
@@ -182,24 +181,29 @@ export default function DepartmentWorkspace() {
     setDoctorFormOpen(true);
   };
 
-  const saveDoctor = () => {
-    const result = persistDoctor(doctorDraft, editingDoctorId ?? undefined);
+  const saveDoctor = async () => {
+    setFormError('');
+    setIsSaving(true);
+    const result = await persistDoctor(doctorDraft, editingDoctorId ?? undefined);
+    setIsSaving(false);
     if (!result.ok) { setFormError(result.error); return; }
-    setNotice(editingDoctorId ? 'อัปเดตข้อมูลแพทย์ใน mock UI แล้ว' : 'เพิ่มแพทย์จากบัญชีจำลองแล้ว');
+    setNotice(editingDoctorId ? 'อัปเดตข้อมูลแพทย์ในฐานข้อมูลสำเร็จ' : 'เพิ่มแพทย์ผูกกับแผนกสำเร็จ');
 
     setDoctorFormOpen(false);
     setEditingDoctorId(null);
     setDoctorDraft(emptyDoctorDraft);
   };
 
-  const toggleDoctor = (doctor: ScheduleDoctor) => {
+  const toggleDoctor = async (doctor: ScheduleDoctor) => {
     const hasReferences = Boolean(doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id));
     const action = doctor.availability === 'inactive' ? 'เปิดใช้งาน' : hasReferences ? 'ปิดใช้งาน' : 'ลบ';
     const impact = hasReferences ? ' รอบและประวัติเดิมจะยังคงอยู่' : '';
     if (!window.confirm(`${action} ${doctor.fullName}?${impact}`)) return;
-    const result = persistDoctorToggle(doctor.id);
+    setIsSaving(true);
+    const result = await persistDoctorToggle(doctor.id);
+    setIsSaving(false);
     if (!result.ok) { setFormError(result.error); return; }
-    setNotice(result.value === 'deleted' ? 'ลบแพทย์ที่ยังไม่มีข้อมูลอ้างอิงแล้ว' : doctor.availability === 'inactive' ? 'เปิดใช้งานแพทย์แล้ว' : 'ปิดใช้งานแพทย์แล้ว');
+    setNotice(result.value === 'deleted' ? 'ลบแพทย์แล้ว' : doctor.availability === 'inactive' ? 'เปิดใช้งานแพทย์แล้ว' : 'ปิดใช้งานแพทย์แล้ว');
   };
 
   const activeDoctors = doctors.filter((doctor) => doctor.availability === 'active').length;
@@ -211,8 +215,8 @@ export default function DepartmentWorkspace() {
         <div className="grid gap-8 px-6 py-7 sm:px-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-sky-200">
-              <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1">SHOP · MOCK WORKSPACE</span>
-              <span>ข้อมูลจำลองสำหรับพัฒนา UI</span>
+              <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1">SHOP · DATABASE CONNECTED</span>
+              <span>เชื่อมต่อฐานข้อมูล Supabase เรียบร้อย</span>
             </div>
             <h1 className="max-w-3xl text-3xl font-bold tracking-[-0.03em] text-balance sm:text-4xl">
               โครงสร้างบริการและทีมแพทย์
@@ -236,7 +240,7 @@ export default function DepartmentWorkspace() {
         </div>
         <div className="grid gap-px bg-white/10 sm:grid-cols-3">
           {[
-            [Database, 'Database', 'รอ migration + RLS'],
+            [Database, 'Database', 'Supabase PostgreSQL RLS'],
             [UserRoundCheck, 'Auth · ฟีม', 'รับบัญชี role medical'],
             [Link2, 'Booking · ปาย', 'ส่งต่อ medical/slot IDs'],
           ].map(([Icon, label, detail]) => {
@@ -296,7 +300,7 @@ export default function DepartmentWorkspace() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={activeTab === 'departments' ? 'ค้นหาชื่อหรือรหัสแผนก' : 'ค้นหาชื่อหรือความเชี่ยวชาญ'}
+                placeholder={activeTab === 'departments' ? 'ค้นหาชื่อแผนกหรือรายละเอียด' : 'ค้นหาชื่อหรือความเชี่ยวชาญ'}
                 className={`${inputClass} pl-9`}
               />
             </label>
@@ -348,28 +352,51 @@ export default function DepartmentWorkspace() {
         )}
       </div>
 
+      {isLoading && (
+        <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-6 text-center text-sm font-medium text-sky-800">
+          กำลังโหลดข้อมูลจากฐานข้อมูล...
+        </div>
+      )}
+
       {activeTab === 'departments' && departmentFormOpen && (
         <section className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-sky-200" aria-labelledby="department-form-title">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Mock form</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Database Form</p>
               <h2 id="department-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingDepartmentId ? 'แก้ไขแผนก' : 'เพิ่มแผนกใหม่'}</h2>
+              <p className="mt-1 text-xs text-slate-500">บันทึกลงตาราง departments ใน Supabase โดยตรง</p>
             </div>
             <button type="button" onClick={() => setDepartmentFormOpen(false)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="ปิดแบบฟอร์ม">
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <label className="space-y-1.5 xl:col-span-2"><span className="text-sm font-medium text-slate-700">ชื่อแผนก</span><input value={departmentDraft.name} onChange={(event) => setDepartmentDraft((current) => ({ ...current, name: event.target.value }))} className={inputClass} /></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">รหัสย่อ</span><input value={departmentDraft.code} onChange={(event) => setDepartmentDraft((current) => ({ ...current, code: event.target.value }))} className={inputClass} maxLength={6} /></label>
-            <label className="space-y-1.5 xl:col-span-2"><span className="text-sm font-medium text-slate-700">สถานที่</span><input value={departmentDraft.room} onChange={(event) => setDepartmentDraft((current) => ({ ...current, room: event.target.value }))} className={inputClass} /></label>
-            <label className="space-y-1.5 md:col-span-2 xl:col-span-4"><span className="text-sm font-medium text-slate-700">รายละเอียดบริการ</span><input value={departmentDraft.description} onChange={(event) => setDepartmentDraft((current) => ({ ...current, description: event.target.value }))} className={inputClass} /></label>
-            <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">สีประจำแผนก</span><select value={departmentDraft.tone} onChange={(event) => setDepartmentDraft((current) => ({ ...current, tone: event.target.value as DepartmentTone }))} className={inputClass}><option value="sky">ฟ้า</option><option value="teal">เขียวอมฟ้า</option><option value="amber">เหลืองอำพัน</option><option value="violet">ม่วง</option></select></label>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5 md:col-span-2">
+              <span className="text-sm font-medium text-slate-700">ชื่อแผนก</span>
+              <input
+                value={departmentDraft.name}
+                onChange={(event) => setDepartmentDraft((current) => ({ ...current, name: event.target.value }))}
+                placeholder="เช่น แผนกอายุรกรรม, แผนกทันตกรรม"
+                className={inputClass}
+              />
+            </label>
+            <label className="space-y-1.5 md:col-span-2">
+              <span className="text-sm font-medium text-slate-700">รายละเอียดบริการ</span>
+              <textarea
+                rows={3}
+                value={departmentDraft.description}
+                onChange={(event) => setDepartmentDraft((current) => ({ ...current, description: event.target.value }))}
+                placeholder="ระบุขอบเขตการตรวจรักษา หรือคำอธิบายสำหรับผู้ป่วย"
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
+              />
+            </label>
           </div>
           {formError && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{formError}</p>}
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" onClick={() => setDepartmentFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button>
-            <button type="button" onClick={saveDepartment} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98]">บันทึกแผนก</button>
+            <button type="button" disabled={isSaving} onClick={saveDepartment} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50">
+              {isSaving ? 'กำลังบันทึก...' : 'บันทึกแผนก'}
+            </button>
           </div>
         </section>
       )}
@@ -378,20 +405,20 @@ export default function DepartmentWorkspace() {
         <section className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-sky-200" aria-labelledby="doctor-form-title">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Auth handoff</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">Database Form</p>
               <h2 id="doctor-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingDoctorId ? 'แก้ไขข้อมูลแพทย์' : 'ผูกบัญชีแพทย์กับคลินิก'}</h2>
-              <p className="mt-1 text-sm text-slate-500">บัญชีและ role เป็นงานของฟีม ส่วนช้อปกำหนดแผนกและความเชี่ยวชาญทางการแพทย์</p>
+              <p className="mt-1 text-sm text-slate-500">เลือกบัญชีผู้ใช้ที่มี role medical แล้วผูกเข้ากับแผนกในตาราง doctors</p>
             </div>
             <button type="button" onClick={() => setDoctorFormOpen(false)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="ปิดแบบฟอร์ม"><X className="h-5 w-5" aria-hidden="true" /></button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">บัญชีที่มี role medical</span><select value={doctorDraft.profileId} disabled={Boolean(editingDoctorId)} onChange={(event) => selectDoctorAccount(event.target.value)} className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}><option value="">เลือกบัญชีแพทย์</option>{editingDoctorId && <option value={doctorDraft.profileId}>{doctorDraft.fullName} · {doctorDraft.email}</option>}{!editingDoctorId && doctorAccounts.filter((account) => !doctors.some((doctor) => doctor.profileId === account.profileId)).map((account) => <option key={account.profileId} value={account.profileId}>{account.fullName} · {account.email}</option>)}</select></label>
+            <label className="space-y-1.5 md:col-span-2"><span className="text-sm font-medium text-slate-700">บัญชีที่มี role medical</span><select value={doctorDraft.profileId} disabled={Boolean(editingDoctorId)} onChange={(event) => selectDoctorAccount(event.target.value)} className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}><option value="">เลือกบัญชีแพทย์</option>{editingDoctorId && <option value={doctorDraft.profileId}>{doctorDraft.fullName} · {doctorDraft.email}</option>}{!editingDoctorId && doctorAccounts.filter((account) => !doctors.some((doctor) => doctor.profileId === account.profileId)).map((account) => <option key={account.profileId} value={account.profileId}>{account.fullName}</option>)}</select></label>
             <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">แผนก</span><select value={doctorDraft.departmentId} onChange={(event) => setDoctorDraft((current) => ({ ...current, departmentId: event.target.value }))} className={inputClass}><option value="">เลือกแผนก</option>{departments.filter((department) => department.isActive).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
             <label className="space-y-1.5"><span className="text-sm font-medium text-slate-700">สถานะ</span><select value={doctorDraft.availability} onChange={(event) => setDoctorDraft((current) => ({ ...current, availability: event.target.value as DoctorAvailability }))} className={inputClass}><option value="active">พร้อมออกตรวจ</option><option value="on_leave">ลา</option><option value="inactive">ปิดใช้งาน</option></select></label>
-            <label className="space-y-1.5 md:col-span-2 xl:col-span-4"><span className="text-sm font-medium text-slate-700">ความเชี่ยวชาญ</span><input value={doctorDraft.specialty} onChange={(event) => setDoctorDraft((current) => ({ ...current, specialty: event.target.value }))} className={inputClass} /></label>
+            <label className="space-y-1.5 md:col-span-2 xl:col-span-4"><span className="text-sm font-medium text-slate-700">ความเชี่ยวชาญ</span><input value={doctorDraft.specialty} onChange={(event) => setDoctorDraft((current) => ({ ...current, specialty: event.target.value }))} placeholder="เช่น เวชศาสตร์ครอบครัว, อายุรกรรมทั่วไป" className={inputClass} /></label>
           </div>
           {formError && <p className="mt-3 text-sm font-medium text-rose-700" role="alert">{formError}</p>}
-          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setDoctorFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button><button type="button" onClick={saveDoctor} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98]">บันทึกแพทย์</button></div>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setDoctorFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button><button type="button" disabled={isSaving} onClick={saveDoctor} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50">{isSaving ? 'กำลังบันทึก...' : 'บันทึกแพทย์'}</button></div>
         </section>
       )}
 
@@ -407,27 +434,26 @@ export default function DepartmentWorkspace() {
             <div className="grid gap-4 md:grid-cols-2">
               {visibleDepartments.map((department) => {
                 const doctorCount = doctors.filter((doctor) => doctor.departmentId === department.id).length;
-                const tone = toneClasses[department.tone];
                 return (
                   <article key={department.id} className={`group relative overflow-hidden rounded-2xl bg-white p-5 shadow-[0_4px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80 ${!department.isActive ? 'opacity-70' : ''}`}>
-                    <div className={`absolute inset-y-0 left-0 w-1.5 ${tone.marker}`} aria-hidden="true" />
+                    <div className={`absolute inset-y-0 left-0 w-1.5 ${department.isActive ? 'bg-sky-500' : 'bg-slate-300'}`} aria-hidden="true" />
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-lg px-2 py-1 text-[11px] font-bold tracking-wider ${tone.badge}`}>{department.code}</span>
-                          {!department.isActive && <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">ปิดใช้งาน</span>}
+                          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${department.isActive ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
+                            {department.isActive ? 'เปิดให้บริการ' : 'ปิดใช้งาน'}
+                          </span>
                         </div>
                         <h3 className="mt-3 text-lg font-bold text-slate-950">{department.name}</h3>
-                        <p className="mt-1 text-sm leading-6 text-slate-500">{department.description}</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">{department.description || 'ไม่มีรายละเอียดเพิ่มเติม'}</p>
                       </div>
                       <div className="flex gap-1">
                         <button type="button" onClick={() => openDepartmentForm(department)} className="min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label={`แก้ไข ${department.name}`}><Pencil className="h-4 w-4" aria-hidden="true" /></button>
-                        <button type="button" onClick={() => toggleDepartment(department)} className={`min-h-11 rounded-xl px-3 text-xs font-semibold ${department.isActive ? 'text-rose-700 hover:bg-rose-50' : 'text-emerald-700 hover:bg-emerald-50'}`}>{department.isActive ? (doctorCount > 0 ? 'ปิดใช้' : 'ลบ') : 'เปิดใช้'}</button>
+                        <button type="button" disabled={isSaving} onClick={() => toggleDepartment(department)} className={`min-h-11 rounded-xl px-3 text-xs font-semibold ${department.isActive ? 'text-rose-700 hover:bg-rose-50' : 'text-emerald-700 hover:bg-emerald-50'}`}>{department.isActive ? 'ปิดใช้' : 'เปิดใช้'}</button>
                       </div>
                     </div>
-                    <div className={`mt-5 grid grid-cols-2 gap-3 rounded-xl p-3 ${tone.wash}`}>
-                      <div className="flex items-center gap-2 text-sm text-slate-700"><Users className="h-4 w-4" aria-hidden="true" /><span><strong className="tabular-nums">{doctorCount}</strong> แพทย์</span></div>
-                      <div className="truncate text-right text-xs text-slate-500">{department.room}</div>
+                    <div className="mt-5 flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+                      <div className="flex items-center gap-2 text-sm text-slate-700"><Users className="h-4 w-4 text-sky-600" aria-hidden="true" /><span><strong className="tabular-nums">{doctorCount}</strong> แพทย์สังกัด</span></div>
                     </div>
                   </article>
                 );
@@ -465,7 +491,7 @@ export default function DepartmentWorkspace() {
 
       <aside className="grid gap-3 rounded-2xl bg-slate-900 p-5 text-white md:grid-cols-[auto_1fr] md:items-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-400/15 text-sky-300"><ShieldCheck className="h-6 w-6" aria-hidden="true" /></div>
-        <div><h2 className="font-bold">ขอบเขต mock ชัดเจน</h2><p className="mt-1 text-sm leading-6 text-slate-300">ฟอร์มนี้เปลี่ยน state ใน browser เท่านั้น จุดเชื่อม Auth, RLS, archive และ Supabase มี comment `INTEGRATION` กำกับไว้ในโค้ด</p></div>
+        <div><h2 className="font-bold">เชื่อมต่อฐานข้อมูล Supabase เรียบร้อย</h2><p className="mt-1 text-sm leading-6 text-slate-300">การสร้าง แก้ไข และเปิด/ปิดสถานะแผนกและแพทย์จะบันทึกตรงไปยังตาราง departments, doctors และ profiles ภายใต้ RLS ของ staff_admin</p></div>
       </aside>
     </div>
   );

@@ -41,9 +41,10 @@ export class MockShopRepository implements ShopRepository {
     if (!valid.ok) return valid;
     const existing = id ? this.state.departments.find((item) => item.id === id) : undefined;
     if (id && !existing) return { ok: false, error: 'ไม่พบแผนกที่ต้องการแก้ไข' };
+    const code = input.code?.trim() ? input.code.trim().toUpperCase() : existing?.code ?? 'DEPT';
     const department: ScheduleDepartment = existing
-      ? { ...existing, ...input, code: input.code.toUpperCase() }
-      : { ...input, id: crypto.randomUUID(), code: input.code.toUpperCase(), isActive: true, hasHistory: false };
+      ? { ...existing, ...input, code }
+      : { ...input, id: crypto.randomUUID(), code, isActive: true, hasHistory: false };
     this.state.departments = existing
       ? this.state.departments.map((item) => (item.id === id ? department : item))
       : [...this.state.departments, department];

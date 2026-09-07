@@ -23,13 +23,13 @@ export type DepartmentTone = 'sky' | 'teal' | 'amber' | 'violet';
 
 export interface ScheduleDepartment {
   id: string;
-  code: string;
   name: string;
   description: string;
-  room: string;
   isActive: boolean;
+  code?: string;
+  room?: string;
+  tone?: DepartmentTone;
   hasHistory?: boolean;
-  tone: DepartmentTone;
 }
 
 export type DoctorAvailability = 'active' | 'on_leave' | 'inactive';
