@@ -352,7 +352,6 @@ export function createClinicRepositories(
           },
         );
       },
-
       adjustStock: async (
         medicationId: string,
         pharmacistId: string,
@@ -360,124 +359,78 @@ export function createClinicRepositories(
         quantity: number,
         reason: string | null = null,
       ) => {
-        const revision =
-          database.getRevision();
+        const revision = database.getRevision();
 
-        return database.transaction(
-          revision,
-          (draft) => {
-            const medication =
-              draft.medications.find(
-                (item) =>
-                  item.id === medicationId,
-              );
+        return database.transaction(revision, (draft) => {
+          const medication = draft.medications.find((item) => item.id === medicationId);
 
-            if (!medication) {
-              return mockResult.fail(
-                'ไม่พบยา',
-                '23503',
-              );
-            }
+          if (!medication) {
+            return mockResult.fail('ไม่พบยา', '23503');
+          }
 
-            const delta =
-              action === 'add'
-                ? quantity
-                : -quantity;
+          const delta = action === 'add' ? quantity : -quantity;
 
-            if (
-              !Number.isInteger(quantity) ||
-              quantity <= 0 ||
-              medication.stock + delta < 0
-            ) {
-              return mockResult.fail(
-                'จำนวนสต๊อกไม่ถูกต้อง',
-                '23514',
-              );
-            }
+          if (!Number.isInteger(quantity) || quantity <= 0 || medication.stock + delta < 0) {
+            return mockResult.fail('จำนวนสต๊อกไม่ถูกต้อง', '23514');
+          }
 
-            medication.stock += delta;
+          medication.stock += delta;
+          medication.updated_at = new Date().toISOString();
 
-            medication.updated_at =
-              new Date().toISOString();
+          draft.inventory_logs.push({
+            id: crypto.randomUUID(),
+            medication_id: medicationId,
+            pharmacist_id: pharmacistId,
+            action,
+            quantity,
+            reason,
+            created_at: new Date().toISOString(),
+          });
 
-            draft.inventory_logs.push({
-              id: crypto.randomUUID(),
-              medication_id:
-                medicationId,
-              pharmacist_id:
-                pharmacistId,
-              action,
-              quantity,
-              reason,
-              created_at:
-                new Date().toISOString(),
-            });
-
-            return mockResult.ok(
-              medication,
-            );
-          },
-        );
+          return mockResult.ok(medication);
+        });
       },
     },
 
-    reminders: {
-      list: () =>
-        database.select(
-          'medication_reminders',
-        ),
+    medications: {
+      list: () => database.select('medications'),
+    },
 
-      listWithMedication: async (
-        userId?: string,
-      ) => {
-        const tables =
-          database.snapshot();
+    reminders: {
+      list: () => database.select('medication_reminders'),
+
+      listWithMedication: async (userId?: string) => {
+        const tables = database.snapshot();
 
         return mockResult.ok(
           tables.medication_reminders
-            .filter(
-              (item) =>
-                !userId ||
-                item.user_id === userId,
-            )
+            .filter((item) => !userId || item.user_id === userId)
             .map((reminder) => ({
               ...reminder,
-
-              medication:
-                tables.medications.find(
-                  (item) =>
-                    item.id ===
-                    reminder.medication_id,
-                ),
-
-              logs:
-                tables.medication_logs.filter(
-                  (item) =>
-                    item.reminder_id ===
-                    reminder.id,
-                ),
+              medication: tables.medications.find((item) => item.id === reminder.medication_id),
+              logs: tables.medication_logs.filter((item) => item.reminder_id === reminder.id),
             })),
         );
       },
 
-      listLogs: () =>
-        database.select(
-          'medication_logs',
-        ),
+      listLogs: () => database.select('medication_logs'),
 
-      updateStatus: (
+      updateStatus: (id: string, status: MedicationReminderStatus) =>
+        database.updateById('medication_reminders', id, {
+          status,
+          updated_at: new Date().toISOString(),
+        }),
+
+      update: (
         id: string,
-        status: MedicationReminderStatus,
+        changes: Parameters<typeof database.updateById<'medication_reminders'>>[2],
       ) =>
-        database.updateById(
-          'medication_reminders',
-          id,
-          {
-            status,
-            updated_at:
-              new Date().toISOString(),
-          },
-        ),
+        database.updateById('medication_reminders', id, {
+          ...changes,
+          updated_at: new Date().toISOString(),
+        }),
+
+      delete: (id: string) => database.deleteById('medication_reminders', id),
     },
 
     notifications: {
