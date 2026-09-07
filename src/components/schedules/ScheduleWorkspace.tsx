@@ -1,9 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
-  ArrowRight,
   Ban,
   CalendarDays,
   Check,
@@ -11,7 +9,6 @@ import {
   ChevronRight,
   CircleDot,
   Clock3,
-  Database,
   Filter,
   Pencil,
   Plus,
@@ -448,12 +445,6 @@ export default function ScheduleWorkspace({ role }: { role: UserRole; actorId: s
         )}
       </section>
 
-      <aside className="order-9 grid gap-4 rounded-2xl bg-slate-900 p-5 text-white lg:grid-cols-[1fr_auto] lg:items-center">
-        <div className="flex items-start gap-3"><div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-400/15 text-sky-300"><Database className="h-5 w-5" aria-hidden="true" /></div><div><h2 className="font-bold">จุดเชื่อมต่อหลังบ้าน</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">ช้อปดูแลโครงสร้างรอบและการเปิด–ปิด ปายดูแล booking/cancel และ `booked_count` เฮิร์บอ่านข้อมูลไปคำนวณ Dashboard ทุกคำสั่งจริงต้องตรวจ RLS และ constraint ในฐานข้อมูลอีกครั้ง</p></div></div>
-        {role === 'staff_admin' && (
-          <Link href="/departments" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/8 px-4 text-sm font-semibold hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300">จัดการแผนกและแพทย์<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
-        )}
-      </aside>
     </div>
   );
 }
