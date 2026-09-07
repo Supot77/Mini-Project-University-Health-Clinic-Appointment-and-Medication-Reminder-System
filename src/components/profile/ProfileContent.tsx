@@ -15,10 +15,10 @@ import {
   FileClock,
   Stethoscope,
   ShieldCheck,
+  Users,
   X,
   Check,
   Loader2,
-  Users,
 } from "lucide-react";
 
 const roleLabels: Record<string, string> = {
@@ -132,8 +132,8 @@ export default function ProfileContent() {
 
   useEffect(() => {
     if (!user) {
-      setIsLoading(false);
-      return;
+      const timer = window.setTimeout(() => setIsLoading(false), 0);
+      return () => window.clearTimeout(timer);
     }
 
     let active = true;

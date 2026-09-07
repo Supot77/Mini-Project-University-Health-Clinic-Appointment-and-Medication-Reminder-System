@@ -1,10 +1,11 @@
-import type {
-  AppointmentStatus,
-  InventoryAction,
-  Medication,
-  MedicationReminderStatus,
-  Notification,
-  UserRole,
+import {
+  userRoles,
+  type AppointmentStatus,
+  type InventoryAction,
+  type Medication,
+  type MedicationReminderStatus,
+  type Notification,
+  type UserRole,
 } from '@/types/database';
 
 import {
@@ -46,7 +47,8 @@ export function createClinicRepositories(
 ) {
   return {
     profiles: {
-      list: () => database.select('profiles'),
+      list: () =>
+        database.select('profiles'),
 
       getById: (id: string) =>
         database.findById('profiles', id),
@@ -107,10 +109,11 @@ export function createClinicRepositories(
             return {
               ...appointment,
 
-              patient: tables.profiles.find(
-                (item) =>
-                  item.id === appointment.user_id,
-              ),
+              patient:
+                tables.profiles.find(
+                  (item) =>
+                    item.id === appointment.user_id,
+                ),
 
               slot: slot && {
                 ...slot,
@@ -127,8 +130,7 @@ export function createClinicRepositories(
                   department:
                     tables.departments.find(
                       (item) =>
-                        item.id ===
-                        doctor.department_id,
+                        item.id === doctor.department_id,
                     ),
                 },
               },
@@ -180,29 +182,25 @@ export function createClinicRepositories(
               patient:
                 tables.profiles.find(
                   (item) =>
-                    item.id ===
-                    record.patient_id,
+                    item.id === record.patient_id,
                 ),
 
               appointment:
                 tables.appointments.find(
                   (item) =>
-                    item.id ===
-                    record.appointment_id,
+                    item.id === record.appointment_id,
                 ),
 
               doctor: {
                 ...tables.doctors.find(
                   (item) =>
-                    item.id ===
-                    record.doctor_id,
+                    item.id === record.doctor_id,
                 )!,
 
                 profile:
                   tables.profiles.find(
                     (item) =>
-                      item.id ===
-                      record.doctor_id,
+                      item.id === record.doctor_id,
                   ),
               },
             })),
@@ -343,13 +341,13 @@ export function createClinicRepositories(
                 (record) =>
                   record.prescribed_medications?.some(
                     (item) =>
-                      item.medication_id ===
-                      id,
+                      item.medication_id === id,
                   ),
               );
 
             if (referenced) {
               medication.is_active = false;
+
               medication.updated_at =
                 new Date().toISOString();
 
@@ -387,8 +385,7 @@ export function createClinicRepositories(
             const medication =
               draft.medications.find(
                 (item) =>
-                  item.id ===
-                  medicationId,
+                  item.id === medicationId,
               );
 
             if (!medication) {
@@ -406,9 +403,7 @@ export function createClinicRepositories(
             if (
               !Number.isInteger(quantity) ||
               quantity <= 0 ||
-              medication.stock +
-                delta <
-                0
+              medication.stock + delta < 0
             ) {
               return mockResult.fail(
                 'จำนวนสต๊อกไม่ถูกต้อง',
@@ -517,8 +512,7 @@ export function createClinicRepositories(
           tables.notifications
             .filter(
               (item) =>
-                item.user_id ===
-                  userId &&
+                item.user_id === userId &&
                 !item.deleted_at,
             )
             .sort((a, b) =>
@@ -626,10 +620,6 @@ export function createClinicRepositories(
         return database.transaction(
           revision,
           (draft) => {
-            /*
-             * ระบบใหม่:
-             * Staff/Admin ใช้ role staff_admin
-             */
             if (
               input.actorRole !==
               'staff_admin'
@@ -749,7 +739,8 @@ export function createClinicRepositories(
                     title,
                     message,
                     is_read: false,
-                    event_key: `broadcast:${broadcastId}:${userId}`,
+                    event_key:
+                      `broadcast:${broadcastId}:${userId}`,
                     broadcast_id:
                       broadcastId,
                     read_at: null,
@@ -783,8 +774,7 @@ export function createClinicRepositories(
             tables.appointment_slots
               .filter(
                 (item) =>
-                  item.slot_date ===
-                  today,
+                  item.slot_date === today,
               )
               .map(
                 (item) => item.id,
@@ -828,8 +818,7 @@ export function createClinicRepositories(
             tables.medications.filter(
               (item) =>
                 item.expiry_date &&
-                item.expiry_date <
-                  today,
+                item.expiry_date < today,
             ).length,
 
           appointmentStatuses: {
@@ -967,6 +956,15 @@ export function createClinicRepositories(
               ),
           );
 
+        const isDoctorActor =
+          Boolean(
+            actor &&
+              tables.doctors.some(
+                (doctor) =>
+                  doctor.id === actor.id,
+              ),
+          );
+
         const scopedAppointments =
           activeAppointments.filter(
             (appointment) => {
@@ -974,12 +972,10 @@ export function createClinicRepositories(
                 return false;
               }
 
-              /*
-               * Medical:
-               * แสดงเฉพาะนัดของบุคลากร
-               * ทางการแพทย์ที่เข้าสู่ระบบ
-               */
-              if (role === 'medical') {
+              if (
+                role === 'medical' &&
+                isDoctorActor
+              ) {
                 return (
                   slotsById.get(
                     appointment.slot_id,
@@ -1054,8 +1050,7 @@ export function createClinicRepositories(
           activeMedications.filter(
             (medication) =>
               medication.expiry_date &&
-              medication.expiry_date <
-                today,
+              medication.expiry_date < today,
           );
 
         const patientReminders =
@@ -1080,13 +1075,6 @@ export function createClinicRepositories(
         const patientRangeAppointments =
           rangeAppointments;
 
-        const prescribedItems =
-          tables.medical_records.flatMap(
-            (record) =>
-              record.prescribed_medications ??
-              [],
-          );
-
         const pendingDispensing =
           tables.medical_records.filter(
             (record) =>
@@ -1094,47 +1082,21 @@ export function createClinicRepositories(
                 ?.length ?? 0) > 0,
           ).length;
 
-        const backorders =
-          prescribedItems.filter(
-            (item) => {
-              const medication =
-                tables.medications.find(
-                  (candidate) =>
-                    candidate.id ===
-                    item.medication_id,
-                );
+        const roleCounts =
+          userRoles.map(
+            (profileRole) => ({
+              role: profileRole,
 
-              return (
-                !medication ||
-                medication.stock <
-                  item.quantity
-              );
-            },
-          ).length;
-
-        /*
-         * ระบบใหม่มี 3 roles เท่านั้น
-         */
-        const roleCounts = (
-          [
-            'patient',
-            'staff_admin',
-            'medical',
-          ] as UserRole[]
-        ).map(
-          (profileRole) => ({
-            role: profileRole,
-
-            count:
-              tables.profiles.filter(
-                (profile) =>
-                  profile.role ===
-                    profileRole &&
-                  profile.is_active !==
-                    false,
-              ).length,
-          }),
-        );
+              count:
+                tables.profiles.filter(
+                  (profile) =>
+                    profile.role ===
+                      profileRole &&
+                    profile.is_active !==
+                      false,
+                ).length,
+            }),
+          );
 
         const metric = (
           value: number | string,
@@ -1152,51 +1114,10 @@ export function createClinicRepositories(
           tone,
         });
 
-        /*
-         * Dashboard แยกตาม 3 roles ใหม่
-         */
         const metricsByRole: Record<
           UserRole,
           DashboardMetric[]
         > = {
-          patient: [
-            metric(
-              patientRangeAppointments.length,
-              'my-appointments',
-              `นัดหมายของฉัน${rangeSuffix}`,
-              'ไม่รวมรายการยกเลิกและปฏิเสธ',
-              '/appointments',
-              'blue',
-            ),
-
-            metric(
-              patientMedicationIds.size,
-              'my-medications',
-              'ยาที่กำลังใช้',
-              'นับจากรายการเตือนยาที่ใช้งาน',
-              '/reminders',
-              'violet',
-            ),
-
-            metric(
-              patientReminders.length,
-              'my-reminders',
-              'การเตือนที่ใช้งาน',
-              'เวลาทานยาที่ผู้ป่วยยืนยันแล้ว',
-              '/reminders',
-              'emerald',
-            ),
-
-            metric(
-              unreadNotifications,
-              'unread-notifications',
-              'ยังไม่ได้อ่าน',
-              'ข้อความของบัญชีนี้',
-              '/notifications',
-              'rose',
-            ),
-          ],
-
           staff_admin: [
             metric(
               rangeAppointments.length,
@@ -1228,42 +1149,120 @@ export function createClinicRepositories(
             ),
 
             metric(
-              unreadNotifications,
-              'unread-notifications',
-              'ยังไม่ได้อ่าน',
-              'ข้อความของบัญชีนี้',
-              '/notifications',
-              'rose',
+              tables.profiles.length,
+              'accounts',
+              'บัญชีทั้งหมด',
+              'สรุปรวมโดยไม่แสดงข้อมูลผู้ป่วย',
+              '/profile',
+              'blue',
             ),
           ],
 
           medical: [
             metric(
               rangeAppointments.length,
-              'own-appointments',
-              `นัดของฉัน${rangeSuffix}`,
-              'เฉพาะตารางของบุคลากรทางการแพทย์',
+              isDoctorActor
+                ? 'own-appointments'
+                : 'appointments-in-range',
+              isDoctorActor
+                ? `นัดของฉัน${rangeSuffix}`
+                : `นัดหมาย${rangeSuffix}`,
+              isDoctorActor
+                ? 'เฉพาะตารางแพทย์ที่เข้าสู่ระบบ'
+                : 'ข้อมูลนัดที่บันทึกแล้ว',
               '/appointments',
               'blue',
             ),
 
             metric(
-              queueRemaining,
-              'own-queue',
-              range === 'today'
-                ? 'คิวของฉันที่เหลือ'
-                : 'คิวของฉันในช่วงที่เลือก',
-              'ยืนยันแล้วและกำลังตรวจ',
-              '/appointments',
+              isDoctorActor
+                ? queueRemaining
+                : pendingDispensing,
+              isDoctorActor
+                ? 'own-queue'
+                : 'pending-dispensing',
+              isDoctorActor
+                ? range === 'today'
+                  ? 'คิวของฉันที่เหลือ'
+                  : 'คิวของฉันในช่วงที่เลือก'
+                : 'รอจ่ายยา',
+              isDoctorActor
+                ? 'ยืนยันแล้วและกำลังตรวจ'
+                : 'ใบสั่งยาที่มีรายการยา',
+              isDoctorActor
+                ? '/appointments'
+                : '/pharmacy',
               'amber',
             ),
 
             metric(
-              completedInRange,
-              'completed-in-range',
-              `ตรวจเสร็จ${rangeSuffix}`,
-              'นับสถานะเสร็จสิ้น',
+              isDoctorActor
+                ? completedInRange
+                : lowStock.length,
+              isDoctorActor
+                ? 'completed-in-range'
+                : 'low-stock',
+              isDoctorActor
+                ? `ตรวจเสร็จ${rangeSuffix}`
+                : 'ยาใกล้หมด',
+              isDoctorActor
+                ? 'นับสถานะเสร็จสิ้น'
+                : 'สต๊อกต่ำกว่าหรือเท่าจุดสั่งซื้อ',
+              isDoctorActor
+                ? '/appointments'
+                : '/pharmacy',
+              isDoctorActor
+                ? 'emerald'
+                : 'rose',
+            ),
+
+            metric(
+              isDoctorActor
+                ? unreadNotifications
+                : expired.length,
+              isDoctorActor
+                ? 'unread-notifications'
+                : 'expired',
+              isDoctorActor
+                ? 'ยังไม่ได้อ่าน'
+                : 'ยาหมดอายุ',
+              isDoctorActor
+                ? 'ข้อความของบัญชีนี้'
+                : 'แยกออกจากรายการยาใกล้หมด',
+              isDoctorActor
+                ? '/notifications'
+                : '/pharmacy',
+              isDoctorActor
+                ? 'rose'
+                : 'violet',
+            ),
+          ],
+
+          patient: [
+            metric(
+              patientRangeAppointments.length,
+              'my-appointments',
+              `นัดหมายของฉัน${rangeSuffix}`,
+              'ไม่รวมรายการยกเลิกและปฏิเสธ',
               '/appointments',
+              'blue',
+            ),
+
+            metric(
+              patientMedicationIds.size,
+              'my-medications',
+              'ยาที่กำลังใช้',
+              'นับจากรายการเตือนยาที่ใช้งาน',
+              '/reminders',
+              'violet',
+            ),
+
+            metric(
+              patientReminders.length,
+              'my-reminders',
+              'การเตือนที่ใช้งาน',
+              'เวลาทานยาที่ผู้ป่วยยืนยันแล้ว',
+              '/reminders',
               'emerald',
             ),
 
@@ -1404,6 +1403,7 @@ export function createClinicRepositories(
 
               return {
                 id: appointment.id,
+
                 queueNumber:
                   appointment.queue_number,
 
@@ -1436,9 +1436,6 @@ export function createClinicRepositories(
             )
             .slice(0, 8);
 
-        /*
-         * ข้อความ Dashboard สำหรับ 3 roles
-         */
         const copyByRole: Record<
           UserRole,
           {
@@ -1446,28 +1443,30 @@ export function createClinicRepositories(
             description: string;
           }
         > = {
+          staff_admin: {
+            title:
+              'ภาพรวมงานคลินิกและผู้ดูแลระบบ',
+
+            description:
+              'ติดตามนัดหมาย คิว แผนก บัญชี และการประกาศของคลินิก',
+          },
+
+          medical: {
+            title:
+              'ภาพรวมงานแพทย์และเภสัชกรรม',
+
+            description:
+              isDoctorActor
+                ? 'แสดงเฉพาะตารางและคิวของแพทย์ที่เข้าสู่ระบบ พร้อมข้อมูลยา'
+                : 'ติดตามงานจ่ายยาและสถานะคลังยา',
+          },
+
           patient: {
             title:
               'ภาพรวมสุขภาพของฉัน',
 
             description:
               'นัดหมาย ยา การเตือน และข้อความของบัญชีนี้เท่านั้น',
-          },
-
-          staff_admin: {
-            title:
-              'ภาพรวมงานคลินิก',
-
-            description:
-              'ติดตามนัดหมาย คิว ภาระงาน และข้อมูลการจัดการของคลินิก',
-          },
-
-          medical: {
-            title:
-              'ภาพรวมงานบุคลากรทางการแพทย์',
-
-            description:
-              'แสดงเฉพาะตาราง นัดหมาย และคิวของบุคลากรทางการแพทย์ที่เข้าสู่ระบบ',
           },
         };
 

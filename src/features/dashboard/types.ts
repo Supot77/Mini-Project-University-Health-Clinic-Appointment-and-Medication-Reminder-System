@@ -59,19 +59,25 @@ export interface DashboardView {
   roleCounts: Array<{ role: UserRole; count: number }>;
 }
 
-export interface BroadcastAudience {
-  all: boolean;
-  roles: UserRole[];
-}
-
 export interface SendBroadcastInput {
   actorId: string;
   actorRole: UserRole;
-  notificationType: NotificationType;
   title: string;
   message: string;
-  audience: BroadcastAudience;
   requestKey: string;
+  notificationType: NotificationType;
+  audience: {
+    all: boolean;
+    roles: UserRole[];
+  };
+}
+
+export interface BroadcastHistoryItem {
+  id: string;
+  title: string;
+  message: string;
+  sentAt: string;
+  recipientCount: number;
 }
 
 export const roleLabels: Record<UserRole, string> = {

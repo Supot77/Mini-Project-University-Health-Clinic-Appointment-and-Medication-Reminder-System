@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WU Clinic — Manual service flow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f5f5f5;
+      --paper-2: #ffffff;
+      --ink: #2d3142;
+      --muted: #4f5d75;
+      --soft: #7a8399;
+      --rule: rgba(45, 49, 66, 0.12);
+      --rule-strong: rgba(45, 49, 66, 0.2);
+      --accent: #eb6c36;
+      --accent-tint: rgba(235, 108, 54, 0.08);
+      --chip: rgba(45, 49, 66, 0.12);
+      --lane-tint: rgba(45, 49, 66, 0.018);
+      --font-sans: "Noto Sans Thai", "Segoe UI", sans-serif;
+      --font-serif: Georgia, "Noto Serif Thai", serif;
+      --font-mono: "Cascadia Mono", "Segoe UI Mono", monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --paper: #2d3142;
+        --paper-2: rgba(245, 245, 245, 0.04);
+        --ink: #f5f5f5;
+        --muted: #bfc0c0;
+        --soft: #8e98ac;
+        --rule: rgba(245, 245, 245, 0.12);
+        --rule-strong: rgba(245, 245, 245, 0.22);
+        --accent: #f08a59;
+        --accent-tint: rgba(240, 138, 89, 0.12);
+        --chip: rgba(245, 245, 245, 0.12);
+        --lane-tint: rgba(245, 245, 245, 0.025);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    main {
+      width: min(100%, 1120px);
+      margin: 0 auto;
+      padding: 40px 24px 48px;
+    }
+
+    header {
+      margin-bottom: 24px;
+      max-width: 760px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font: 500 12px/1.2 var(--font-mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font: 400 clamp(28px, 4vw, 44px)/1.08 var(--font-serif);
+      letter-spacing: -0.02em;
+    }
+
+    .dek {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .diagram-wrap {
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    svg {
+      display: block;
+      width: 1064px;
+      max-width: none;
+      height: auto;
+    }
+
+    .svg-text { fill: var(--ink); }
+    .svg-muted { fill: var(--muted); }
+    .svg-soft { fill: var(--soft); }
+    .mono { font-family: var(--font-mono); }
+    .sans { font-family: var(--font-sans); }
+    .step-label { font-size: 8px; font-weight: 500; letter-spacing: 0.08em; }
+    .lane-label { font-size: 9px; font-weight: 500; letter-spacing: 0.08em; }
+    .node-title { font-size: 12px; font-weight: 600; }
+    .node-sub { font-size: 8px; }
+    .node-tool { font-size: 8px; }
+    .chip-text { fill: var(--paper-2); font: 700 6px var(--font-mono); text-anchor: middle; }
+    .legend-label { font-size: 8px; letter-spacing: 0.12em; }
+    .legend-item { font-size: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">WU CLINIC · MANUAL FLOW</p>
+      <h1>เส้นทางรับบริการคลินิก</h1>
+      <p class="dek">ลำดับการทำงานตาม role ปัจจุบัน 3 กลุ่ม: ผู้ป่วย, แพทย์/เภสัชกร และเจ้าหน้าที่/แอดมิน</p>
+    </header>
+
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 1064 356" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">เส้นทางรับบริการคลินิกแบบ manual</title>
+        <desc id="diagram-desc">ผู้ป่วยสมัครและจอง เจ้าหน้าที่หรือแอดมินสร้าง slot และอนุมัตินัด แพทย์หรือเภสัชกรตรวจและจ่ายยา จากนั้นเจ้าหน้าที่สร้างรายการเตือนและผู้ป่วยบันทึกผลเอง</desc>
+
+        <defs>
+          <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+            <circle cx="11" cy="11" r="0.8" fill="var(--rule-strong)" opacity="0.45" />
+          </pattern>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="var(--muted)" />
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
+          </marker>
+          <marker id="arrow-sm" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+            <polygon points="0 0, 6 2.5, 0 5" fill="var(--muted)" />
+          </marker>
+        </defs>
+
+        <rect width="100%" height="100%" fill="var(--paper)" />
+        <rect width="100%" height="100%" fill="url(#dots)" opacity="0.55" />
+        <rect x="140" y="36" width="924" height="80" fill="var(--lane-tint)" />
+        <rect x="140" y="196" width="924" height="80" fill="var(--lane-tint)" />
+
+        <!-- Step header -->
+        <g class="mono svg-muted" text-anchor="middle">
+          <rect x="190" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="198" y="19" class="step-label svg-text">1</text>
+          <text x="198" y="32" class="step-label">สมัคร</text>
+
+          <rect x="302" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="310" y="19" class="step-label svg-text">2</text>
+          <text x="310" y="32" class="step-label">สร้าง SLOT</text>
+
+          <rect x="414" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="422" y="19" class="step-label svg-text">3</text>
+          <text x="422" y="32" class="step-label">จอง</text>
+
+          <rect x="524" y="8" width="20" height="16" rx="8" fill="var(--accent-tint)" stroke="var(--accent)" />
+          <text x="534" y="19" class="step-label" fill="var(--accent)">4</text>
+          <text x="534" y="32" class="step-label" fill="var(--accent)">อนุมัติ</text>
+
+          <rect x="638" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="646" y="19" class="step-label svg-text">5</text>
+          <text x="646" y="32" class="step-label">ตรวจ</text>
+
+          <rect x="750" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="758" y="19" class="step-label svg-text">6</text>
+          <text x="758" y="32" class="step-label">จ่ายยา</text>
+
+          <rect x="862" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="870" y="19" class="step-label svg-text">7</text>
+          <text x="870" y="32" class="step-label">ตั้งเตือน</text>
+
+          <rect x="974" y="8" width="16" height="16" rx="8" fill="var(--chip)" />
+          <text x="982" y="19" class="step-label svg-text">8</text>
+          <text x="982" y="32" class="step-label">บันทึก</text>
+        </g>
+
+        <!-- Lane structure -->
+        <g fill="none" stroke="var(--rule)" stroke-width="0.8">
+          <line x1="0" y1="36" x2="1064" y2="36" />
+          <line x1="0" y1="116" x2="1064" y2="116" />
+          <line x1="0" y1="196" x2="1064" y2="196" />
+          <line x1="0" y1="276" x2="1064" y2="276" />
+        </g>
+        <line x1="140" y1="36" x2="140" y2="276" stroke="var(--rule-strong)" stroke-width="1" />
+
+        <g class="mono svg-muted" text-anchor="middle">
+          <text x="70" y="72" class="lane-label">PATIENT</text>
+          <text x="70" y="152" class="lane-label">MEDICAL</text>
+          <text x="70" y="232" class="lane-label">STAFF / ADMIN</text>
+        </g>
+
+        <!-- Connectors: all before nodes -->
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M248 76 H302 Q310 76 310 84 V204" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+          <path d="M360 236 H414 Q422 236 422 228 V108" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+          <path d="M472 76 H526 Q534 76 534 84 V204" stroke="var(--accent)" stroke-width="1.2" marker-end="url(#arrow-accent)" />
+          <path d="M584 236 H638 Q646 236 646 228 V188" stroke="var(--accent)" stroke-width="1.2" marker-end="url(#arrow-accent)" />
+          <line x1="696" y1="156" x2="708" y2="156" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+          <path d="M808 156 H862 Q870 156 870 164 V204" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+          <path d="M920 236 H974 Q982 236 982 228 V108" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+        </g>
+
+        <!-- Nodes -->
+        <g>
+          <rect x="148" y="44" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="152" y="48" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="162" y="55" class="chip-text">PAT</text>
+          <text x="198" y="70" class="node-title sans svg-text" text-anchor="middle">สมัคร/เข้าใช้</text>
+          <text x="198" y="84" class="node-sub mono svg-muted" text-anchor="middle">บัญชี + role</text>
+          <text x="198" y="96" class="node-tool mono svg-soft" text-anchor="middle">Auth / mock</text>
+          <rect x="232" y="98" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="240" y="104" class="chip-text">DB</text>
+
+          <rect x="260" y="204" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="264" y="208" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="274" y="215" class="chip-text">STA</text>
+          <text x="310" y="230" class="node-title sans svg-text" text-anchor="middle">สร้าง slot</text>
+          <text x="310" y="244" class="node-sub mono svg-muted" text-anchor="middle">แผนก + เวลา</text>
+          <text x="310" y="256" class="node-tool mono svg-soft" text-anchor="middle">Calendar</text>
+          <rect x="264" y="258" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="272" y="264" class="chip-text">DB</text>
+          <rect x="344" y="258" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="352" y="264" class="chip-text">TB</text>
+
+          <rect x="372" y="44" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="376" y="48" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="386" y="55" class="chip-text">PAT</text>
+          <text x="422" y="70" class="node-title sans svg-text" text-anchor="middle">จอง slot</text>
+          <text x="422" y="84" class="node-sub mono svg-muted" text-anchor="middle">เลือกเวลาว่าง</text>
+          <text x="422" y="96" class="node-tool mono svg-soft" text-anchor="middle">Booking UI</text>
+          <rect x="376" y="98" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="384" y="104" class="chip-text">TB</text>
+          <rect x="456" y="98" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="464" y="104" class="chip-text">DB</text>
+
+          <rect x="484" y="204" width="100" height="64" rx="6" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.2" />
+          <rect x="488" y="208" width="20" height="10" rx="2" fill="var(--accent)" />
+          <text x="498" y="215" class="chip-text">STA</text>
+          <text x="534" y="230" class="node-title sans svg-text" text-anchor="middle">อนุมัตินัด</text>
+          <text x="534" y="244" class="node-sub mono svg-muted" text-anchor="middle">ตรวจคำขอ</text>
+          <text x="534" y="256" class="node-tool mono svg-soft" text-anchor="middle">Manual approve</text>
+          <rect x="488" y="258" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="496" y="264" class="chip-text">DB</text>
+          <rect x="568" y="258" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="576" y="264" class="chip-text">DB</text>
+
+          <rect x="596" y="124" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="600" y="128" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="610" y="135" class="chip-text">MED</text>
+          <text x="646" y="150" class="node-title sans svg-text" text-anchor="middle">ตรวจ/บันทึก</text>
+          <text x="646" y="164" class="node-sub mono svg-muted" text-anchor="middle">ผลตรวจ + ใบยา</text>
+          <text x="646" y="176" class="node-tool mono svg-soft" text-anchor="middle">Records UI</text>
+          <rect x="600" y="178" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="608" y="184" class="chip-text">DB</text>
+          <rect x="680" y="178" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="688" y="184" class="chip-text">TB</text>
+
+          <rect x="708" y="124" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="712" y="128" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="722" y="135" class="chip-text">MED</text>
+          <text x="758" y="150" class="node-title sans svg-text" text-anchor="middle">จ่ายยาเต็ม</text>
+          <text x="758" y="164" class="node-sub mono svg-muted" text-anchor="middle">ตรวจ stock</text>
+          <text x="758" y="176" class="node-tool mono svg-soft" text-anchor="middle">Pharmacy UI</text>
+          <rect x="712" y="178" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="720" y="184" class="chip-text">TB</text>
+          <rect x="792" y="178" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="800" y="184" class="chip-text">DB</text>
+
+          <rect x="820" y="204" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="824" y="208" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="834" y="215" class="chip-text">STA</text>
+          <text x="870" y="230" class="node-title sans svg-text" text-anchor="middle">ตั้งรายการเตือน</text>
+          <text x="870" y="244" class="node-sub mono svg-muted" text-anchor="middle">จากยาที่จ่ายเต็ม</text>
+          <text x="870" y="256" class="node-tool mono svg-soft" text-anchor="middle">Reminder UI</text>
+          <rect x="824" y="258" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="832" y="264" class="chip-text">DB</text>
+          <rect x="904" y="258" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="912" y="264" class="chip-text">LS</text>
+
+          <rect x="932" y="44" width="100" height="64" rx="6" fill="var(--paper-2)" stroke="var(--rule-strong)" />
+          <rect x="936" y="48" width="20" height="10" rx="2" fill="var(--chip)" />
+          <text x="946" y="55" class="chip-text">PAT</text>
+          <text x="982" y="70" class="node-title sans svg-text" text-anchor="middle">บันทึกผล</text>
+          <text x="982" y="84" class="node-sub mono svg-muted" text-anchor="middle">ผู้ป่วยบันทึกเอง</text>
+          <text x="982" y="96" class="node-tool mono svg-soft" text-anchor="middle">Patient UI</text>
+          <rect x="936" y="98" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="944" y="104" class="chip-text">LS</text>
+        </g>
+
+        <!-- Legend -->
+        <line x1="144" y1="288" x2="1040" y2="288" stroke="var(--rule)" stroke-width="0.8" />
+        <g class="mono svg-muted">
+          <text x="144" y="300" class="legend-label">STEPS</text>
+          <text x="196" y="300" class="legend-item">1 สมัคร</text>
+          <text x="272" y="300" class="legend-item">2 SLOT</text>
+          <text x="344" y="300" class="legend-item">3 จอง</text>
+          <text x="416" y="300" class="legend-item" fill="var(--accent)">4 อนุมัติ</text>
+          <text x="500" y="300" class="legend-item">5 ตรวจ</text>
+          <text x="572" y="300" class="legend-item">6 จ่ายยา</text>
+          <text x="656" y="300" class="legend-item">7 ตั้งเตือน</text>
+          <text x="748" y="300" class="legend-item">8 บันทึก</text>
+
+          <text x="144" y="321" class="legend-label">DATA TYPE</text>
+          <rect x="224" y="314" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="232" y="320" class="chip-text">DB</text>
+          <text x="246" y="321" class="legend-item">record</text>
+          <rect x="302" y="314" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="310" y="320" class="chip-text">TB</text>
+          <text x="324" y="321" class="legend-item">slot / table</text>
+          <rect x="408" y="314" width="16" height="8" rx="2" fill="var(--muted)" />
+          <text x="416" y="320" class="chip-text">LS</text>
+          <text x="430" y="321" class="legend-item">list</text>
+          <text x="494" y="321" class="legend-item svg-soft">ซ้าย = input · ขวา = output</text>
+
+          <text x="144" y="342" class="legend-label">FLOW</text>
+          <line x1="224" y1="338" x2="252" y2="338" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+          <text x="264" y="342" class="legend-item">manual hand-off</text>
+          <line x1="384" y1="338" x2="412" y2="338" stroke="var(--accent)" stroke-width="1.2" marker-end="url(#arrow-accent)" />
+          <text x="424" y="342" class="legend-item">approval pivot</text>
+        </g>
+      </svg>
+    </div>
+  </main>
+</body>
+</html>

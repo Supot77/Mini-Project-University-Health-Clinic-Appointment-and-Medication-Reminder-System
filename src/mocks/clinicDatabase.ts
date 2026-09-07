@@ -30,7 +30,10 @@ function profile(
     phone: '080-000-0000',
     emergency_phone: null,
     address: 'มหาวิทยาลัยวลัยลักษณ์',
-    allergies: id === 'profile-wednesday' ? 'PENICILLIN' : null,
+    allergies:
+      id === 'profile-wednesday'
+        ? 'PENICILLIN'
+        : null,
     chronic_diseases: null,
     role,
     avatar_url: null,
@@ -56,18 +59,54 @@ export interface ClinicMockTables {
 
 export const clinicMockTables: ClinicMockTables = {
   profiles: [
-    // Staff / Admin
-    profile('profile-nick-fury', 'Nick Fury', 'staff_admin'),
-    profile('profile-leslie-knope', 'Leslie Knope', 'staff_admin'),
+    // Staff
+    profile(
+      'profile-nick-fury',
+      'Nick Fury',
+      'staff_admin',
+    ),
+    profile(
+      'profile-leslie-knope',
+      'Leslie Knope',
+      'staff_admin',
+    ),
 
     // Medical personnel
-    profile('profile-severus-snape', 'Severus Snape', 'medical'),
-    profile('profile-stephen-strange', 'Stephen Strange', 'medical'),
-    profile('profile-meredith-grey', 'Meredith Grey', 'medical'),
-    profile('profile-charles-xavier', 'Charles Xavier', 'medical'),
-    profile('profile-leonard-mccoy', 'Leonard McCoy', 'medical'),
-    profile('profile-bruce-banner', 'Bruce Banner', 'medical'),
-    profile('profile-shuri-udaku', 'Shuri Udaku', 'medical'),
+    profile(
+      'profile-severus-snape',
+      'Severus Snape',
+      'medical',
+    ),
+    profile(
+      'profile-stephen-strange',
+      'Stephen Strange',
+      'medical',
+    ),
+    profile(
+      'profile-meredith-grey',
+      'Meredith Grey',
+      'medical',
+    ),
+    profile(
+      'profile-charles-xavier',
+      'Charles Xavier',
+      'medical',
+    ),
+    profile(
+      'profile-leonard-mccoy',
+      'Leonard McCoy',
+      'medical',
+    ),
+    profile(
+      'profile-bruce-banner',
+      'Bruce Banner',
+      'medical',
+    ),
+    profile(
+      'profile-shuri-udaku',
+      'Shuri Udaku',
+      'medical',
+    ),
 
     // Patients
     profile(
@@ -124,28 +163,32 @@ export const clinicMockTables: ClinicMockTables = {
     {
       id: 'dept-general',
       name: 'เวชปฏิบัติทั่วไป',
-      description: 'ตรวจอาการทั่วไปและออกใบรับรองแพทย์',
+      description:
+        'ตรวจอาการทั่วไปและออกใบรับรองแพทย์',
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
     },
     {
       id: 'dept-mental',
       name: 'สุขภาพจิตและให้คำปรึกษา',
-      description: 'นัดตรวจและให้คำปรึกษารายบุคคล',
+      description:
+        'นัดตรวจและให้คำปรึกษารายบุคคล',
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
     },
     {
       id: 'dept-vaccine',
       name: 'วัคซีนและสร้างเสริมภูมิคุ้มกัน',
-      description: 'บริการวัคซีนแบบหนึ่งรอบรับได้หลายคน',
+      description:
+        'บริการวัคซีนแบบหนึ่งรอบรับได้หลายคน',
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
     },
     {
       id: 'dept-physio',
       name: 'กายภาพบำบัด',
-      description: 'ประเมินและติดตามการฟื้นฟู',
+      description:
+        'ประเมินและติดตามการฟื้นฟู',
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
     },
@@ -168,7 +211,8 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'profile-charles-xavier',
-      specialty: 'สุขภาพจิตและการให้คำปรึกษา',
+      specialty:
+        'สุขภาพจิตและการให้คำปรึกษา',
       department_id: 'dept-mental',
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
@@ -189,7 +233,8 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'profile-shuri-udaku',
-      specialty: 'กายภาพและการเคลื่อนไหว',
+      specialty:
+        'กายภาพและการเคลื่อนไหว',
       department_id: 'dept-physio',
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
@@ -383,11 +428,13 @@ export const clinicMockTables: ClinicMockTables = {
   medical_records: [
     {
       id: 'record-wednesday',
-      appointment_id: 'appointment-wednesday',
+      appointment_id:
+        'appointment-wednesday',
       patient_id: 'profile-wednesday',
       doctor_id: 'profile-charles-xavier',
       diagnosis: 'ติดตามอาการทั่วไป',
-      treatment_notes: 'พักผ่อนและติดตามอาการ',
+      treatment_notes:
+        'พักผ่อนและติดตามอาการ',
       prescribed_medications: [
         {
           medication_id: 'med-amoxicillin',
@@ -403,11 +450,13 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'record-eleven',
-      appointment_id: 'appointment-eleven',
+      appointment_id:
+        'appointment-eleven',
       patient_id: 'profile-eleven',
       doctor_id: 'profile-leonard-mccoy',
       diagnosis: 'รับวัคซีนตามกำหนด',
-      treatment_notes: 'สังเกตอาการหลังรับวัคซีน',
+      treatment_notes:
+        'สังเกตอาการหลังรับวัคซีน',
       prescribed_medications: [],
       created_at: CREATED_AT,
       updated_at: UPDATED_AT,
@@ -437,7 +486,8 @@ export const clinicMockTables: ClinicMockTables = {
       stock: 45,
       min_stock: 30,
       expiry_date: '2027-03-31',
-      description: 'ยาปฏิชีวนะกลุ่มเพนิซิลลิน',
+      description:
+        'ยาปฏิชีวนะกลุ่มเพนิซิลลิน',
       ingredients: 'Amoxicillin',
       is_active: true,
       created_at: CREATED_AT,
@@ -447,7 +497,8 @@ export const clinicMockTables: ClinicMockTables = {
       id: 'med-omeprazole',
       name: 'Omeprazole 20mg',
       type: 'แคปซูล',
-      category: 'ยาระบบทางเดินอาหาร',
+      category:
+        'ยาระบบทางเดินอาหาร',
       stock: 80,
       min_stock: 40,
       expiry_date: '2027-04-30',
@@ -465,7 +516,8 @@ export const clinicMockTables: ClinicMockTables = {
       stock: 38,
       min_stock: 30,
       expiry_date: '2027-02-28',
-      description: 'บรรเทาปวดและอักเสบ',
+      description:
+        'บรรเทาปวดและอักเสบ',
       ingredients: 'Ibuprofen',
       is_active: true,
       created_at: CREATED_AT,
@@ -489,7 +541,8 @@ export const clinicMockTables: ClinicMockTables = {
       id: 'med-ors',
       name: 'ORS',
       type: 'ผง',
-      category: 'ยาระบบทางเดินอาหาร',
+      category:
+        'ยาระบบทางเดินอาหาร',
       stock: 60,
       min_stock: 15,
       expiry_date: '2027-08-31',
@@ -507,7 +560,8 @@ export const clinicMockTables: ClinicMockTables = {
       stock: 24,
       min_stock: 10,
       expiry_date: '2027-01-31',
-      description: 'บรรเทาปวดกล้ามเนื้อ',
+      description:
+        'บรรเทาปวดกล้ามเนื้อ',
       ingredients: 'Diclofenac',
       is_active: true,
       created_at: CREATED_AT,
@@ -519,7 +573,12 @@ export const clinicMockTables: ClinicMockTables = {
     {
       id: 'inventory-001',
       medication_id: 'med-cetirizine',
-      pharmacist_id: 'profile-severus-snape',
+
+      // เป็นชื่อ field ของ database
+      // ไม่ต้องเปลี่ยนเป็น medicalId
+      pharmacist_id:
+        'profile-severus-snape',
+
       action: 'dispense',
       quantity: 8,
       reason: 'จ่ายตามใบสั่งยา',
@@ -528,7 +587,8 @@ export const clinicMockTables: ClinicMockTables = {
     {
       id: 'inventory-002',
       medication_id: 'med-paracetamol',
-      pharmacist_id: 'profile-severus-snape',
+      pharmacist_id:
+        'profile-severus-snape',
       action: 'add',
       quantity: 100,
       reason: 'รับยาเข้าคลัง',
@@ -541,7 +601,10 @@ export const clinicMockTables: ClinicMockTables = {
       id: 'reminder-peter-paracetamol',
       user_id: 'profile-peter-parker',
       medication_id: 'med-paracetamol',
-      reminder_times: ['08:00', '20:00'],
+      reminder_times: [
+        '08:00',
+        '20:00',
+      ],
       start_date: '2026-09-05',
       end_date: '2026-09-11',
       status: 'active',
@@ -552,7 +615,11 @@ export const clinicMockTables: ClinicMockTables = {
       id: 'reminder-wednesday-amoxicillin',
       user_id: 'profile-wednesday',
       medication_id: 'med-amoxicillin',
-      reminder_times: ['08:00', '13:00', '20:00'],
+      reminder_times: [
+        '08:00',
+        '13:00',
+        '20:00',
+      ],
       start_date: '2026-09-05',
       end_date: '2026-09-09',
       status: 'paused',
@@ -564,17 +631,22 @@ export const clinicMockTables: ClinicMockTables = {
   medication_logs: [
     {
       id: 'dose-peter-morning',
-      reminder_id: 'reminder-peter-paracetamol',
-      scheduled_datetime: '2026-09-05T01:00:00.000Z',
-      actual_datetime: '2026-09-05T01:05:00.000Z',
+      reminder_id:
+        'reminder-peter-paracetamol',
+      scheduled_datetime:
+        '2026-09-05T01:00:00.000Z',
+      actual_datetime:
+        '2026-09-05T01:05:00.000Z',
       status: 'taken',
       created_at: UPDATED_AT,
       updated_at: UPDATED_AT,
     },
     {
       id: 'dose-peter-evening',
-      reminder_id: 'reminder-peter-paracetamol',
-      scheduled_datetime: '2026-09-05T13:00:00.000Z',
+      reminder_id:
+        'reminder-peter-paracetamol',
+      scheduled_datetime:
+        '2026-09-05T13:00:00.000Z',
       actual_datetime: null,
       status: 'pending',
       created_at: UPDATED_AT,
@@ -588,7 +660,8 @@ export const clinicMockTables: ClinicMockTables = {
       user_id: 'profile-peter-parker',
       type: 'appointment',
       title: 'ยืนยันนัดหมายแล้ว',
-      message: 'นัดหมายกับ Stephen Strange ได้รับการยืนยัน',
+      message:
+        'นัดหมายกับ Stephen Strange ได้รับการยืนยัน',
       is_read: false,
       created_at: UPDATED_AT,
     },
@@ -597,7 +670,8 @@ export const clinicMockTables: ClinicMockTables = {
       user_id: 'profile-peter-parker',
       type: 'reminder',
       title: 'ถึงเวลาทานยา',
-      message: 'Paracetamol 500mg เวลา 20:00 น.',
+      message:
+        'Paracetamol 500mg เวลา 20:00 น.',
       is_read: false,
       created_at: UPDATED_AT,
     },
@@ -606,7 +680,8 @@ export const clinicMockTables: ClinicMockTables = {
       user_id: 'profile-wednesday',
       type: 'broadcast',
       title: 'ประกาศจากคลินิก',
-      message: 'คลินิกเปิดให้บริการตามเวลาปกติ',
+      message:
+        'คลินิกเปิดให้บริการตามเวลาปกติ',
       is_read: true,
       created_at: CREATED_AT,
     },
@@ -616,5 +691,7 @@ export const clinicMockTables: ClinicMockTables = {
 };
 
 export function createClinicMockTables(): ClinicMockTables {
-  return structuredClone(clinicMockTables);
+  return structuredClone(
+    clinicMockTables,
+  );
 }
