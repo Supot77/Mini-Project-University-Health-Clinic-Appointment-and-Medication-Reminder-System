@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type ComponentType } from "react";
 import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,8 +28,20 @@ const navigationItems: NavigationItem[] = [
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, isAuthenticated, isLoading, signOut, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace("/");
+    } catch (error) {
+      console.error("ออกจากระบบไม่สำเร็จ", error);
+    } finally {
+      setMobileMenuOpen(false);
+    }
+  };
 
   // Permission-aware navigation: show only the items allowed for the current role.
   // Guests (not logged in) only see the public doctor schedule table.
@@ -74,7 +86,7 @@ export default function Header() {
                 <UserRound className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden max-w-28 truncate xl:inline">{user?.full_name ?? "บัญชี"}</span>
               </Link>
-              <button type="button" onClick={() => void signOut()} className="min-h-10 rounded-lg px-3 text-xs text-slate-400 transition-colors hover:bg-rose-400/10 hover:text-rose-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300">ออกจากระบบ</button>
+              <button type="button" onClick={() => void handleSignOut()} className="min-h-10 rounded-lg px-3 text-xs text-slate-400 transition-colors hover:bg-rose-400/10 hover:text-rose-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300">ออกจากระบบ</button>
             </div>
           ) : (
             <Link href="/login" className="hidden min-h-10 items-center gap-2 rounded-full bg-sky-500 px-4 text-xs font-bold text-white transition-colors hover:bg-sky-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 sm:flex">
@@ -107,7 +119,7 @@ export default function Header() {
                   <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 text-sm text-slate-200 hover:bg-white/10">
                     <UserRound className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span className="truncate">{user?.full_name ?? "บัญชีผู้ใช้"}</span>
                   </Link>
-                  <button type="button" onClick={() => { void signOut(); setMobileMenuOpen(false); }} className="min-h-11 shrink-0 rounded-xl px-3 text-xs text-rose-200 hover:bg-rose-400/10">ออกจากระบบ</button>
+                  <button type="button" onClick={() => void handleSignOut()} className="min-h-11 shrink-0 rounded-xl px-3 text-xs text-rose-200 hover:bg-rose-400/10">ออกจากระบบ</button>
                 </div>
               ) : (
                 <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-400 px-4 text-sm font-bold text-[#0a2540]">
