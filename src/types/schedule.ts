@@ -74,6 +74,7 @@ export interface DoctorWeeklySchedule {
 }
 
 export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected';
+export type LeaveType = 'sick' | 'vacation' | 'academic' | 'personal';
 
 export interface DoctorLeaveRequest {
   id: string;
@@ -81,10 +82,13 @@ export interface DoctorLeaveRequest {
   startDate: string;
   endDate: string;
   reason: string;
+  leaveType?: LeaveType;
   status: LeaveRequestStatus;
   requestedBy: string;
   decidedBy?: string;
   decidedAt?: string;
+  decisionNote?: string;
+  createdAt?: string;
 }
 
 export interface DoctorAccountOption {

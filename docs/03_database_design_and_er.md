@@ -6,7 +6,7 @@
 
 ## สถานะและขอบเขต
 
-- Runtime ปัจจุบันใช้ mock repository และข้อมูลสังเคราะห์ ไม่เรียกฐานข้อมูลจริง
+- Runtime เป้าหมายใช้ Supabase จริงผ่าน database repository; mock repository สงวนไว้สำหรับ automated tests และ offline demo ที่ระบุชัด
 - Schema ปัจจุบันมี 11 ตาราง: `profiles`, `departments`, `doctors`, `appointment_slots`, `appointments`, `medical_records`, `medications`, `inventory_logs`, `medication_reminders`, `medication_logs`, `notifications`
 - บทบาทใน `profiles.role` เหลือ 3 ค่าเท่านั้น: `patient`, `medical`, `staff_admin`
 - `medical` ครอบคลุมแพทย์และเภสัชกร; `staff_admin` ครอบคลุมเจ้าหน้าที่และแอดมิน
@@ -272,6 +272,8 @@ erDiagram
 ฟิลด์ compatibility ที่ยังเห็นใน schema เช่น `dispensing_item_id`, `email_pause_until`, `revision`, `event_key` และ `broadcast_id` มีไว้รองรับข้อมูลเดิมเท่านั้น ไม่ควรนำไปสร้าง workflow ใหม่โดยไม่มี requirement เพิ่ม
 
 ## แผน migration
+
+การรัน migration/seed กับ Supabase development หรือ staging ทำได้เมื่อยืนยัน project เป้าหมาย ตรวจ diff สำรองข้อมูลเดิมตามความเสี่ยง และมีผู้รับผิดชอบอนุมัติ ห้ามใช้ destructive reset กับ production และห้ามเปิดเผย `service_role` หรือ secret ในคำสั่ง รายงาน หรือ client bundle
 
 ### ฐานข้อมูลใหม่
 

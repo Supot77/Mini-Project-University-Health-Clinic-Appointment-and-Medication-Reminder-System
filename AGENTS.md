@@ -25,16 +25,23 @@ use skill caveman
 - จำกัดการ refactor ให้อยู่ในสิ่งที่จำเป็นต่อเป้าหมาย ห้ามเปลี่ยน branch, merge, commit หรือ push เว้นแต่ได้รับคำสั่ง หรือเป็นการ sync `origin/develop` เข้า branch ตนเองตามกติกาข้อนี้
 - หลังทำงานเสร็จ ต้องบันทึกการเปลี่ยนแปลงไว้บน branch ของตนเองเป็นลำดับ (ตรวจ diff, commit และ push branch ของตนเองเมื่อได้รับอนุญาต) ห้ามส่งงานตรงเข้า `develop` หรือ `main`
 
-## แนวทางข้อมูลและ Backend ในช่วง Mock
+## แนวทางข้อมูลและ Backend แบบ Database-first
 
-- สถานะปัจจุบันใช้ mock data และ mock repository เป็นแหล่งข้อมูลสำหรับการพัฒนา การสาธิต และ automated tests
-- แยก UI และ business/domain logic ออกจากแหล่งข้อมูล โดยเรียกข้อมูลผ่าน repository หรือ service contract ที่ชัดเจน ห้ามให้ component ผูกกับรายละเอียดของ mock data หรือ Supabase โดยตรง
-- Backend ต้องแยกเป็นสอง implementation ภายใต้ contract เดียวกัน: mock adapter/repository ซึ่งเป็น implementation ที่เปิดใช้งานในปัจจุบัน และ database adapter/repository สำหรับเชื่อมฐานข้อมูลจริงในอนาคต ซึ่งเตรียมโครงสร้างและขอบเขตไว้ได้แต่ยังไม่เปิดใช้งาน
-- การเตรียม database adapter ต้องไม่ทำ network request ไปยังฐานข้อมูลจริง ไม่เปลี่ยน runtime ให้ใช้ Supabase และไม่สร้างความต้องการ secret เพื่อให้แอปหรือ tests ทำงาน เว้นแต่ได้รับมอบหมายอย่างชัดเจน
-- พฤติกรรมและชนิดผลลัพธ์ของ mock adapter ต้องสอดคล้องกับ contract ที่ database adapter จะใช้ เพื่อให้สลับ implementation ได้โดยไม่แก้ UI หรือ domain logic
-- ห้ามอนุมานว่า schema, migration, seed หรือ `src/types/database.ts` ปัจจุบันตรงกับข้อสรุปล่าสุด ตรวจเอกสารและประสานเจ้าของโมดูลก่อนเปลี่ยน contract ส่วนกลาง
-- ห้ามรัน migration/seed กับฐานข้อมูลจริง ใช้ข้อมูลจริง หรือใช้/เปิดเผย `service_role`, `.env.local` และ secret ใด ๆ โดยไม่ได้รับอนุญาต
-- Automated tests ต้องทำงานแบบ deterministic ด้วย mock/fake และต้องไม่พึ่ง network, บัญชีภายนอก หรือฐานข้อมูลจริง
+- Runtime ของแอปใช้ Supabase จริงผ่าน database repository/adapter เป็น implementation หลัก ส่วน mock repository ใช้สำหรับ automated tests, Story/demo แบบ offline หรือกรณีที่ test ระบุ dependency ชัดเจนเท่านั้น
+- แยก UI และ business/domain logic ออกจากแหล่งข้อมูล โดยเรียกผ่าน repository หรือ service contract ที่ชัดเจน ห้ามให้ component เขียน Supabase query หรือ import mock fixture โดยตรง
+- Backend ต้องมี database repository และ mock repository ภายใต้ contract เดียวกัน พฤติกรรม ชนิดผลลัพธ์ validation และ error สำคัญต้องสอดคล้องกัน เพื่อให้ tests สลับเป็น mock ได้โดยไม่แก้ UI หรือ domain logic
+- ใช้ Supabase client ตาม execution context: browser client สำหรับคำสั่งของผู้ใช้, server client สำหรับ Server Component/Server Action/Route Handler และใช้ session ของผู้ใช้ร่วมกับ RLS ห้ามใช้ `service_role` ใน browser หรือส่ง secret ไปยัง client bundle
+- อนุญาตให้แก้ schema, migration, seed, RLS, RPC และ `src/types/database.ts` เมื่ออยู่ในขอบเขตงาน แต่ต้องอ่านเอกสารล่าสุด ตรวจ dependency ทุกโมดูล ใช้ migration ที่ review ได้ และระบุฐานเป้าหมายก่อนรัน
+- อนุญาตให้รัน migration/seed กับฐาน development หรือ staging ที่ทีมกำหนด หลังตรวจ project/target, สำรองข้อมูลเมื่อมีข้อมูลเดิม และได้รับอนุญาตสำหรับคำสั่งที่มีผลต่อ remote database ห้ามรัน destructive reset กับ production
+- ห้ามอ่าน แสดง commit หรือเผยแพร่ `.env.local`, `service_role` และ secret ใด ๆ ใช้เฉพาะชื่อ environment variable หรือ placeholder ในเอกสารและ test
+- Automated tests ปกติต้อง deterministic ด้วย mock/fake และไม่พึ่ง network หรือฐานจริง ส่วน database integration test ต้องแยกคำสั่ง/ชุดทดสอบ ใช้ฐานทดสอบที่ระบุชัด และไม่รันรวมกับ unit test โดยอัตโนมัติ
+
+## หน้าและส่วนประกอบตามบทบาท
+
+- ระบบมี 3 role canonical: `patient`, `medical`, `staff_admin` แต่ละ role ต้องมี entry page หรือ dashboard ของตนเอง และต้องผ่าน route/layout guard ก่อน render ข้อมูล
+- เมื่อ role ต่างกันด้านสิทธิ์ ข้อมูลที่เห็น หรือคำสั่งที่ทำได้ ให้แยก role-specific page/container/component ห้ามใช้ตัวเลือกสลับ role ใน production UI เพื่อจำลองสิทธิ์
+- ส่วน presentational component ที่ไม่มีข้อมูลอ่อนไหวและมีพฤติกรรมเหมือนกันใช้ร่วมกันได้ ห้ามคัดลอก UI ทั้งหน้าเมื่อแยกเฉพาะ data loader, action หรือ permission boundary ก็เพียงพอ
+- UI guard ใช้เพื่อประสบการณ์ผู้ใช้เท่านั้น การอนุญาตจริงต้องตรวจซ้ำใน service/repository และ Supabase RLS/RPC ทุกคำสั่งที่อ่านหรือเขียนข้อมูล
 
 ## ขั้นตอนการทำงาน
 
@@ -66,4 +73,4 @@ npm run build
 
 ## การส่งมอบ
 
-สรุปทุกครั้งว่าแก้ไฟล์ใด พฤติกรรมใดเปลี่ยน tests ใดถูกเพิ่มหรือแก้ และผลของแต่ละ quality gate หากมีสิ่งที่ยังไม่ได้ตรวจ ความเสี่ยง การตัดสินใจที่รอเจ้าของโมดูล หรือส่วน database จริงที่ยังเป็นเพียงโครงเตรียมไว้ ต้องระบุอย่างชัดเจน
+สรุปทุกครั้งว่าแก้ไฟล์ใด พฤติกรรมใดเปลี่ยน tests ใดถูกเพิ่มหรือแก้ และผลของแต่ละ quality gate หากมีสิ่งที่ยังไม่ได้ตรวจ ความเสี่ยง การตัดสินใจที่รอเจ้าของโมดูล migration ที่ยังไม่ได้ deploy หรือ flow ฐานจริงที่ยังไม่ได้ตรวจ ต้องระบุอย่างชัดเจน

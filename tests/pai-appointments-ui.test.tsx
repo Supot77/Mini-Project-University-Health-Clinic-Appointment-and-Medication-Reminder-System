@@ -8,6 +8,14 @@ function openBooking() {
 }
 
 describe('appointment preview workspace', () => {
+  it('hides the role switcher when rendered by a production role container', () => {
+    render(<AppointmentWorkspace role="medical" allowRolePreview={false} />);
+
+    expect(screen.queryByRole('combobox', { name: 'มุมมองตัวอย่าง' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'จองนัดหมายใหม่' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ผู้ป่วยในความรับผิดชอบวันนี้' })).toBeInTheDocument();
+  });
+
   it('books a selected slot and shows the resulting pending request in the patient list', () => {
     render(<AppointmentWorkspace />);
     const booking = openBooking();

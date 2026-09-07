@@ -29,7 +29,7 @@ FR ที่มีคำว่า “ระบบ” หมายถึง valid
 | `FR-APT-*` | การจอง การตัดสิน และการตรวจอ้างอิงผู้ป่วย/แพทย์ถูกต้อง |
 | `FR-MED-*`, `FR-PHA-*` | ผลตรวจ รายการยา stock และการจ่ายเต็มสอดคล้องกัน |
 | `FR-REM-*`, `FR-NOT-*` | เตือน Broadcast และ Dashboard แสดงจากข้อมูลที่ผู้ใช้บันทึก |
-| `FR-SYS-*` | เวลา สิทธิ์ error, UI และ mock runtime ตรงตามกติกากลาง |
+| `FR-SYS-*` | เวลา สิทธิ์ error, database runtime และ UI แยกตาม role ตรงตามกติกากลาง |
 
 ตารางนี้เป็นดัชนีช่วยตรวจ ไม่ได้เพิ่ม FR หรือเปลี่ยนเลขรหัส FR เดิม
 
@@ -107,10 +107,12 @@ FR ที่มีคำว่า “ระบบ” หมายถึง valid
 | รหัส | โมดูล | Functional requirement | เกณฑ์สำเร็จ/ข้อจำกัด | เจ้าของ |
 | --- | --- | --- | --- | --- |
 | FR-SYS-01 | เวลา | แสดงวันเวลาใน `Asia/Bangkok` | ไม่รองรับ timezone อื่นหรือรอบข้ามวัน | ทุกคน |
-| FR-SYS-02 | Architecture | UI เรียกผ่าน service/repository contract | Runtime ใช้ mock; ห้ามเรียกฐานจริงใน tests | ทุกคน |
+| FR-SYS-02 | Architecture | UI เรียกผ่าน service/repository contract และ runtime ใช้ Supabase database repository | mock ใช้เฉพาะ automated tests/offline demo; production ไม่มี silent mock fallback | ทุกคน |
 | FR-SYS-03 | Validation/error | ตรวจข้อมูลก่อนบันทึกและแสดง error ที่เข้าใจได้ | คำสั่งที่ไม่ผ่านต้องไม่เปลี่ยน state | ทุกคน |
 | FR-SYS-04 | Accessibility/UI | Flow หลักใช้ keyboard และรองรับ 360px/1280px | มี loading, empty และ error ที่จำเป็น | ทุกคน |
-| FR-SYS-05 | Security | ตรวจ role ที่ service/data layer | ห้ามพึ่งการซ่อนเมนูอย่างเดียว | ทุกคน |
+| FR-SYS-05 | Security | ตรวจ session, role และ ownership ที่ route, service/repository และ Supabase RLS/RPC | ห้ามพึ่งการซ่อนเมนูอย่างเดียวหรือใช้ `service_role` ใน browser | ทุกคน |
+| FR-SYS-06 | Role-specific UI | แต่ละ role มี guarded entry page/dashboard และแยก page/container เมื่อ data/action ต่างกัน | shared presentational component ใช้ร่วมกันได้; production ไม่มี role switcher | ทุกคน |
+| FR-SYS-07 | Database verification | migration/seed/integration ใช้ target ที่ระบุและมีหลักฐานผลจริง | unit/component tests ยัง deterministic และไม่เรียกฐานจริง | ทุกคน |
 
 ## 9. รายการที่อยู่นอก scope
 
