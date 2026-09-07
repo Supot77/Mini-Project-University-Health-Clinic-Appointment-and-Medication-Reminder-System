@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { getProfile, updateProfile } from "@/services/authService";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import type { Profile } from "@/types/database";
+
+const supabase = createClient();
 import {
   Phone,
   Mail,
@@ -116,7 +118,7 @@ export default function ProfileContent() {
         .from("doctors")
         .select("specialty, department:departments(name)")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       setDoctorInfo(
         medicalData as unknown as DoctorInfo,
