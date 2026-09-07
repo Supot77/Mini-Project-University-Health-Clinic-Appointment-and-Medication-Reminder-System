@@ -655,36 +655,13 @@ export function createClinicRepositories(
               deleted_at: null,
               created_at: now,
             });
+          });
 
-            recipientIds.forEach(
-              (userId) => {
-                draft.notifications.push(
-                  {
-                    id: crypto.randomUUID(),
-                    user_id: userId,
-                    type: input.notificationType,
-                    title,
-                    message,
-                    is_read: false,
-                    event_key:
-                      `broadcast:${broadcastId}:${userId}`,
-                    broadcast_id:
-                      broadcastId,
-                    read_at: null,
-                    deleted_at: null,
-                    created_at: now,
-                  },
-                );
-              },
-            );
-
-            return mockResult.ok({
-              recipientCount:
-                recipientIds.size,
-              created: true,
-            });
-          },
-        );
+          return mockResult.ok({
+            recipientCount: recipientIds.size,
+            created: true,
+          });
+        });
       },
     },
 
