@@ -1,4 +1,4 @@
-import type { AppointmentStatus, InventoryAction, Medication, MedicationReminderStatus, Notification, UserRole } from '@/types/database';
+import { userRoles, type AppointmentStatus, type InventoryAction, type Medication, type MedicationReminderStatus, type Notification, type UserRole } from '@/types/database';
 import { dashboardRangeLabels, type DashboardMetric, type DashboardRange, type DashboardView, type SendBroadcastInput } from '@/features/dashboard/types';
 import { ClinicMockDatabase, mockResult } from './engine';
 
@@ -183,8 +183,8 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
       sendBroadcast: async (input: SendBroadcastInput) => {
         const revision = database.getRevision();
         return database.transaction(revision, (draft) => {
-          if (input.actorRole !== 'admin') {
-            return mockResult.fail<{ recipientCount: number; created: boolean }>('เฉพาะ Admin เท่านั้นที่ส่ง Broadcast ได้', '42501');
+          if (input.actorRole !== 'staff_admin') {
+            return mockResult.fail<{ recipientCount: number; created: boolean }>('เฉพาะเจ้าหน้าที่/แอดมินเท่านั้นที่ส่ง Broadcast ได้', '42501');
           }
           const title = input.title.trim();
           const message = input.message.trim();
@@ -264,9 +264,10 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
         const activeStatuses: AppointmentStatus[] = ['pending', 'confirmed', 'in_progress', 'completed', 'no_show'];
         const slotsById = new Map(tables.appointment_slots.map((slot) => [slot.id, slot]));
         const activeAppointments = tables.appointments.filter((appointment) => activeStatuses.includes(appointment.status));
+        const isDoctorActor = Boolean(actor && tables.doctors.some((doctor) => doctor.id === actor.id));
         const scopedAppointments = activeAppointments.filter((appointment) => {
           if (!actor) return false;
-          if (role === 'doctor') return slotsById.get(appointment.slot_id)?.doctor_id === actor.id;
+          if (role === 'medical' && isDoctorActor) return slotsById.get(appointment.slot_id)?.doctor_id === actor.id;
           return true;
         });
         const rangeAppointments = scopedAppointments.filter((appointment) => isInRange(slotsById.get(appointment.slot_id)?.slot_date));
@@ -283,13 +284,8 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
           : [];
         const patientMedicationIds = new Set(patientReminders.map((reminder) => reminder.medication_id));
         const patientRangeAppointments = rangeAppointments;
-        const prescribedItems = tables.medical_records.flatMap((record) => record.prescribed_medications ?? []);
         const pendingDispensing = tables.medical_records.filter((record) => (record.prescribed_medications?.length ?? 0) > 0).length;
-        const backorders = prescribedItems.filter((item) => {
-          const medication = tables.medications.find((candidate) => candidate.id === item.medication_id);
-          return !medication || medication.stock < item.quantity;
-        }).length;
-        const roleCounts = (['patient', 'staff', 'doctor', 'pharmacist', 'admin'] as UserRole[]).map((profileRole) => ({
+        const roleCounts = userRoles.map((profileRole) => ({
           role: profileRole,
           count: tables.profiles.filter((profile) => profile.role === profileRole && profile.is_active !== false).length,
         }));
@@ -297,29 +293,17 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
           id, label, value, description, href, tone,
         });
         const metricsByRole: Record<UserRole, DashboardMetric[]> = {
-          staff: [
+          staff_admin: [
             metric(rangeAppointments.length, 'appointments-in-range', `นัดหมาย${rangeSuffix}`, 'ไม่รวมรายการยกเลิกและปฏิเสธ', '/appointments', 'blue'),
             metric(queueRemaining, 'remaining-queue', range === 'today' ? 'คิวที่เหลือ' : 'คิวในช่วงที่เลือก', 'ยืนยันแล้วและกำลังตรวจ', '/appointments', 'amber'),
             metric(tables.departments.length, 'department-workload', 'แผนกที่ให้บริการ', 'ดูภาระงานแยกตามแผนก', '/schedules', 'violet'),
-            metric(unreadNotifications, 'unread-notifications', 'ยังไม่ได้อ่าน', 'ข้อความของบัญชีนี้', '/notifications', 'rose'),
-          ],
-          doctor: [
-            metric(rangeAppointments.length, 'own-appointments', `นัดของฉัน${rangeSuffix}`, 'เฉพาะตารางแพทย์ที่เข้าสู่ระบบ', '/appointments', 'blue'),
-            metric(queueRemaining, 'own-queue', range === 'today' ? 'คิวของฉันที่เหลือ' : 'คิวของฉันในช่วงที่เลือก', 'ยืนยันแล้วและกำลังตรวจ', '/appointments', 'amber'),
-            metric(completedInRange, 'completed-in-range', `ตรวจเสร็จ${rangeSuffix}`, 'นับสถานะเสร็จสิ้น', '/appointments', 'emerald'),
-            metric(unreadNotifications, 'unread-notifications', 'ยังไม่ได้อ่าน', 'ข้อความของบัญชีนี้', '/notifications', 'rose'),
-          ],
-          pharmacist: [
-            metric(pendingDispensing, 'pending-dispensing', 'รอจ่ายยา', 'ใบสั่งยาที่มีรายการยา', '/pharmacy', 'blue'),
-            metric(backorders, 'backorders', 'ยาค้างจ่าย', 'รายการที่สต๊อกยังไม่เพียงพอ', '/pharmacy', 'amber'),
-            metric(lowStock.length, 'low-stock', 'ยาใกล้หมด', 'สต๊อกต่ำกว่าหรือเท่าจุดสั่งซื้อ', '/pharmacy', 'rose'),
-            metric(expired.length, 'expired', 'ยาหมดอายุ', 'แยกออกจากรายการยาใกล้หมด', '/pharmacy', 'violet'),
-          ],
-          admin: [
             metric(tables.profiles.length, 'accounts', 'บัญชีทั้งหมด', 'สรุปรวมโดยไม่แสดงข้อมูลผู้ป่วย', '/profile', 'blue'),
-            metric(roleCounts.filter((item) => item.count > 0).length, 'permissions', 'บทบาทที่ใช้งาน', 'สิทธิ์ที่มีผู้ใช้งานอยู่', '/profile', 'violet'),
-            metric('ปกติ', 'system-status', 'สถานะระบบ', 'Mock repository พร้อมใช้งาน', '/dashboard', 'emerald'),
-            metric(rangeAppointments.length, 'aggregate-appointments', `นัดหมาย${rangeSuffix}`, 'ข้อมูลรวมทุกแผนก', '/appointments', 'amber'),
+          ],
+          medical: [
+            metric(rangeAppointments.length, isDoctorActor ? 'own-appointments' : 'appointments-in-range', isDoctorActor ? `นัดของฉัน${rangeSuffix}` : `นัดหมาย${rangeSuffix}`, isDoctorActor ? 'เฉพาะตารางแพทย์ที่เข้าสู่ระบบ' : 'ข้อมูลนัดที่บันทึกแล้ว', '/appointments', 'blue'),
+            metric(isDoctorActor ? queueRemaining : pendingDispensing, isDoctorActor ? 'own-queue' : 'pending-dispensing', isDoctorActor ? (range === 'today' ? 'คิวของฉันที่เหลือ' : 'คิวของฉันในช่วงที่เลือก') : 'รอจ่ายยา', isDoctorActor ? 'ยืนยันแล้วและกำลังตรวจ' : 'ใบสั่งยาที่มีรายการยา', isDoctorActor ? '/appointments' : '/pharmacy', 'amber'),
+            metric(isDoctorActor ? completedInRange : lowStock.length, isDoctorActor ? 'completed-in-range' : 'low-stock', isDoctorActor ? `ตรวจเสร็จ${rangeSuffix}` : 'ยาใกล้หมด', isDoctorActor ? 'นับสถานะเสร็จสิ้น' : 'สต๊อกต่ำกว่าหรือเท่าจุดสั่งซื้อ', isDoctorActor ? '/appointments' : '/pharmacy', isDoctorActor ? 'emerald' : 'rose'),
+            metric(isDoctorActor ? unreadNotifications : expired.length, isDoctorActor ? 'unread-notifications' : 'expired', isDoctorActor ? 'ยังไม่ได้อ่าน' : 'ยาหมดอายุ', isDoctorActor ? 'ข้อความของบัญชีนี้' : 'แยกออกจากรายการยาใกล้หมด', isDoctorActor ? '/notifications' : '/pharmacy', isDoctorActor ? 'rose' : 'violet'),
           ],
           patient: [
             metric(patientRangeAppointments.length, 'my-appointments', `นัดหมายของฉัน${rangeSuffix}`, 'ไม่รวมรายการยกเลิกและปฏิเสธ', '/appointments', 'blue'),
@@ -366,10 +350,8 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
           .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`))
           .slice(0, 8);
         const copyByRole: Record<UserRole, { title: string; description: string }> = {
-          staff: { title: 'ภาพรวมงานคลินิก', description: 'ติดตามนัดหมาย คิว และภาระงานของแต่ละแผนก' },
-          doctor: { title: 'ภาพรวมงานแพทย์', description: 'แสดงเฉพาะตารางและคิวของแพทย์ที่เข้าสู่ระบบ' },
-          pharmacist: { title: 'ภาพรวมงานเภสัชกรรม', description: 'ติดตามงานจ่ายยา ยาค้างจ่าย และสถานะคลังยา' },
-          admin: { title: 'ภาพรวมผู้ดูแลระบบ', description: 'บัญชี สิทธิ์ สถานะระบบ และสถิติรวมที่ไม่เปิดเผยข้อมูลผู้ป่วย' },
+          staff_admin: { title: 'ภาพรวมงานคลินิกและผู้ดูแลระบบ', description: 'ติดตามนัดหมาย คิว แผนก บัญชี และการประกาศของคลินิก' },
+          medical: { title: 'ภาพรวมงานแพทย์และเภสัชกรรม', description: isDoctorActor ? 'แสดงเฉพาะตารางและคิวของแพทย์ที่เข้าสู่ระบบ พร้อมข้อมูลยา' : 'ติดตามงานจ่ายยาและสถานะคลังยา' },
           patient: { title: 'ภาพรวมสุขภาพของฉัน', description: 'นัดหมาย ยา การเตือน และข้อความของบัญชีนี้เท่านั้น' },
         };
         const view: DashboardView = {

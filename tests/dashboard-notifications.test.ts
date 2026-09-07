@@ -3,14 +3,13 @@ import { ClinicMockDatabase } from '@/features/mock-database/engine';
 import { createClinicRepositories } from '@/features/mock-database/repositories';
 import type { UserRole } from '@/types/database';
 
-const roles: UserRole[] = ['staff', 'doctor', 'pharmacist', 'admin'];
+const roles: UserRole[] = ['medical', 'staff_admin'];
 
 describe('role-based dashboard requirements', () => {
-  it('builds a dedicated view for all four dashboard roles', async () => {
+  it('builds a dedicated view for both non-patient dashboard roles', async () => {
     const repositories = createClinicRepositories(new ClinicMockDatabase(0));
     const expectedMetric: Record<UserRole, string> = {
-      staff: 'appointments-in-range', doctor: 'own-queue', pharmacist: 'pending-dispensing',
-      admin: 'accounts', patient: 'my-reminders',
+      staff_admin: 'accounts', medical: 'pending-dispensing', patient: 'my-reminders',
     };
 
     for (const role of roles) {
@@ -21,10 +20,10 @@ describe('role-based dashboard requirements', () => {
     }
   });
 
-  it('limits a doctor to their own schedule and queue', async () => {
+  it('limits medical staff with a doctor profile to their own schedule and queue', async () => {
     const repositories = createClinicRepositories(new ClinicMockDatabase(0));
-    const strange = await repositories.dashboard.getView('doctor', 'profile-stephen-strange', '2026-09-07');
-    const xavier = await repositories.dashboard.getView('doctor', 'profile-charles-xavier', '2026-09-07');
+    const strange = await repositories.dashboard.getView('medical', 'profile-stephen-strange', '2026-09-07');
+    const xavier = await repositories.dashboard.getView('medical', 'profile-charles-xavier', '2026-09-07');
 
     expect(strange.data?.metrics.find((item) => item.id === 'own-appointments')?.value).toBe(1);
     expect(strange.data?.metrics.find((item) => item.id === 'own-queue')?.value).toBe(1);
@@ -32,12 +31,12 @@ describe('role-based dashboard requirements', () => {
     expect(xavier.data?.metrics.find((item) => item.id === 'own-queue')?.value).toBe(0);
   });
 
-  it('keeps the admin dashboard aggregate-only', async () => {
+  it('keeps the staff/admin dashboard aggregate-only', async () => {
     const repositories = createClinicRepositories(new ClinicMockDatabase(0));
-    const result = await repositories.dashboard.getView('admin', 'profile-nick-fury', '2026-09-07');
+    const result = await repositories.dashboard.getView('staff_admin', 'profile-nick-fury', '2026-09-07');
     const serialized = JSON.stringify(result.data);
 
-    expect(result.data?.roleCounts).toHaveLength(5);
+    expect(result.data?.roleCounts).toHaveLength(3);
     expect(serialized).not.toContain('diagnosis');
     expect(serialized).not.toContain('ไข้และปวดศีรษะ');
   });
@@ -51,7 +50,7 @@ describe('role-based dashboard requirements', () => {
 
   it('separates low-stock and expired medication counts', async () => {
     const repositories = createClinicRepositories(new ClinicMockDatabase(0));
-    const result = await repositories.dashboard.getView('pharmacist', 'profile-severus-snape', '2026-12-01');
+    const result = await repositories.dashboard.getView('medical', 'profile-severus-snape', '2026-12-01');
 
     expect(result.data?.metrics.find((item) => item.id === 'low-stock')?.value).toBe(0);
     expect(result.data?.metrics.find((item) => item.id === 'expired')?.value).toBe(1);
@@ -60,9 +59,9 @@ describe('role-based dashboard requirements', () => {
 
   it('calculates today, trailing 7 days, and trailing 30 days as inclusive Bangkok ranges', async () => {
     const repositories = createClinicRepositories(new ClinicMockDatabase(0));
-    const today = await repositories.dashboard.getView('staff', undefined, '2026-09-06', 'today');
-    const sevenDays = await repositories.dashboard.getView('staff', undefined, '2026-09-06', '7d');
-    const thirtyDays = await repositories.dashboard.getView('staff', undefined, '2026-09-06', '30d');
+    const today = await repositories.dashboard.getView('staff_admin', undefined, '2026-09-06', 'today');
+    const sevenDays = await repositories.dashboard.getView('staff_admin', undefined, '2026-09-06', '7d');
+    const thirtyDays = await repositories.dashboard.getView('staff_admin', undefined, '2026-09-06', '30d');
     const appointmentCount = (result: typeof today) => result.data?.metrics.find((item) => item.id === 'appointments-in-range')?.value;
 
     expect(today.data).toMatchObject({ startDate: '2026-09-06', date: '2026-09-06', range: 'today' });
@@ -73,13 +72,13 @@ describe('role-based dashboard requirements', () => {
 });
 
 describe('broadcast and personal inbox rules', () => {
-  it('rejects broadcast attempts from non-admin roles without changing data', async () => {
+  it('rejects broadcast attempts from non staff/admin roles without changing data', async () => {
     const database = new ClinicMockDatabase(0);
     const repositories = createClinicRepositories(database);
     const before = database.snapshot();
     const result = await repositories.notifications.sendBroadcast({
-      actorId: 'profile-leslie-knope', actorRole: 'staff', notificationType: 'broadcast', title: 'ทดสอบ', message: 'ข้อความ',
-      audience: { all: true, roles: [] }, requestKey: 'staff-request',
+      actorId: 'profile-severus-snape', actorRole: 'medical', notificationType: 'broadcast', title: 'ทดสอบ', message: 'ข้อความ',
+      audience: { all: true, roles: [] }, requestKey: 'medical-request',
     });
 
     expect(result).toMatchObject({ data: null, error: { code: '42501' } });
@@ -90,27 +89,27 @@ describe('broadcast and personal inbox rules', () => {
     const database = new ClinicMockDatabase(0);
     const repositories = createClinicRepositories(database);
     const input = {
-      actorId: 'profile-nick-fury', actorRole: 'admin' as const, notificationType: 'broadcast' as const, title: 'ประกาศ', message: 'ข้อความถึงแพทย์',
-      audience: { all: false, roles: ['doctor' as const] }, requestKey: 'broadcast-request-1',
+      actorId: 'profile-nick-fury', actorRole: 'staff_admin' as const, notificationType: 'broadcast' as const, title: 'ประกาศ', message: 'ข้อความถึงแพทย์',
+      audience: { all: false, roles: ['medical' as const] }, requestKey: 'broadcast-request-1',
     };
     const first = await repositories.notifications.sendBroadcast(input);
     const afterFirst = database.snapshot();
 
-    expect(first.data).toEqual({ recipientCount: 6, created: true });
-    expect(new Set(afterFirst.notifications.filter((item) => item.broadcast_id).map((item) => item.user_id)).size).toBe(6);
+    expect(first.data).toEqual({ recipientCount: 7, created: true });
+    expect(new Set(afterFirst.notifications.filter((item) => item.broadcast_id).map((item) => item.user_id)).size).toBe(7);
     await repositories.profiles.update('profile-stephen-strange', { role: 'patient' });
     const repeated = await repositories.notifications.sendBroadcast(input);
 
-    expect(repeated.data).toEqual({ recipientCount: 6, created: false });
-    expect(database.snapshot().notifications.filter((item) => item.broadcast_id)).toHaveLength(6);
-    expect(database.snapshot().notifications.filter((item) => item.type === 'broadcast')).toHaveLength(7);
+    expect(repeated.data).toEqual({ recipientCount: 7, created: false });
+    expect(database.snapshot().notifications.filter((item) => item.broadcast_id)).toHaveLength(7);
+    expect(database.snapshot().notifications.filter((item) => item.type === 'broadcast')).toHaveLength(8);
   });
 
   it('allows the same content as a new broadcast when the request key changes', async () => {
     const database = new ClinicMockDatabase(0);
     const repositories = createClinicRepositories(database);
     const base = {
-      actorId: 'profile-nick-fury', actorRole: 'admin' as const, notificationType: 'system' as const, title: 'ประกาศเดิม', message: 'ส่งซ้ำโดยตั้งใจ',
+      actorId: 'profile-nick-fury', actorRole: 'staff_admin' as const, notificationType: 'system' as const, title: 'ประกาศเดิม', message: 'ส่งซ้ำโดยตั้งใจ',
       audience: { all: false, roles: ['patient' as const] },
     };
     await repositories.notifications.sendBroadcast({ ...base, requestKey: 'request-a' });
@@ -124,7 +123,7 @@ describe('broadcast and personal inbox rules', () => {
     const database = new ClinicMockDatabase(0);
     const repositories = createClinicRepositories(database);
     await repositories.notifications.sendBroadcast({
-      actorId: 'profile-nick-fury', actorRole: 'admin', notificationType: 'appointment',
+      actorId: 'profile-nick-fury', actorRole: 'staff_admin', notificationType: 'appointment',
       title: 'แจ้งเรื่องนัด', message: 'กรุณาตรวจสอบเวลานัด',
       audience: { all: false, roles: ['patient'] }, requestKey: 'appointment-topic',
     });
@@ -137,7 +136,7 @@ describe('broadcast and personal inbox rules', () => {
     const database = new ClinicMockDatabase(0);
     const repositories = createClinicRepositories(database);
     await repositories.notifications.sendBroadcast({
-      actorId: 'profile-nick-fury', actorRole: 'admin', notificationType: 'broadcast', title: 'ถึงผู้ป่วย', message: 'ข้อความถึงกลุ่มผู้ป่วย',
+      actorId: 'profile-nick-fury', actorRole: 'staff_admin', notificationType: 'broadcast', title: 'ถึงผู้ป่วย', message: 'ข้อความถึงกลุ่มผู้ป่วย',
       audience: { all: false, roles: ['patient'] }, requestKey: 'patient-broadcast',
     });
     const sent = database.snapshot().notifications.find((item) => item.broadcast_id && item.user_id === 'profile-peter-parker')!;
@@ -158,7 +157,7 @@ describe('broadcast and personal inbox rules', () => {
     const repositories = createClinicRepositories(database);
     const before = database.snapshot();
     const result = await repositories.notifications.sendBroadcast({
-      actorId: 'profile-nick-fury', actorRole: 'admin', notificationType: 'broadcast',
+      actorId: 'profile-nick-fury', actorRole: 'staff_admin', notificationType: 'broadcast',
       title: 'ประกาศ', message: 'ข้อความ', audience: { all: false, roles: [] }, requestKey: 'empty-audience',
     });
 

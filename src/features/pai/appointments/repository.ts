@@ -1,5 +1,5 @@
 export type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rejected';
-export type PreviewRole = 'patient' | 'staff' | 'doctor';
+export type PreviewRole = 'patient' | 'medical' | 'staff_admin';
 
 export interface BookingSlot {
   id: string;
