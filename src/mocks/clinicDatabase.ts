@@ -121,7 +121,11 @@ export const clinicMockTables: ClinicMockTables = {
     { id: 'inventory-002', medication_id: 'med-paracetamol', pharmacist_id: 'profile-severus-snape', action: 'add', quantity: 100, reason: 'รับยาเข้าคลัง', created_at: CREATED_AT },
   ],
   medication_reminders: [
-    { id: 'reminder-peter-paracetamol', user_id: 'profile-peter-parker', medication_id: 'med-paracetamol', reminder_times: ['08:00', '20:00'], start_date: '2026-09-05', end_date: '2026-09-11', status: 'active', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'reminder-peter-paracetamol', user_id: 'profile-peter-parker', medication_id: 'med-paracetamol', reminder_times: ['08:00', '12:00', '18:00'], start_date: '2026-09-05', end_date: '2026-09-11', status: 'active', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'reminder-peter-amoxicillin', user_id: 'profile-peter-parker', medication_id: 'med-amoxicillin', reminder_times: ['08:00', '13:00', '20:00'], start_date: '2026-09-05', end_date: '2026-09-12', status: 'active', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'reminder-peter-omeprazole', user_id: 'profile-peter-parker', medication_id: 'med-omeprazole', reminder_times: ['07:30'], start_date: '2026-09-01', end_date: '2026-09-30', status: 'active', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'reminder-peter-cetirizine', user_id: 'profile-peter-parker', medication_id: 'med-cetirizine', reminder_times: ['21:00'], start_date: '2026-09-03', end_date: '2026-09-10', status: 'active', created_at: CREATED_AT, updated_at: UPDATED_AT },
+    { id: 'reminder-peter-ibuprofen', user_id: 'profile-peter-parker', medication_id: 'med-ibuprofen', reminder_times: ['08:30', '18:30'], start_date: '2026-09-04', end_date: '2026-09-08', status: 'paused', created_at: CREATED_AT, updated_at: UPDATED_AT },
     { id: 'reminder-wednesday-amoxicillin', user_id: 'profile-wednesday', medication_id: 'med-amoxicillin', reminder_times: ['08:00', '13:00', '20:00'], start_date: '2026-09-05', end_date: '2026-09-09', status: 'paused', created_at: CREATED_AT, updated_at: UPDATED_AT },
   ],
   medication_logs: [

@@ -93,7 +93,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 pb-10">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6 lg:px-8 py-8 pb-10">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-700"><BellRing className="size-4" /> กล่องข้อความส่วนตัว</div><h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">ศูนย์แจ้งเตือน</h1><p className="mt-2 text-sm text-slate-500">นัดหมาย เตือนยา และประกาศที่ส่งถึงบัญชีนี้ · เวลา Asia/Bangkok</p>{!auth.isAuthenticated && <p className="mt-1 text-xs text-amber-700">กำลังแสดงบัญชีสาธิต Peter Parker</p>}</div>
         <button onClick={() => void markAllRead()} disabled={unreadCount === 0 || Boolean(workingId)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"><CheckCheck className="size-4" /> อ่านทั้งหมด</button>
