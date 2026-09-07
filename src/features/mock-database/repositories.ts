@@ -1,5 +1,5 @@
 import { userRoles, type AppointmentStatus, type InventoryAction, type Medication, type MedicationReminderStatus, type Notification, type UserRole } from '@/types/database';
-import { dashboardRangeLabels, type DashboardMetric, type DashboardRange, type DashboardView, type SendBroadcastInput } from '@/features/dashboard/types';
+import { dashboardRangeLabels, type BroadcastHistoryItem, type DashboardMetric, type DashboardRange, type DashboardView, type SendBroadcastInput } from '@/features/dashboard/types';
 import { ClinicMockDatabase, mockResult } from './engine';
 
 function subtractDays(date: string, days: number): string {
@@ -180,6 +180,20 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
           return mockResult.ok(notification);
         });
       },
+      listBroadcastHistory: async () => {
+        const tables = database.snapshot();
+        const items: BroadcastHistoryItem[] = tables.broadcasts
+          .slice()
+          .sort((a, b) => b.sent_at.localeCompare(a.sent_at))
+          .map((item) => ({
+            id: item.id,
+            title: item.title,
+            message: item.message,
+            sentAt: item.sent_at,
+            recipientCount: tables.notifications.filter((n) => n.broadcast_id === item.id).length,
+          }));
+        return mockResult.ok(items);
+      },
       sendBroadcast: async (input: SendBroadcastInput) => {
         const revision = database.getRevision();
         return database.transaction(revision, (draft) => {
@@ -196,10 +210,7 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
             const recipientCount = draft.notifications.filter((item) => item.broadcast_id === existing.id).length;
             return mockResult.ok({ recipientCount, created: false });
           }
-          const roles = new Set(input.audience.roles);
-          const recipientIds = new Set(draft.profiles
-            .filter((profile) => input.audience.all || roles.has(profile.role))
-            .map((profile) => profile.id));
+          const recipientIds = new Set(draft.profiles.map((profile) => profile.id));
           if (recipientIds.size === 0) {
             return mockResult.fail<{ recipientCount: number; created: boolean }>('กรุณาเลือกผู้รับอย่างน้อยหนึ่งคน', '23514');
           }
@@ -210,17 +221,25 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
             sent_by: input.actorId,
             title,
             message,
-            notification_type: input.notificationType,
-            audience: { all: input.audience.all, roles: [...input.audience.roles] },
+            notification_type: 'broadcast',
+            audience: { all: true, roles: [] },
             request_key: input.requestKey,
             sent_at: now,
             created_at: now,
           });
           recipientIds.forEach((userId) => {
             draft.notifications.push({
-              id: crypto.randomUUID(), user_id: userId, type: input.notificationType, title, message, is_read: false,
-              event_key: `broadcast:${broadcastId}:${userId}`, broadcast_id: broadcastId,
-              read_at: null, deleted_at: null, created_at: now,
+              id: crypto.randomUUID(),
+              user_id: userId,
+              type: 'broadcast',
+              title,
+              message,
+              is_read: false,
+              event_key: `broadcast:${broadcastId}:${userId}`,
+              broadcast_id: broadcastId,
+              read_at: null,
+              deleted_at: null,
+              created_at: now,
             });
           });
           return mockResult.ok({ recipientCount: recipientIds.size, created: true });
@@ -248,7 +267,6 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
         });
       },
       getView: async (role: UserRole, requestedUserId?: string, today = '2026-09-06', range: DashboardRange = 'today') => {
-        if (role === 'patient') return mockResult.fail<DashboardView>('ผู้ป่วยไม่มีสิทธิ์เข้าถึง Dashboard', '42501');
         const tables = database.snapshot();
         const rangeDays: Record<DashboardRange, number> = { today: 1, '7d': 7, '30d': 30 };
         const startDate = subtractDays(today, rangeDays[range] - 1);
@@ -258,8 +276,12 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
         const matchedActor = requestedUserId
           ? tables.profiles.find((profile) => profile.id === requestedUserId && profile.role === role)
           : null;
+        const defaultProfile = role === 'medical'
+          ? tables.profiles.find((profile) => profile.role === role && tables.doctors.some((doctor) => doctor.id === profile.id))
+            ?? tables.profiles.find((profile) => profile.role === role)
+          : tables.profiles.find((profile) => profile.role === role);
         const actor = matchedActor
-          ?? (requestedUserId ? { id: requestedUserId, full_name: 'บัญชีที่เข้าสู่ระบบ' } : tables.profiles.find((profile) => profile.role === role))
+          ?? (requestedUserId ? { id: requestedUserId, full_name: 'บัญชีที่เข้าสู่ระบบ' } : defaultProfile)
           ?? null;
         const activeStatuses: AppointmentStatus[] = ['pending', 'confirmed', 'in_progress', 'completed', 'no_show'];
         const slotsById = new Map(tables.appointment_slots.map((slot) => [slot.id, slot]));
@@ -267,6 +289,7 @@ export function createClinicRepositories(database: ClinicMockDatabase) {
         const isDoctorActor = Boolean(actor && tables.doctors.some((doctor) => doctor.id === actor.id));
         const scopedAppointments = activeAppointments.filter((appointment) => {
           if (!actor) return false;
+          if (role === 'patient') return appointment.user_id === actor.id;
           if (role === 'medical' && isDoctorActor) return slotsById.get(appointment.slot_id)?.doctor_id === actor.id;
           return true;
         });
