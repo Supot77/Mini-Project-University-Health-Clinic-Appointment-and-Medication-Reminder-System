@@ -10,24 +10,28 @@
 4. แก้เฉพาะไฟล์ในขอบเขตของโมดูล เพิ่ม test สำหรับ success, validation, permission และยืนยันว่า error ไม่เปลี่ยน state
 5. ไม่รัน migration, seed หรือ request ไปฐานข้อมูลจริงจากงานนี้
 
+## Role contract
+
+ใช้ 3 ค่าเท่านั้น: `patient` (ผู้ป่วย), `medical` (แพทย์/เภสัชกร) และ `staff_admin` (เจ้าหน้าที่/แอดมิน)
+
 ## ลำดับ implementation
 
 | ลำดับ | งาน | ผลลัพธ์ |
 | --- | --- | --- |
 | 1 | Auth/profile/role | สมัคร login session และสิทธิ์พื้นฐาน |
-| 2 | Schedule | Staff กรอกแผนก แพทย์ slot และปิด slot ด้วยมือ |
-| 3 | Appointment | Patient จอง; Staff อนุมัติ/ปฏิเสธ/ยกเลิก; Doctor เริ่ม/จบตรวจ |
-| 4 | Medical record | Doctor บันทึกผลตรวจและรายการยา; Patient อ่านของตน |
-| 5 | Pharmacy | Pharmacist ตรวจ stock และจ่ายเต็มครั้งเดียว |
-| 6 | Manual reminder | Staff กรอกรายการเตือน; Patient บันทึกผลเอง |
-| 7 | Broadcast/dashboard | Admin ส่งข้อความเอง และแต่ละ role ดูข้อมูลที่บันทึกแล้ว |
+| 2 | Schedule | `staff_admin` กรอกแผนก แพทย์ slot และปิด slot ด้วยมือ |
+| 3 | Appointment | `patient` จอง; `staff_admin` อนุมัติ/ปฏิเสธ/ยกเลิก; `medical` เริ่ม/จบตรวจ |
+| 4 | Medical record | `medical` บันทึกผลตรวจและรายการยา; `patient` อ่านของตน |
+| 5 | Pharmacy | `medical` ตรวจ stock และจ่ายเต็มครั้งเดียว |
+| 6 | Manual reminder | `staff_admin` กรอกรายการเตือน; `patient` บันทึกผลเอง |
+| 7 | Broadcast/dashboard | `staff_admin` ส่งข้อความเอง และแต่ละ role ดูข้อมูลที่บันทึกแล้ว |
 | 8 | ตรวจรับ | รัน tests และตรวจ AC01–AC15 ตาม [08](08_system_rules_and_acceptance.md) |
 
 ## สัญญาส่งต่องานขั้นต่ำ
 
 | ผู้ส่ง → ผู้รับ | ข้อมูลที่ต้องมี |
 | --- | --- |
-| Auth → ทุกโมดูล | user ID, role, session validity และขอบเขตข้อมูล |
+| Auth → ทุกโมดูล | user ID, 3-value role, session validity และขอบเขตข้อมูล |
 | Schedule → Appointment | slot ID, doctor ID, วันเวลาไทย, capacity และสถานะ slot |
 | Appointment → Medical | appointment ID, patient ID, doctor ID และสถานะการตรวจ |
 | Medical → Pharmacy | prescription/รายการยาและจำนวนที่สั่ง |
@@ -52,3 +56,20 @@
 ## หลักฐานก่อนส่งงาน
 
 รัน `npm run lint`, `npx --no-install tsc --noEmit`, `npm run test` และ `npm run build` จาก root ในสถานะโค้ดล่าสุด รายงานผลจริงทุกคำสั่ง และระบุส่วนที่ยังไม่ได้ตรวจ ไม่ใช้เอกสารแทนหลักฐานการทดสอบ
+
+## Dependency ของงาน
+
+| งานก่อนหน้า | งานที่ใช้ต่อ | เหตุผล |
+| --- | --- | --- |
+| Auth/profile/role | ทุกโมดูล | ทุกคำสั่งต้องรู้ user ID, role และ session |
+| Schedule | Appointment | การจองต้องอ้าง slot, แพทย์, เวลา และความจุที่มีอยู่ |
+| Appointment | Medical record | ผลตรวจต้องผูกกับนัด ผู้ป่วย และแพทย์ที่รับผิดชอบ |
+| Medical record | Pharmacy/Reminder | รายการยาต้องมาจากผลตรวจ และเตือนเฉพาะยาที่จ่ายเต็ม |
+| ข้อมูลจากทุกโมดูล | Dashboard/Broadcast | แสดงหรือส่งเฉพาะข้อมูลที่บันทึกแล้ว |
+| ทุกงานข้างต้น | ตรวจรับ | ต้องทดสอบ flow รวม ไม่ใช่เฉพาะหน้าของโมดูลเดียว |
+
+## Definition of Done สำหรับแต่ละโมดูล
+
+โมดูลถือว่าพร้อมส่งต่อเมื่อมี contract ที่ระบุ input/output และ error, ตรวจ role กับความสัมพันธ์ข้อมูล, ครอบคลุม success/validation/permission ใน test และแจ้งผลกระทบต่อไฟล์กลาง หากคำสั่งไม่ผ่านต้องพิสูจน์ว่า state เดิมไม่เปลี่ยน การมีหน้าจอหรือ mock data เพียงอย่างเดียวไม่ถือว่าพร้อมส่งต่อ
+
+ผู้รับงานต้องตรวจข้อมูลส่งต่อกับข้อมูลในตารางสัญญา, ทดลองกรณีสำเร็จและกรณีถูกปฏิเสธ แล้วบันทึกข้อจำกัดหรือสิ่งที่ยังไม่ได้ตรวจไว้ก่อนเชื่อมกับโมดูลถัดไป

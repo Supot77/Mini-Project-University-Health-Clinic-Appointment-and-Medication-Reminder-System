@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WU Clinic — ER data model</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f5f5f5;
+      --paper-2: #ffffff;
+      --ink: #2d3142;
+      --muted: #4f5d75;
+      --soft: #7a8399;
+      --rule: rgba(45, 49, 66, 0.12);
+      --rule-strong: rgba(45, 49, 66, 0.25);
+      --accent: #eb6c36;
+      --accent-tint: rgba(235, 108, 54, 0.08);
+      --font-sans: "Noto Sans Thai", "Segoe UI", sans-serif;
+      --font-serif: Georgia, "Noto Serif Thai", serif;
+      --font-mono: "Cascadia Mono", "Segoe UI Mono", monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --paper: #2d3142;
+        --paper-2: rgba(245, 245, 245, 0.04);
+        --ink: #f5f5f5;
+        --muted: #bfc0c0;
+        --soft: #8e98ac;
+        --rule: rgba(245, 245, 245, 0.12);
+        --rule-strong: rgba(245, 245, 245, 0.24);
+        --accent: #f08a59;
+        --accent-tint: rgba(240, 138, 89, 0.12);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    main {
+      width: min(100%, 1120px);
+      margin: 0 auto;
+      padding: 40px 24px 56px;
+    }
+
+    header { max-width: 800px; margin-bottom: 32px; }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font: 500 12px/1.2 var(--font-mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      font: 400 clamp(28px, 4vw, 44px)/1.08 var(--font-serif);
+      letter-spacing: -0.02em;
+    }
+    .dek {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    figure { margin: 0 0 40px; }
+    figcaption { margin: 0 0 12px; }
+    figcaption h2 {
+      margin: 0;
+      font: 500 18px/1.3 var(--font-sans);
+    }
+    figcaption p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .diagram-viewport { overflow-x: auto; padding-bottom: 8px; }
+    svg { display: block; width: 1040px; max-width: none; height: auto; }
+    .entity-box { fill: var(--paper-2); stroke: var(--rule-strong); stroke-width: 1; }
+    .entity-header { fill: var(--paper-2); }
+    .entity-focal .entity-header { fill: var(--accent-tint); }
+    .entity-focal .entity-box { stroke: var(--accent); stroke-width: 1.2; }
+    .entity-divider { stroke: var(--rule); stroke-width: 0.8; }
+    .entity-tag {
+      fill: var(--muted);
+      font: 500 8px var(--font-mono);
+      letter-spacing: 0.1em;
+    }
+    .entity-focal .entity-tag { fill: var(--accent); }
+    .entity-name { fill: var(--ink); font: 600 13px var(--font-sans); }
+    .field { fill: var(--ink); font: 9px var(--font-mono); }
+    .field-key { fill: var(--accent); font-weight: 600; }
+    .field-ref { fill: var(--muted); }
+    .relation { fill: none; stroke: var(--muted); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
+    .cardinality { fill: var(--muted); font: 8px var(--font-mono); }
+    .note { fill: var(--soft); font: 8px var(--font-mono); }
+    .legend-rule { stroke: var(--rule); stroke-width: 0.8; }
+    .legend { fill: var(--muted); font: 8px var(--font-mono); }
+    .legend-accent { fill: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">WU CLINIC · ER DATA MODEL</p>
+      <h1>แบบข้อมูลและความสัมพันธ์</h1>
+      <p class="dek">แบบ ER ปัจจุบันตาม scope manual และ role 3 กลุ่ม แบ่งเป็น 2 มุมมองเพื่อให้เส้นความสัมพันธ์อ่านง่าย</p>
+    </header>
+
+    <figure>
+      <figcaption>
+        <h2>01 · นัดหมายและผลตรวจ</h2>
+        <p>แกนหลักของบริการ: ผู้ป่วย → slot → นัด → ผลตรวจ</p>
+      </figcaption>
+      <div class="diagram-viewport">
+        <svg viewBox="0 0 1040 644" role="img" aria-labelledby="care-title care-desc">
+          <title id="care-title">ER นัดหมายและผลตรวจ</title>
+          <desc id="care-desc">โปรไฟล์เชื่อมกับข้อมูลแพทย์และนัดหมาย แผนกเชื่อมแพทย์ แพทย์เชื่อม slot slot เชื่อมนัด และนัดเชื่อมผลตรวจ</desc>
+
+          <!-- Relationships first -->
+          <g>
+            <path class="relation" d="M160 248 V188 Q160 180 168 180 H604 Q612 180 612 172 V104 H624" />
+            <path class="relation" d="M576 92 H604 Q612 92 612 84 V84 H624" />
+            <line class="relation" x1="744" y1="168" x2="744" y2="252" />
+            <line class="relation" x1="280" y1="320" x2="336" y2="320" />
+            <line class="relation" x1="576" y1="316" x2="624" y2="316" />
+            <line class="relation" x1="456" y1="380" x2="456" y2="456" />
+          </g>
+
+          <!-- Relationship cardinalities -->
+          <g class="cardinality">
+            <text x="176" y="240">1</text><text x="604" y="116">0..1</text>
+            <text x="588" y="84">1</text><text x="636" y="76">N</text>
+            <text x="756" y="184">1</text><text x="756" y="244">N</text>
+            <text x="288" y="312">1</text><text x="324" y="312">N</text>
+            <text x="588" y="308">1</text><text x="612" y="308">N</text>
+            <text x="468" y="400">1</text><text x="468" y="444">0..1</text>
+          </g>
+
+          <!-- profiles -->
+          <g class="entity entity-focal">
+            <rect class="entity-box" x="40" y="248" width="240" height="144" rx="6" />
+            <rect class="entity-header" x="40" y="248" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="40" y1="288" x2="280" y2="288" />
+            <text class="entity-tag" x="52" y="264">ENTITY</text>
+            <text class="entity-name" x="52" y="280">profiles</text>
+            <text class="field" x="52" y="308"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="52" y="328"><tspan>role</tspan><tspan class="field-ref"> : 3 canonical values</tspan></text>
+            <text class="field" x="52" y="348"><tspan>full_name</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="52" y="368"><tspan>patient_type</tspan><tspan class="field-ref"> : student | employee</tspan></text>
+            <text class="field" x="52" y="388"><tspan>is_active</tspan><tspan class="field-ref"> : boolean</tspan></text>
+          </g>
+
+          <!-- departments -->
+          <g class="entity">
+            <rect class="entity-box" x="336" y="40" width="240" height="104" rx="6" />
+            <rect class="entity-header" x="336" y="40" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="336" y1="80" x2="576" y2="80" />
+            <text class="entity-tag" x="348" y="56">ENTITY</text>
+            <text class="entity-name" x="348" y="72">departments</text>
+            <text class="field" x="348" y="100"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="348" y="120"><tspan>name</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="348" y="140"><tspan>is_active</tspan><tspan class="field-ref"> : boolean</tspan></text>
+          </g>
+
+          <!-- doctors -->
+          <g class="entity">
+            <rect class="entity-box" x="624" y="40" width="240" height="128" rx="6" />
+            <rect class="entity-header" x="624" y="40" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="624" y1="80" x2="864" y2="80" />
+            <text class="entity-tag" x="636" y="56">ENTITY</text>
+            <text class="entity-name" x="636" y="72">doctors</text>
+            <text class="field" x="636" y="100"><tspan class="field-key"># id</tspan><tspan class="field-ref"> → profiles.id</tspan></text>
+            <text class="field" x="636" y="120"><tspan class="field-key">→ department_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="636" y="140"><tspan>specialty</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="636" y="160"><tspan>medical detail</tspan><tspan class="field-ref"> : role=medical</tspan></text>
+          </g>
+
+          <!-- appointment_slots -->
+          <g class="entity">
+            <rect class="entity-box" x="624" y="252" width="240" height="128" rx="6" />
+            <rect class="entity-header" x="624" y="252" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="624" y1="292" x2="864" y2="292" />
+            <text class="entity-tag" x="636" y="268">ENTITY</text>
+            <text class="entity-name" x="636" y="284">appointment_slots</text>
+            <text class="field" x="636" y="312"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="636" y="332"><tspan class="field-key">→ doctor_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="636" y="352"><tspan>slot_date</tspan><tspan class="field-ref"> : date</tspan></text>
+            <text class="field" x="636" y="372"><tspan>status</tspan><tspan class="field-ref"> : available | full | closed</tspan></text>
+          </g>
+
+          <!-- appointments -->
+          <g class="entity">
+            <rect class="entity-box" x="336" y="252" width="240" height="128" rx="6" />
+            <rect class="entity-header" x="336" y="252" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="336" y1="292" x2="576" y2="292" />
+            <text class="entity-tag" x="348" y="268">ENTITY</text>
+            <text class="entity-name" x="348" y="284">appointments</text>
+            <text class="field" x="348" y="312"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="348" y="332"><tspan class="field-key">→ user_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="352"><tspan class="field-key">→ slot_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="372"><tspan>status</tspan><tspan class="field-ref"> : pending → completed</tspan></text>
+          </g>
+
+          <!-- medical_records -->
+          <g class="entity">
+            <rect class="entity-box" x="336" y="456" width="240" height="144" rx="6" />
+            <rect class="entity-header" x="336" y="456" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="336" y1="496" x2="576" y2="496" />
+            <text class="entity-tag" x="348" y="472">ENTITY</text>
+            <text class="entity-name" x="348" y="488">medical_records</text>
+            <text class="field" x="348" y="516"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="348" y="536"><tspan class="field-key">→ appointment_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="556"><tspan class="field-key">→ patient_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="576"><tspan class="field-key">→ doctor_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="596"><tspan>prescribed_medications</tspan><tspan class="field-ref"> : jsonb</tspan></text>
+          </g>
+
+          <line class="legend-rule" x1="40" y1="616" x2="1000" y2="616" />
+          <text class="legend" x="40" y="632"># PK</text>
+          <text class="legend" x="92" y="632">→ FK / reference</text>
+          <text class="legend legend-accent" x="252" y="632">profiles = aggregate root</text>
+          <text class="note" x="512" y="632">cardinality: 1 · N · 0..1</text>
+        </svg>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>
+        <h2>02 · ยา รายการเตือน และข้อความ</h2>
+        <p>มุมมองติดตามหลังตรวจ: คลังยา → รายการเตือน → บันทึกผล และกล่องข้อความ</p>
+      </figcaption>
+      <div class="diagram-viewport">
+        <svg viewBox="0 0 1040 632" role="img" aria-labelledby="med-title med-desc">
+          <title id="med-title">ER ยา รายการเตือน และข้อความ</title>
+          <desc id="med-desc">โปรไฟล์เชื่อมรายการเตือน ประวัติคลัง และข้อความ ยาเชื่อมประวัติคลังและรายการเตือน รายการเตือนเชื่อมบันทึกแต่ละมื้อ</desc>
+
+          <!-- Relationships first -->
+          <g>
+            <line class="relation" x1="576" y1="100" x2="640" y2="100" />
+            <line class="relation" x1="456" y1="164" x2="456" y2="248" />
+            <line class="relation" x1="280" y1="300" x2="336" y2="300" />
+            <line class="relation" x1="466" y1="372" x2="466" y2="448" />
+            <path class="relation" d="M220 248 V180 Q220 172 228 172 H620 Q628 172 628 156 V124 H640" />
+            <path class="relation" d="M160 248 V196 Q160 188 168 188 H620 Q628 188 628 196 V300 H640" />
+          </g>
+
+          <g class="cardinality">
+            <text x="588" y="92">1</text><text x="628" y="92">N</text>
+            <text x="468" y="184">1</text><text x="468" y="240">N</text>
+            <text x="288" y="292">1</text><text x="324" y="292">N</text>
+            <text x="478" y="392">1</text><text x="478" y="440">N</text>
+            <text x="232" y="164">1</text><text x="620" y="140">N</text>
+            <text x="172" y="188">1</text><text x="620" y="292">N</text>
+          </g>
+
+          <!-- profiles -->
+          <g class="entity entity-focal">
+            <rect class="entity-box" x="40" y="248" width="240" height="104" rx="6" />
+            <rect class="entity-header" x="40" y="248" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="40" y1="288" x2="280" y2="288" />
+            <text class="entity-tag" x="52" y="264">ENTITY</text>
+            <text class="entity-name" x="52" y="280">profiles</text>
+            <text class="field" x="52" y="308"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="52" y="328"><tspan>role</tspan><tspan class="field-ref"> : patient | medical | staff_admin</tspan></text>
+            <text class="field" x="52" y="348"><tspan>full_name</tspan><tspan class="field-ref"> : text</tspan></text>
+          </g>
+
+          <!-- medications -->
+          <g class="entity">
+            <rect class="entity-box" x="336" y="40" width="240" height="124" rx="6" />
+            <rect class="entity-header" x="336" y="40" width="240" height="40" rx="6" />
+            <line class="entity-divider" x1="336" y1="80" x2="576" y2="80" />
+            <text class="entity-tag" x="348" y="56">ENTITY</text>
+            <text class="entity-name" x="348" y="72">medications</text>
+            <text class="field" x="348" y="100"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="348" y="120"><tspan>name</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="348" y="140"><tspan>stock</tspan><tspan class="field-ref"> : integer</tspan></text>
+            <text class="field" x="348" y="160"><tspan>is_active</tspan><tspan class="field-ref"> : boolean</tspan></text>
+          </g>
+
+          <!-- inventory_logs -->
+          <g class="entity">
+            <rect class="entity-box" x="640" y="40" width="300" height="144" rx="6" />
+            <rect class="entity-header" x="640" y="40" width="300" height="40" rx="6" />
+            <line class="entity-divider" x1="640" y1="80" x2="940" y2="80" />
+            <text class="entity-tag" x="652" y="56">ENTITY</text>
+            <text class="entity-name" x="652" y="72">inventory_logs</text>
+            <text class="field" x="652" y="100"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="652" y="120"><tspan class="field-key">→ medication_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="652" y="140"><tspan class="field-key">→ performed_by</tspan><tspan class="field-ref"> : profiles.id</tspan></text>
+            <text class="field" x="652" y="160"><tspan>action</tspan><tspan class="field-ref"> : add | dispense | adjust</tspan></text>
+            <text class="field" x="652" y="180"><tspan>quantity</tspan><tspan class="field-ref"> : integer</tspan></text>
+          </g>
+
+          <!-- medication_reminders -->
+          <g class="entity">
+            <rect class="entity-box" x="336" y="248" width="260" height="124" rx="6" />
+            <rect class="entity-header" x="336" y="248" width="260" height="40" rx="6" />
+            <line class="entity-divider" x1="336" y1="288" x2="596" y2="288" />
+            <text class="entity-tag" x="348" y="264">ENTITY</text>
+            <text class="entity-name" x="348" y="280">medication_reminders</text>
+            <text class="field" x="348" y="308"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="348" y="328"><tspan class="field-key">→ user_id</tspan><tspan class="field-ref"> : profiles.id</tspan></text>
+            <text class="field" x="348" y="348"><tspan class="field-key">→ medication_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="368"><tspan>status</tspan><tspan class="field-ref"> : active | completed</tspan></text>
+          </g>
+
+          <!-- medication_logs -->
+          <g class="entity">
+            <rect class="entity-box" x="336" y="448" width="260" height="124" rx="6" />
+            <rect class="entity-header" x="336" y="448" width="260" height="40" rx="6" />
+            <line class="entity-divider" x1="336" y1="488" x2="596" y2="488" />
+            <text class="entity-tag" x="348" y="464">ENTITY</text>
+            <text class="entity-name" x="348" y="480">medication_logs</text>
+            <text class="field" x="348" y="508"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="348" y="528"><tspan class="field-key">→ reminder_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="348" y="548"><tspan>scheduled_datetime</tspan><tspan class="field-ref"> : timestamptz</tspan></text>
+            <text class="field" x="348" y="568"><tspan>status</tspan><tspan class="field-ref"> : pending | taken</tspan></text>
+          </g>
+
+          <!-- notifications -->
+          <g class="entity">
+            <rect class="entity-box" x="640" y="248" width="300" height="124" rx="6" />
+            <rect class="entity-header" x="640" y="248" width="300" height="40" rx="6" />
+            <line class="entity-divider" x1="640" y1="288" x2="940" y2="288" />
+            <text class="entity-tag" x="652" y="264">ENTITY</text>
+            <text class="entity-name" x="652" y="280">notifications</text>
+            <text class="field" x="652" y="308"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="652" y="328"><tspan class="field-key">→ user_id</tspan><tspan class="field-ref"> : profiles.id</tspan></text>
+            <text class="field" x="652" y="348"><tspan>type</tspan><tspan class="field-ref"> : appointment | reminder</tspan></text>
+            <text class="field" x="652" y="368"><tspan>is_read</tspan><tspan class="field-ref"> : boolean</tspan></text>
+          </g>
+
+          <line class="legend-rule" x1="40" y1="596" x2="1000" y2="596" />
+          <text class="legend" x="40" y="612"># PK</text>
+          <text class="legend" x="92" y="612">→ FK / reference</text>
+          <text class="legend legend-accent" x="252" y="612">profile-owned data</text>
+          <text class="note" x="420" y="612">all actions manual · no worker/email state transition</text>
+        </svg>
+      </div>
+    </figure>
+  </main>
+</body>
+</html>

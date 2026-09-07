@@ -2,6 +2,8 @@
 
 ปรับปรุง 7 กันยายน 2569 (2026-09-07) — ฉบับ scope manual ขนาดเล็กตาม D22 ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
 
+ทุกโมดูลใช้ role กลางชุดเดียว: `patient`, `medical` (แพทย์/เภสัชกร) และ `staff_admin` (เจ้าหน้าที่/แอดมิน)
+
 ## พื้นที่งาน
 
 โครงสร้างที่พบ: src/app/(auth), (clinic), (patient), (dashboard); src/components, src/services, src/hooks, src/lib, src/types และ supabase/migrations, supabase/seed.sql ใช้โครงสร้างจริงแทนตัวอย่างเส้นทางที่ตั้งตามชื่อสมาชิก
@@ -39,7 +41,7 @@ wu-clinic-booking/
 ├── src/lib/                 # Supabase client/helper
 ├── src/services/            # Auth, Schedule, Appointment, Medication, Reminder, Dashboard
 ├── src/types/               # contract TypeScript กลาง
-├── supabase/migrations/     # schema/RLS เดิม; ยังไม่ sync ข้อสรุปล่าสุด
+├── supabase/migrations/     # schema/RLS และ migration รวม role; ยังไม่รันกับฐานจริง
 ├── supabase/seed.sql        # seed เดิม
 └── docs/                    # ข้อกำหนด แผน Catalog และ SQL อ้างอิง
 ```
@@ -55,3 +57,22 @@ wu-clinic-booking/
 5. ผู้รวมงาน merge หลังผ่าน lint, typecheck, build และกรณีหลัก; เก็บหลักฐาน SCN ก่อนนำเสนอ
 
 ตัวอย่างคำสั่งใช้ได้เมื่อเริ่มพัฒนา: `git switch develop`, `git pull`, `git switch -c feat/<module>-<summary>`, `git status`, `git add`, `git commit`, `git push -u origin <branch>` ห้าม commit key หรือข้อมูลจริง
+
+## หลักแยกความรับผิดชอบของไฟล์
+
+| พื้นที่ | หน้าที่ | ขอบเขตการแก้ |
+| --- | --- | --- |
+| `src/app` และ `src/components` | route, หน้าจอ และการแสดงสถานะ | ไม่ฝัง mock data หรือกติกาสิทธิ์แทน service |
+| `src/services`, `src/hooks`, `src/features` | คำสั่งและการประสานงานของโมดูล | เรียกผ่าน contract และคืน error ที่ UI ใช้ได้ |
+| `src/types` | type/contract ที่หลายโมดูลใช้ร่วมกัน | เปลี่ยนต้องตรวจผู้ใช้ทุกจุดและแจ้งเจ้าของไฟล์กลาง |
+| `src/mocks` และ mock repository | ข้อมูลสังเคราะห์และ adapter ปัจจุบัน | ต้อง deterministic และไม่เรียก network/ฐานจริง |
+| `supabase/migrations` | แบบ schema/RLS ที่เตรียมไว้ | ห้ามถือว่า deploy แล้ว และห้ามรันฐานจริงจากงาน mock |
+| `docs` และ `tests` | ข้อกำหนด/แผน และหลักฐานพฤติกรรม | ต้องสอดคล้องกับ role 3 ค่าและ scope manual |
+
+## เช็กลิสต์ก่อนเปิด PR
+
+- ตรวจว่าไฟล์อยู่ในโมดูลของตนเอง หรือมีการแจ้งเจ้าของไฟล์กลางแล้ว
+- ตรวจ role, ชื่อข้อมูล, contract และ FR ที่ได้รับผลกระทบให้ใช้คำเดียวกัน
+- ทดสอบ success, validation, permission และยืนยัน state เดิมเมื่อคำสั่งล้มเหลว
+- ตรวจ diff และ `git status` ไม่ให้มี secret, debug code หรืองานของผู้อื่นติดไป
+- ระบุไฟล์ที่แก้ ผลกระทบ คู่ตรวจ และ quality gates ที่รันจริงใน PR
