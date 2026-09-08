@@ -4,7 +4,11 @@ const supabaseMock = vi.hoisted(() => ({ rpc: vi.fn() }));
 
 vi.mock('@/utils/supabase/client', () => ({ createClient: () => supabaseMock }));
 
-import { getBroadcastHistory, sendBroadcast } from '@/services/dashboardService';
+import {
+  getBroadcastHistory,
+  getStaffProfileDirectory,
+  sendBroadcast,
+} from '@/services/dashboardService';
 
 describe('Supabase Broadcast service', () => {
   beforeEach(() => {
@@ -67,5 +71,29 @@ describe('Supabase Broadcast service', () => {
     supabaseMock.rpc.mockResolvedValue({ data: null, error });
 
     await expect(sendBroadcast('ประกาศ', 'ข้อความ', 'request-2')).rejects.toBe(error);
+  });
+
+  it('maps staff profile directory rows correctly', async () => {
+    supabaseMock.rpc.mockResolvedValue({
+      data: [{
+        id: 'user-1',
+        full_name: 'สมชาย ใจดี',
+        email: 'somchai@example.com',
+        phone: '0812345678',
+        role: 'patient',
+        is_active: true,
+      }],
+      error: null,
+    });
+
+    await expect(getStaffProfileDirectory()).resolves.toEqual([{
+      id: 'user-1',
+      fullName: 'สมชาย ใจดี',
+      email: 'somchai@example.com',
+      phone: '0812345678',
+      role: 'patient',
+      isActive: true,
+    }]);
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('get_staff_profile_directory');
   });
 });
