@@ -10,12 +10,14 @@ import {
   CircleDot,
   Clock3,
   Filter,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
   Users,
   X,
 } from 'lucide-react';
+import ScheduleSkeleton from './ScheduleSkeleton';
 import { useShop } from '@/features/shop/context/ShopProvider';
 import type { ScheduleSlot, ScheduleSlotStatus } from '@/types/schedule';
 import type { UserRole } from '@/types/database';
@@ -326,7 +328,12 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 LIVE DATABASE
               </span>
               <span className="text-slate-400">ASIA/BANGKOK</span>
-              {isLoading && <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] text-sky-700">กำลังโหลด...</span>}
+              {isLoading && (
+                <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-medium text-sky-700 inline-flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin text-sky-600" aria-hidden="true" />
+                  กำลังซิงค์ข้อมูล...
+                </span>
+              )}
             </div>
             <h1 className="text-3xl font-bold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl">ตารางออกตรวจประจำสัปดาห์</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">เห็นกำลังให้บริการของแต่ละวัน ปรับรอบตรวจ และปิดรอบโดยไม่แตะจำนวนจองของระบบนัดหมาย</p>
@@ -506,8 +513,9 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 type="button"
                 disabled={isSaving}
                 onClick={saveSlot}
-                className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50 shadow-xs"
+                className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50 shadow-xs inline-flex items-center justify-center gap-2"
               >
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin text-white" aria-hidden="true" />}
                 {isSaving ? 'กำลังบันทึก...' : 'บันทึกรอบตรวจ'}
               </button>
             </div>
@@ -517,7 +525,11 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
 
 
       <section className="order-5 overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80" aria-label="ปฏิทินตารางตรวจ">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+        {isLoading ? (
+          <ScheduleSkeleton />
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -752,6 +764,8 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 );
               })}
             </div>
+          </>
+        )}
           </>
         )}
       </section>

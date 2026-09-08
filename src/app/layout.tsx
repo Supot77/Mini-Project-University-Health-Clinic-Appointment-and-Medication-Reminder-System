@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import TopProgressBar from "@/components/common/TopProgressBar";
 import { AuthProvider } from "@/context/AuthContext";
 import { ClinicMockProvider } from "@/features/mock-database/ClinicMockProvider";
 
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-white text-zinc-900 font-sans antialiased">
         <AuthProvider>
           <ClinicMockProvider>
+            <TopProgressBar />
             <Header />
             {/* Main Content Area */}
             <main className="flex-1 pt-16" style={{ background: "#f8fafb" }}>

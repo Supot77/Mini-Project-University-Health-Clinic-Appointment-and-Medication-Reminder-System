@@ -143,4 +143,12 @@ describe('ScheduleWorkspace Department Filter', () => {
     expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).not.toBeInTheDocument();
   });
+
+  it('displays ScheduleSkeleton when shop data is loading', () => {
+    shopState.isLoading = true;
+
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+
+    expect(screen.getByLabelText('กำลังโหลดตารางตรวจแพทย์')).toBeInTheDocument();
+  });
 });

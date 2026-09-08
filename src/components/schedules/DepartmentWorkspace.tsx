@@ -468,7 +468,20 @@ export default function DepartmentWorkspace() {
             </span>
           </div>
 
-          {visibleDepartments.length === 0 ? (
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2" aria-label="กำลังโหลดรายการแผนก">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="h-5 w-32 animate-pulse rounded bg-slate-200" />
+                    <div className="h-5 w-16 animate-pulse rounded-full bg-slate-100" />
+                  </div>
+                  <div className="h-3.5 w-48 animate-pulse rounded bg-slate-100" />
+                  <div className="h-16 animate-pulse rounded-xl bg-slate-50" />
+                </div>
+              ))}
+            </div>
+          ) : visibleDepartments.length === 0 ? (
             <EmptyPanel
               title="ไม่พบแผนกที่ค้นหา"
               detail="ลองเปลี่ยนคำค้นหา หรือเลือกตัวเลือก 'แสดงที่ปิดใช้' เพื่อดูแผนกทั้งหมด"
@@ -603,7 +616,22 @@ export default function DepartmentWorkspace() {
             </span>
           </div>
 
-          {visibleDoctors.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs" aria-label="กำลังโหลดรายชื่อแพทย์">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100" />
+                    <div className="space-y-1.5">
+                      <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
+                      <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                    </div>
+                  </div>
+                  <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                </div>
+              ))}
+            </div>
+          ) : visibleDoctors.length === 0 ? (
             <EmptyPanel
               title="ไม่พบแพทย์ที่ค้นหา"
               detail="ลองเปลี่ยนคำค้นหา เลือกแผนกอื่น หรือเปิด 'แสดงที่ปิดใช้'"

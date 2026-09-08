@@ -858,10 +858,13 @@ export default function InventoryPage() {
                 <tbody className="divide-y divide-zinc-100 font-normal">
                   {isLoading &&
                     [...Array(4)].map((_, i) => (
-                      <tr key={`sk-${i}`}>
-                        <td colSpan={6} className="p-4 pl-6">
-                          <div className="h-4 w-full max-w-md animate-pulse rounded bg-zinc-100" />
-                        </td>
+                      <tr key={`sk-${i}`} className="animate-pulse">
+                        <td className="p-4 pl-6"><div className="h-4 w-36 rounded bg-zinc-200" /></td>
+                        <td className="p-4"><div className="h-4 w-20 rounded bg-zinc-100" /></td>
+                        <td className="p-4"><div className="h-4 w-16 rounded bg-zinc-100" /></td>
+                        <td className="p-4"><div className="h-4 w-20 rounded bg-zinc-100" /></td>
+                        <td className="p-4"><div className="h-4 w-14 rounded-full bg-zinc-100" /></td>
+                        <td className="p-4 pr-6 text-right"><div className="ml-auto h-6 w-12 rounded bg-zinc-100" /></td>
                       </tr>
                     ))}
 
