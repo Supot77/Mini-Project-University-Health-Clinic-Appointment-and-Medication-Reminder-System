@@ -13,6 +13,7 @@ import {
   Pill,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   X,
@@ -350,21 +351,69 @@ export default function PharmacyPage() {
     }
   };
 
-  const handleDeleteMedication = async () => {
-    if (!deleteTarget) return;
+  const handleSoftDelete = async (item: Medication) => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('medications')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id);
+
+      if (error) throw error;
+      setSuccessToast(`พักการใช้งานเวชภัณฑ์ "${item.name}" แล้ว (สามารถกู้คืนได้ทุกเมื่อ)`);
+      setDeleteTarget(null);
+      await loadMedications();
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
+      const msg = errObj?.message || (err instanceof Error ? err.message : 'ไม่สามารถพักการใช้งานได้');
+      alert(`เกิดข้อผิดพลาด: ${msg}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleRestoreMedication = async (item: Medication) => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('medications')
+        .update({
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id);
+
+      if (error) throw error;
+      setSuccessToast(`กู้คืนและเปิดใช้งาน "${item.name}" ในระบบแล้ว`);
+      setDeleteTarget(null);
+      await loadMedications();
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
+      const msg = errObj?.message || (err instanceof Error ? err.message : 'ไม่สามารถกู้คืนได้');
+      alert(`เกิดข้อผิดพลาด: ${msg}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleHardDelete = async (item: Medication) => {
     setIsDeleting(true);
     try {
       const { error } = await supabase
         .from('medications')
         .delete()
-        .eq('id', deleteTarget.id);
+        .eq('id', item.id);
 
       if (error) throw error;
-      setSuccessToast(`ลบรายการ "${deleteTarget.name}" ออกจากคลังยาแล้ว`);
+      setSuccessToast(`ลบรายการ "${item.name}" ออกจากคลังยาถาวรแล้ว`);
       setDeleteTarget(null);
       await loadMedications();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'ไม่สามารถลบรายการได้';
+      const errObj = err as { message?: string };
+      const msg = errObj?.message || (err instanceof Error ? err.message : 'ไม่สามารถลบถาวรได้');
       alert(`เกิดข้อผิดพลาด: ${msg}`);
     } finally {
       setIsDeleting(false);
@@ -744,30 +793,63 @@ export default function PharmacyPage() {
                           </span>
                         )}
                         {status === 'inactive' && (
-                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600 ring-1 ring-inset ring-slate-400/20">
-                            ปิดใช้งาน
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600 ring-1 ring-inset ring-slate-400/20">
+                            <Ban className="h-3 w-3 text-slate-500" />
+                            พักใช้งาน (Soft-deleted)
                           </span>
                         )}
                       </td>
 
                       <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(item)}
-                            title="แก้ไขข้อมูล"
-                            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(item)}
-                            title="ลบเวชภัณฑ์"
-                            className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!item.is_active ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleRestoreMedication(item)}
+                                title="กู้คืน / เปิดใช้งานเวชภัณฑ์นี้อีกครั้ง"
+                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                <span>กู้คืน</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(item)}
+                                title="แก้ไขข้อมูล"
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(item)}
+                                title="ลบเวชภัณฑ์ออกจากฐานข้อมูลถาวร"
+                                className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(item)}
+                                title="แก้ไขข้อมูล"
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(item)}
+                                title="ลบ / พักการใช้งานเวชภัณฑ์"
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -958,37 +1040,138 @@ export default function PharmacyPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete / Soft-delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center gap-3 text-rose-600 mb-3">
-              <div className="rounded-xl bg-rose-50 p-2.5">
-                <Trash2 className="h-5 w-5" />
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className={`rounded-xl p-2 ${deleteTarget.is_active ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {deleteTarget.is_active ? 'ตัวเลือกลบเวชภัณฑ์' : 'ยืนยันลบเวชภัณฑ์ถาวร'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    รายการ: <span className="font-semibold text-slate-700">{deleteTarget.name}</span>
+                  </p>
+                </div>
               </div>
-              <h3 className="text-base font-bold text-slate-900">ยืนยันการลบเวชภัณฑ์</h3>
-            </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              คุณต้องการลบรายการ <strong className="text-slate-900">&quot;{deleteTarget.name}&quot;</strong> ออกจากฐานข้อมูล Supabase ถาวรหรือไม่? การดำเนินการนี้ไม่สามารถเรียกคืนได้
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-2">
               <button
                 type="button"
-                disabled={isDeleting}
                 onClick={() => setDeleteTarget(null)}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => void handleDeleteMedication()}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 transition shadow-xs disabled:opacity-50"
-              >
-                {isDeleting ? 'กำลังลบ...' : 'ยืนยันลบ'}
+                <X className="h-5 w-5" />
               </button>
             </div>
+
+            {deleteTarget.is_active ? (
+              <div className="my-5 space-y-3">
+                <p className="text-xs text-slate-600">
+                  คุณสามารถเลือกรูปแบบการลบสำหรับเวชภัณฑ์นี้ได้ 2 รูปแบบ:
+                </p>
+
+                {/* Option 1: Soft Delete */}
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 transition hover:bg-amber-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Ban className="h-4 w-4 text-amber-600" />
+                        <span className="text-sm font-bold text-amber-900">
+                          1. พักการใช้งาน (Soft Delete - แนะนำ)
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-800/80 leading-relaxed">
+                        ซ่อนรายการนี้ออกจากระบบจ่ายยา แต่เก็บประวัติไว้ในฐานข้อมูล และสามารถกดกู้คืน (Restore) ได้ทุกเมื่อ
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => void handleSoftDelete(deleteTarget)}
+                      className="shrink-0 inline-flex min-h-9 items-center justify-center rounded-lg bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700 transition disabled:opacity-50"
+                    >
+                      {isDeleting ? 'กำลังบันทึก...' : 'พักใช้งาน'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Option 2: Hard Delete */}
+                <div className="rounded-xl border border-rose-200/80 bg-rose-50/50 p-4 transition hover:bg-rose-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Trash2 className="h-4 w-4 text-rose-600" />
+                        <span className="text-sm font-bold text-rose-900">
+                          2. ลบออกจากระบบถาวร (Hard Delete)
+                        </span>
+                      </div>
+                      <p className="text-xs text-rose-800/80 leading-relaxed">
+                        ลบข้อมูลออกจาก Supabase ทันที ไม่สามารถกู้คืนข้อมูลได้ เหมาะสำหรับรายการที่สร้างผิดพลาด
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => void handleHardDelete(deleteTarget)}
+                      className="shrink-0 inline-flex min-h-9 items-center justify-center rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white hover:bg-rose-700 transition disabled:opacity-50"
+                    >
+                      {isDeleting ? 'กำลังลบ...' : 'ลบถาวร'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="my-5 space-y-4">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 leading-relaxed">
+                  ⚠️ รายการนี้ถูกพักการใช้งาน (Soft Deleted) ไว้อยู่แล้ว หากกดยืนยัน ข้อมูลจะถูกลบออกจากฐานข้อมูล Supabase ถาวรและไม่สามารถกู้คืนได้อีกต่อไป
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => void handleRestoreMedication(deleteTarget)}
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    กู้คืนกลับมาใช้งาน
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => setDeleteTarget(null)}
+                      className="min-h-10 rounded-xl border border-slate-200 px-3.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => void handleHardDelete(deleteTarget)}
+                      className="min-h-10 rounded-xl bg-rose-600 px-4 text-xs font-semibold text-white hover:bg-rose-700 transition disabled:opacity-50"
+                    >
+                      {isDeleting ? 'กำลังลบ...' : 'ยืนยันลบถาวร'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {deleteTarget.is_active && (
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setDeleteTarget(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
