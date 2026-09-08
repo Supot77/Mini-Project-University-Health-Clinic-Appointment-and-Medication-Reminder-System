@@ -1,16 +1,16 @@
-import AppointmentWorkspace from './AppointmentWorkspace';
+import AppointmentPage from '../runtime/AppointmentPage';
 import type { PreviewRole } from './repository';
 
 export function PatientAppointmentWorkspace() {
-  return <AppointmentWorkspace role="patient" allowRolePreview={false} />;
+  return <AppointmentPage role="patient" />;
 }
 
 export function MedicalAppointmentWorkspace() {
-  return <AppointmentWorkspace role="medical" allowRolePreview={false} />;
+  return <AppointmentPage role="medical" />;
 }
 
 export function StaffAppointmentWorkspace() {
-  return <AppointmentWorkspace role="staff_admin" allowRolePreview={false} />;
+  return <AppointmentPage role="staff_admin" />;
 }
 
 export type { PreviewRole };

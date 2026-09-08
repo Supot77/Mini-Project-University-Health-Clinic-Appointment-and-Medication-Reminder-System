@@ -1,37 +1,63 @@
-# โครงหน้าส่วนของปาย
+# งานปาย: นัด คิว ผลตรวจ และรายการยา
 
-เส้นทาง `/appointments` และ `/records` ใช้ข้อมูลจาก `ClinicMockProvider` และ `src/mocks/clinicDatabase.ts` ชุดเดียวกับโมดูลอื่นในโหมด mock ไม่เรียก `appointmentService`, Supabase หรือ API จริง
+อัปเดต 8 กันยายน 2569 ตาม D22/D23, FR-APT-01–06 และ FR-MED-01–03
 
-- `/appointments`: มุมมองตัวอย่างผู้ป่วย/เจ้าหน้าที่/แพทย์ จองนัด ค้นหาและกรอง ยกเลิก เสนอและตอบรับเลื่อนนัด อนุมัตินัด และเริ่มตรวจ
-- `/records`: มุมมองตัวอย่างผู้ป่วย/แพทย์ อ่านผลที่ปิดตรวจแล้ว บันทึกร่าง ปิดตรวจ และแก้ใบสั่งส่วนที่ยังไม่จ่ายพร้อมเหตุผลและประวัติเวอร์ชัน
-- วันอ้างอิงของนัดหมายคือ 7 ก.ย. 2569 เวลา 08:00 น. ประเทศไทย ช่วงจองตัวอย่างคือ 8–21 ก.ย. 2569 และมีรอบให้เลือกเฉพาะบางวัน
-- ข้อมูลตั้งต้นมาจาก mock database กลางและเริ่มใหม่เมื่อรีเฟรช สวิตช์มุมมองใช้ทดลอง UI ไม่เปลี่ยนบทบาทบัญชีจริง
+## Runtime และพฤติกรรม
 
-UI เรียกผ่าน repository contract ภายในโมดูล ข้อมูลสองหน้ายังไม่เชื่อมกัน การส่งต่อคิวไปผลตรวจ การนับความจุร่วมกับตารางแพทย์ การหมดเวลาข้อเสนอ 24 ชั่วโมง งานแจ้งเตือน และการส่งใบสั่งให้เภสัชกร ต้องพัฒนาในขั้นเชื่อมระบบตาม contract ที่ทีมรับรอง
+- `/appointments` ใช้ route guard เดิมและ container ตาม patient/medical/staff_admin
+- `/records` ตรวจ role ที่ server; เฉพาะผู้ป่วยและแพทย์ เจ้าหน้าที่ไม่เปิด diagnosis
+- `runtime/databaseRepository.ts` ตรวจ session/active profile ทุกคำสั่งและเรียก Supabase RPC ด้วย client ของผู้ใช้ ไม่มี mock fallback
+- `runtime/contract.ts` กำหนด validation/contract; SQL ตรวจ role/ownership/state ซ้ำ
+- `runtime/mockRepository.ts` เป็น adapter test/offline เท่านั้น ไม่ import ใน production
+- หน้าตัวอย่างเดิมยังอยู่เพื่อรักษา tests เก่า แต่ไม่อยู่ในเส้นทาง runtime
 
-การแสดงส่วนยาที่จ่ายแล้วเป็นข้อมูลตัวอย่างแบบอ่านอย่างเดียว ไม่มีการจ่าย/กัน/คืนยา และไม่มีการรับรองความถูกต้องของคำแนะนำทางการแพทย์จากข้อมูลสมมติ การแก้ส่วนค้างเก็บประวัติภายในหน้านี้เท่านั้น
+ผู้ป่วยเลือกรอบจากตารางเดิม กรอกเหตุผลและจองเป็น pending มีเลขคิวรายรอบ ปฏิเสธรอบเต็ม/ปิด/เริ่มแล้ว/แพทย์หรือแผนกไม่ active และจองซ้ำ ผู้ป่วยส่งคำขอยกเลิกได้ โดยยังไม่เปลี่ยนสถานะหรือคืนความจุจนเจ้าหน้าที่กดยกเลิก
 
-## ขอบเขตไฟล์
+เจ้าหน้าที่อนุมัติ/ปฏิเสธ/ยกเลิกนัดทีละรายการและเริ่ม/จบตรวจตามสถานะ แพทย์เริ่ม/จบตรวจเฉพาะนัดของตน จบตรวจต้องมีผลตรวจ ผู้ป่วยเห็นผลหลังจบตรวจเท่านั้น แพทย์อ่านประวัติผู้ป่วยที่รับผิดชอบได้ แต่แก้ผลของแพทย์อื่นไม่ได้
 
-แก้ route ของปายและโค้ด adapter ใน `src/features/pai/**` พร้อมจุดเชื่อม `useOptionalClinicMockDatabase` ใน provider กลาง เพื่ออ่าน catalog ร่วมกัน ไม่เปลี่ยน layout, header, auth, shared types, services เดิม หรือ migration
+บันทึกผลตรวจครั้งเดียวต่อนัด เลือกยาจาก catalog จริง กรอกจำนวน ขนาดยา ความถี่ และระยะเวลา บันทึกพร้อมจบตรวจในธุรกรรมเดียวหรือบันทึกแล้วจบภายหลังก็ได้ ไม่มี version/automation คำสั่งผิดไม่ทิ้งผลตรวจบางส่วน
 
-## ลองใช้งาน
+รายการยาเก็บใน `medical_records.prescribed_medications` ตาม contract กลาง: medication_id, name, dosage, frequency, duration_days, quantity ชื่อยามาจากฐาน ไม่เชื่อชื่อจาก client การจ่ายยา/ตัด stock เป็นงานกัญจน์และไม่ได้แก้ในงานนี้
 
-1. รัน `npm run dev` แล้วเปิด `/appointments` หรือ `/records`
-2. เลือกมุมมองตัวอย่างที่ต้องการ โดยไม่ต้องเปลี่ยนบัญชีจริง
-3. ลองจอง 8 ก.ย. เวลา 09:00 น., จองช่วงเดิมซ้ำ, ยืนยันข้อเสนอเลื่อน และค้นหาชื่อที่ไม่มีเพื่อดูสถานะว่าง
-4. หน้า `/records` เลือกแพทย์ ทดลองกรอกร่างและปิดตรวจ แล้วกลับมุมมองผู้ป่วยเพื่อตรวจผลที่เผยแพร่
-5. เลือกรายการตรวจเสร็จของแพทย์ตัวอย่างเพื่อแก้ส่วนที่ยังไม่จ่าย พร้อมกรอกเหตุผลและดูประวัติเวอร์ชัน
+## ขอบเขตและผลกระทบ
 
-ใช้ `npm.cmd` / `npx.cmd` แทน `npm` / `npx` บน PowerShell ที่ปิดการรันสคริปต์ `.ps1` โดยไม่ต้องเปลี่ยน Execution Policy
+ไม่แก้ `src/features/shop/**`, `src/components/schedules/**`, routes ตาราง/แผนก, scheduleService, shared types, layout หรือ Supabase clients เดิม
 
-## ตรวจสอบ
+Migration ใหม่สร้างเฉพาะตาราง ฟังก์ชัน policy และ index ชื่อ `pai_*` ไม่แก้ schema, RLS, status หรือ `booked_count` ของ slot เดิม การตรวจความจุอ่าน `appointment_slots.booked_count` ของช็อปแล้วบวกจำนวนนัด active ใน `pai_appointments`
 
-```sh
-npm run lint
-npx --no-install tsc --noEmit
-npm run test
-npm run build
+ส่งต่อคู่ตรวจช็อปและเจ้าของโมดูล: การเขียน appointments/medical_records จาก authenticated client ต้องผ่าน RPC ใหม่ สิทธิ์อ่านนัดของ medical จำกัดเฉพาะนัดของตน staff ไม่อ่าน diagnosis ใครใช้ appointmentService เก่าที่เขียนตรงต้องย้ายมา contract ใหม่นี้ก่อนเปิด flow นั้น (runtime ปายใหม่ไม่ใช้ service เก่า) ไม่มีการส่งข้อความหรือเปิด PR แทนผู้ใช้
+
+## ลงฐานเป้าหมาย
+
+Deploy แล้วบน project `fjzqcmcyemtzrtvmlqdv` วันที่ 8 กันยายน 2569 ผ่าน migration history แยกเฉพาะ `20260908170000_pai_manual_appointments_records.sql` และ `20260908171000_pai_restrict_new_objects.sql` ตรวจ dry-run หลัง deploy แล้วฐานเป็น `upToDate: true`
+
+1. เปิด SQL Editor ของ project `fjzqcmcyemtzrtvmlqdv` ตรวจว่าเป็น development/staging และสำรองข้อมูลเดิม
+2. รัน `supabase/tests/pai-preflight.sql` (metadata/counts เท่านั้น) หากมีผลตรวจซ้ำ นัด active ซ้ำ หรือจำนวนจองไม่ตรง ให้เจ้าของตรวจแก้ก่อน ไม่ลบข้อมูลเพื่อให้ migration ผ่าน
+3. ให้เจ้าของ auth ยืนยันผู้ป่วยเปลี่ยน profiles.role/is_active ของตนเพื่อยกระดับสิทธิ์ไม่ได้ Policy เก่า “Users can update own profile” เพียงอย่างเดียวไม่ป้องกันการเปลี่ยนคอลัมน์สิทธิ์ งานปายอ่าน role ที่ฐานควบคุมและไม่แก้โมดูล auth ของฟีม
+4. ใช้ฐาน 11 ตารางที่มี canonical roles และ contract fields แล้ว รัน `supabase/migrations/13_pai_manual_appointments_records.sql` ทั้งไฟล์ SQL ใช้ transaction ไม่มี reset/seed/ลบข้อมูล/แก้ตารางช็อป
+5. Environment แอปต้องมี NEXT_PUBLIC_SUPABASE_URL ตาม URL ข้างต้น และ public key ของ project เดียวกันใน NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY หรือ NEXT_PUBLIC_SUPABASE_ANON_KEY ไม่ใส่ service_role ไม่ส่ง key ในแชต ไฟล์ .env.local เดิมไม่ได้เปิดหรือแก้
+6. ใช้บัญชีสังเคราะห์ผู้ป่วยสองคน แพทย์สองคน และเจ้าหน้าที่หนึ่งคน ทดสอบจองพร้อมกันที่ความจุ 1, อ่านข้ามบัญชี, เริ่ม/จบตรวจ, ขอ/อนุมัติยกเลิก, บันทึกยาผิดแล้ว state เดิมคงอยู่
+7. ตรวจ Chrome 360px/1280px, keyboard, loading/empty/error ด้วย session จริงก่อนรับงาน
+
+## การทดสอบ
+
+`tests/pai-runtime.test.ts` และ `tests/pai-runtime-ui.test.tsx` เพิ่ม 23 tests: contract/adapter/session/role/validation/UI รวมรักษา state หลังล้มเหลวและ retry; pai-runtime-fixtures.ts เป็นข้อมูลสังเคราะห์
+
+PostgreSQL integration แยก: `supabase/tests/pai-local-integration.mjs` ใช้ PGlite ในหน่วยความจำ ไม่มี network/credentials ติดตั้งในโฟลเดอร์ชั่วคราวและส่ง path ของ package เป็น argument ไม่เพิ่ม dependency ใน package.json
+
+```powershell
+node supabase/tests/pai-local-integration.mjs C:/Users/sspy2/AppData/Local/Temp/uniclinic-pai-sql-tests/node_modules/@electric-sql/pglite/dist/index.js
 ```
 
-Tests ของโมดูลใช้ข้อมูลสมมติและไม่ต้องเชื่อมฐานข้อมูล ส่วนการตรวจหน้าจอจริงควรครอบคลุม Chrome ที่ความกว้าง 360px และ 1280px การใช้คีย์บอร์ด การโหลดหน้า รายการว่าง และข้อความ validation
+ตรวจ 29 assertions: migration ใช้ซ้ำได้, role/ownership/RLS, ซ่อนผลก่อนจบตรวจ, ห้ามแก้หลังบันทึก, rollback, capacity/คำขอยกเลิก, JSON ยาและไม่แตะ stock ไม่ใช่หลักฐาน Supabase remote หรือ concurrency แบบหลาย connection
+
+Bootstrap local integration แก้ delimiter $func ที่ผิดใน 02_rls.sql เฉพาะ string ในฐานจำลองเพื่อทดสอบ policies เดิม ไม่ได้แก้ไฟล์ migration เก่า เจ้าของต้องตรวจแก้ไฟล์เก่าก่อนใช้ติดตั้งฐานใหม่
+
+## ผลตรวจและข้อจำกัด
+
+- Full suite ผ่าน 142 tests / 19 files (รวมใหม่ 23 ข้อ) ใช้ `npm.cmd run test -- --maxWorkers=2 --minWorkers=1` นอก sandbox เนื่องจาก esbuild ถูกปฏิเสธสิทธิ์อ่าน config
+- Lint เฉพาะไฟล์ปายใหม่ผ่าน; full lint ยังมี error เดิมที่ `src/app/(patient)/reminders/page.tsx:168` (react-hooks/set-state-in-effect) และ warnings นอกขอบเขต
+- Typecheck/build ติด export เดิมที่หาย getStaffProfileDirectory/StaffProfileDirectoryItem จาก dashboardService ซึ่งใช้ใน StaffProfileDirectory ไม่แก้ไฟล์เฮิร์บ/ฟีมเพื่อกลบปัญหา
+- Build ใน sandbox ติด Google Fonts ด้วย; รันนอก sandbox แล้วเหลือ export เดิม
+- ยังไม่ได้ตรวจ Chrome จริง 360/1280, session จริง, remote SQL/RLS และจองพร้อมกันหลาย connection เพราะไม่มี browser/ช่องทางจัดการฐานที่เชื่อมต่อ
+- ยังไม่ commit/push และยังไม่อ้างว่าพร้อมใช้งานจริงครบทั้งหมดจน deploy SQL และปิดข้อจำกัดข้างต้น
