@@ -56,6 +56,7 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /Dashboard/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /จัดการแผนก/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /แจ้งเตือน/ })).toHaveAttribute("href", "/notifications");
   });
 
   it("shows patient search to medical users", () => {

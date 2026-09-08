@@ -1,11 +1,40 @@
 // 👤 รับผิดชอบโดย: เฮิร์บ
 // ระบบศูนย์แจ้งเตือนและแดชบอร์ด
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import type {
   Notification,
   NotificationType,
 } from '@/types/database';
+import type { BroadcastHistoryItem } from '@/features/dashboard/types';
+
+const supabase = createClient();
+
+interface SendBroadcastResult {
+  recipientCount: number;
+  created: boolean;
+}
+
+interface BroadcastRpcRow {
+  recipient_count: number;
+  created: boolean;
+}
+
+interface BroadcastHistoryRpcRow {
+  id: string;
+  title: string;
+  message: string;
+  sent_at: string;
+  recipient_count: number;
+  read_count?: number;
+  role_read_counts?: Partial<Record<'patient' | 'medical' | 'staff_admin', { read: number; total: number }>>;
+}
+
+type NotificationRow = Omit<Notification, 'is_read'>;
+
+function toNotification(row: NotificationRow): Notification {
+  return { ...row, is_read: Boolean(row.read_at) };
+}
 
 export interface MedicationAlertItem {
   id: string;
@@ -27,12 +56,13 @@ export interface MedicationDashboardData {
 export async function getNotifications(userId: string, limit = 20): Promise<Notification[]> {
   const { data, error } = await supabase
     .from('notifications')
-    .select('*')
+    .select('id, user_id, type, title, message, event_key, broadcast_id, read_at, deleted_at, created_at')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return data ?? [];
+  return ((data ?? []) as NotificationRow[]).map(toNotification);
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
@@ -40,17 +70,21 @@ export async function getUnreadCount(userId: string): Promise<number> {
     .from('notifications')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .is('read_at', null);
   if (error) throw error;
   return count ?? 0;
 }
 
-export async function markAsRead(notificationId: string) {
-  const { error } = await supabase
+export async function markAsRead(notificationId: string): Promise<Notification> {
+  const { data, error } = await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
-    .eq('id', notificationId);
+    .eq('id', notificationId)
+    .select('id, user_id, type, title, message, event_key, broadcast_id, read_at, deleted_at, created_at')
+    .single();
   if (error) throw error;
+  return toNotification(data as NotificationRow);
 }
 
 export async function markAllAsRead(userId: string) {
@@ -58,8 +92,50 @@ export async function markAllAsRead(userId: string) {
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .is('read_at', null);
   if (error) throw error;
+}
+
+export async function deleteNotification(notificationId: string) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', notificationId);
+  if (error) throw error;
+}
+
+export async function sendBroadcast(
+  title: string,
+  message: string,
+  requestKey: string,
+): Promise<SendBroadcastResult> {
+  const { data, error } = await supabase.rpc('send_broadcast', {
+    p_title: title,
+    p_message: message,
+    p_request_key: requestKey,
+  });
+  if (error) throw error;
+
+  const row = (Array.isArray(data) ? data[0] : data) as BroadcastRpcRow | null;
+  if (!row) throw new Error('ฐานข้อมูลไม่ส่งผลลัพธ์การ Broadcast กลับมา');
+
+  return { recipientCount: row.recipient_count, created: row.created };
+}
+
+export async function getBroadcastHistory(limit = 20): Promise<BroadcastHistoryItem[]> {
+  const { data, error } = await supabase.rpc('get_broadcast_history', { p_limit: limit });
+  if (error) throw error;
+
+  return ((data ?? []) as BroadcastHistoryRpcRow[]).map((row) => ({
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    sentAt: row.sent_at,
+    recipientCount: row.recipient_count,
+    readCount: row.read_count ?? 0,
+    roleReadCounts: row.role_read_counts ?? {},
+  }));
 }
 
 export async function createNotification(
