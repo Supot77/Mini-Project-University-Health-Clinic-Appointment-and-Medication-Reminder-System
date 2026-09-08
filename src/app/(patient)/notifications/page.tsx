@@ -2,8 +2,13 @@
 
 import { Bell, BellRing, CalendarDays, CheckCheck, Inbox, Megaphone, Pill, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  deleteNotification as deleteNotificationFromDatabase,
+  getNotifications,
+  markAllAsRead,
+  markAsRead,
+} from '@/services/dashboardService';
 import type { Notification, NotificationType } from '@/types/database';
 
 type InboxFilter = 'all' | 'unread' | NotificationType;
@@ -29,31 +34,47 @@ function formatDateTime(value: string): string {
 }
 
 export default function NotificationsPage() {
-  const { repositories } = useClinicMockDatabase();
   const auth = useAuth();
-  const inboxUserId = auth.user?.id ?? 'profile-peter-parker';
+  const inboxUserId = auth.user?.id ?? null;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<InboxFilter>('all');
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadInbox = useCallback(() => repositories.notifications.listInbox(inboxUserId), [inboxUserId, repositories]);
-  const applyInboxResult = useCallback((result: Awaited<ReturnType<typeof loadInbox>>) => {
-    if (result.error) setError(result.error.message);
-    else { setNotifications(result.data); setError(null); }
-    setLoading(false);
-  }, []);
+  const loadInbox = useCallback(async () => {
+    if (!inboxUserId) return [];
+    return getNotifications(inboxUserId, 100);
+  }, [inboxUserId]);
 
   useEffect(() => {
     let cancelled = false;
-    void loadInbox().then((result) => { if (!cancelled) applyInboxResult(result); });
+    void loadInbox()
+      .then((data) => {
+        if (!cancelled) {
+          setNotifications(data);
+          setError(null);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'โหลดการแจ้งเตือนไม่สำเร็จ');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
-  }, [applyInboxResult, loadInbox]);
+  }, [loadInbox]);
 
   const reloadInbox = async () => {
     setLoading(true);
-    applyInboxResult(await loadInbox());
+    try {
+      setNotifications(await loadInbox());
+      setError(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'โหลดการแจ้งเตือนไม่สำเร็จ');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const visibleNotifications = useMemo(() => notifications.filter((notification) => {
@@ -66,37 +87,49 @@ export default function NotificationsPage() {
   const markRead = async (notification: Notification) => {
     if (notification.is_read || workingId) return;
     setWorkingId(notification.id);
-    const result = await repositories.notifications.markReadForUser(notification.id, inboxUserId);
-    setWorkingId(null);
-    if (result.error) { setError(result.error.message); return; }
-    setNotifications((current) => current.map((item) => item.id === notification.id ? result.data : item));
+    try {
+      const updated = await markAsRead(notification.id);
+      setNotifications((current) => current.map((item) => item.id === notification.id ? updated : item));
+      setError(null);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'บันทึกสถานะอ่านไม่สำเร็จ');
+    } finally {
+      setWorkingId(null);
+    }
   };
 
   const markAllRead = async () => {
-    if (workingId) return;
+    if (workingId || !inboxUserId) return;
     setWorkingId('all');
-    for (const notification of notifications.filter((item) => !item.is_read)) {
-      const result = await repositories.notifications.markReadForUser(notification.id, inboxUserId);
-      if (result.error) { setError(result.error.message); break; }
+    try {
+      await markAllAsRead(inboxUserId);
+      await reloadInbox();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'บันทึกสถานะอ่านทั้งหมดไม่สำเร็จ');
+    } finally {
+      setWorkingId(null);
     }
-    setWorkingId(null);
-    await reloadInbox();
   };
 
   const deleteNotification = async (notification: Notification) => {
     if (workingId) return;
     setWorkingId(notification.id);
-    const result = await repositories.notifications.deleteForUser(notification.id, inboxUserId);
-    setWorkingId(null);
-    if (result.error) { setError(result.error.message); return; }
-    setNotifications((current) => current.filter((item) => item.id !== notification.id));
+    try {
+      await deleteNotificationFromDatabase(notification.id);
+      setNotifications((current) => current.filter((item) => item.id !== notification.id));
+      setError(null);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'ลบการแจ้งเตือนไม่สำเร็จ');
+    } finally {
+      setWorkingId(null);
+    }
   };
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6 lg:px-8 py-8 pb-10">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-700"><BellRing className="size-4" /> กล่องข้อความส่วนตัว</div><h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">ศูนย์แจ้งเตือน</h1><p className="mt-2 text-sm text-slate-500">นัดหมาย เตือนยา และประกาศที่ส่งถึงบัญชีนี้ · เวลา Asia/Bangkok</p>{!auth.isAuthenticated && <p className="mt-1 text-xs text-amber-700">กำลังแสดงบัญชีสาธิต Peter Parker</p>}</div>
-        <button onClick={() => void markAllRead()} disabled={unreadCount === 0 || Boolean(workingId)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"><CheckCheck className="size-4" /> อ่านทั้งหมด</button>
+        <div><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-sky-700"><BellRing className="size-4" /> กล่องข้อความส่วนตัว</div><h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">ศูนย์แจ้งเตือน</h1><p className="mt-2 text-sm text-slate-500">นัดหมาย เตือนยา และประกาศที่ส่งถึงบัญชีนี้ · เวลา Asia/Bangkok</p>{!auth.isLoading && !auth.isAuthenticated && <p className="mt-1 text-xs text-amber-700">กรุณาเข้าสู่ระบบเพื่อดูการแจ้งเตือน</p>}</div>
+        {auth.role !== 'staff_admin' && <button onClick={() => void markAllRead()} disabled={unreadCount === 0 || Boolean(workingId)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"><CheckCheck className="size-4" /> อ่านทั้งหมด</button>}
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -116,7 +149,7 @@ export default function NotificationsPage() {
         })}</div>}
       </section>
 
-      <p className="text-center text-xs leading-5 text-slate-400">การอ่านหรือลบมีผลเฉพาะกล่องข้อความของผู้รับรายนี้ ประวัติ Broadcast ส่วนกลางและกล่องของผู้อื่นไม่เปลี่ยนแปลง</p>
+      <p className="text-center text-xs leading-5 text-slate-400">การอ่านหรือลบมีผลกับกล่องข้อความของบัญชีนี้ · สถานะการอ่าน Broadcast จะสรุปให้ staff_admin เห็นแยกตาม role</p>
     </main>
   );
 }
