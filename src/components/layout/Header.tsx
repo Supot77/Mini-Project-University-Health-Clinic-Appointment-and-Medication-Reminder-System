@@ -49,7 +49,7 @@ export default function Header() {
   const visibleNavigation =
     isAuthenticated && role
       ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
-      : navigationItems.filter((item) => item.roles.includes("patient") && item.href !== "/dashboard");
+      : navigationItems.filter((item) => item.href === "/schedules");
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 

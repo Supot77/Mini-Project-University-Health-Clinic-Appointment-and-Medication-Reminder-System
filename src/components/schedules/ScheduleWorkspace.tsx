@@ -136,6 +136,29 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
 
+  const openDepartments = useMemo(() => {
+    return departments
+      .filter((dept) => dept.isActive)
+      .map((dept) => {
+        const deptDoctorIds = new Set(
+          doctors.filter((d) => d.departmentId === dept.id).map((d) => d.id),
+        );
+        const openSlotsCount = slots.filter(
+          (s) => deptDoctorIds.has(s.doctorId) && s.status !== 'closed',
+        ).length;
+        return {
+          ...dept,
+          openSlotsCount,
+        };
+      })
+      .filter((dept) => dept.openSlotsCount > 0);
+  }, [departments, doctors, slots]);
+
+  const effectiveDepartmentFilter = useMemo(() => {
+    if (departmentFilter === 'all') return 'all';
+    return openDepartments.some((d) => d.id === departmentFilter) ? departmentFilter : 'all';
+  }, [departmentFilter, openDepartments]);
+
   const canModifySlot = (slot: ScheduleSlot) => {
     if (role === 'staff_admin') return true;
     if (role === 'medical' && currentDoctor) return slot.doctorId === currentDoctor.id;
@@ -163,9 +186,9 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const filteredDoctors = useMemo(
     () =>
       doctors.filter(
-        (doctor) => departmentFilter === 'all' || doctor.departmentId === departmentFilter,
+        (doctor) => effectiveDepartmentFilter === 'all' || doctor.departmentId === effectiveDepartmentFilter,
       ),
-    [departmentFilter, doctors],
+    [effectiveDepartmentFilter, doctors],
   );
 
   const visibleSlots = useMemo(
@@ -174,13 +197,14 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
         .filter((slot) => displayDays.includes(slot.slotDate))
         .filter((slot) => {
           const doctor = doctors.find((item) => item.id === slot.doctorId);
-          const matchesDepartment = departmentFilter === 'all' || doctor?.departmentId === departmentFilter;
+          const matchesDepartment =
+            effectiveDepartmentFilter === 'all' || doctor?.departmentId === effectiveDepartmentFilter;
           const matchesDoctor = doctorFilter === 'all' || slot.doctorId === doctorFilter;
           const matchesStatus = statusFilter === 'all' || slot.status === statusFilter;
           return matchesDepartment && matchesDoctor && matchesStatus;
         })
         .sort((a, b) => `${a.slotDate}${a.startTime}`.localeCompare(`${b.slotDate}${b.startTime}`)),
-    [departmentFilter, doctorFilter, displayDays, doctors, slots, statusFilter],
+    [effectiveDepartmentFilter, doctorFilter, displayDays, doctors, slots, statusFilter],
   );
 
   const weekSummary = useMemo(() => {
@@ -537,12 +561,12 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
               <span className="sr-only">กรองแผนก</span>
               <Filter className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
               <select
-                value={departmentFilter}
+                value={effectiveDepartmentFilter}
                 onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }}
                 className="h-10 min-w-36 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               >
                 <option value="all">ทุกแผนก</option>
-                {departments.map((department) => (
+                {openDepartments.map((department) => (
                   <option key={department.id} value={department.id}>{department.name}</option>
                 ))}
               </select>
