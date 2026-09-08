@@ -78,6 +78,8 @@ export interface BroadcastHistoryItem {
   message: string;
   sentAt: string;
   recipientCount: number;
+  readCount?: number;
+  roleReadCounts?: Partial<Record<UserRole, { read: number; total: number }>>;
 }
 
 export const roleLabels: Record<UserRole, string> = {
