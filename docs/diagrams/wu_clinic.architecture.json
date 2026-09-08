@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "WU Clinic Booking System Architecture",
+    "output": "wu_clinic_architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-flow",
+        "label": "Application flow",
+        "focus": ["users", "nextjs", "repo_layer", "supabase_db"],
+        "note": "Follow patient and staff interactions from browser to database."
+      },
+      {
+        "id": "auth-and-mock",
+        "label": "Auth and mock adapter",
+        "focus": ["supabase_auth", "nextjs", "repo_layer", "mock_adapter"],
+        "note": "Examine session authentication and deterministic test adapters."
+      }
+    ]
+  },
+  "components": [
+    { "id": "users", "type": "external", "label": "Users & Staff", "sublabel": "Browser / Mobile", "pos": [40, 260], "size": [130, 60] },
+    { "id": "nextjs", "type": "frontend", "label": "Next.js App", "sublabel": "React 19 / Turbopack", "pos": [250, 260], "size": [140, 60] },
+    { "id": "supabase_auth", "type": "security", "label": "Supabase Auth", "sublabel": "JWT / Role Policies", "pos": [250, 110], "size": [140, 60], "tag": "Session" },
+    { "id": "repo_layer", "type": "backend", "label": "Repository Layer", "sublabel": "Clean Architecture", "pos": [470, 260], "size": [140, 60] },
+    { "id": "mock_adapter", "type": "database", "label": "Mock Adapter", "sublabel": "In-Memory Fixtures", "pos": [470, 110], "size": [140, 60], "tag": "Active" },
+    { "id": "supabase_db", "type": "database", "label": "PostgreSQL DB", "sublabel": "20 Tables with RLS", "pos": [690, 260], "size": [140, 60] },
+    { "id": "email_jobs", "type": "backend", "label": "Email Service", "sublabel": "Scheduled Jobs", "pos": [690, 410], "size": [140, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "WU Clinic Booking Platform Infrastructure", "wraps": ["supabase_auth", "nextjs", "repo_layer", "mock_adapter", "supabase_db", "email_jobs"] }
+  ],
+  "connections": [
+    { "id": "users-to-app", "from": "users", "to": "nextjs", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "app-to-auth", "from": "nextjs", "to": "supabase_auth", "label": "Auth JWT", "variant": "security", "fromSide": "top", "toSide": "bottom", "labelDy": -60 },
+    { "id": "app-to-repo", "from": "nextjs", "to": "repo_layer", "label": "Service Calls" },
+    { "id": "repo-to-mock", "from": "repo_layer", "to": "mock_adapter", "label": "Mock Contract", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "labelDy": -60 },
+    { "id": "repo-to-db", "from": "repo_layer", "to": "supabase_db", "label": "SQL Queries" },
+    { "id": "db-to-email", "from": "supabase_db", "to": "email_jobs", "label": "Job Queue", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "labelDy": 60 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Client Tier", "items": ["Next.js App Router with Tailwind CSS", "Responsive UI for Patients, Staff, Doctors and Admin"] },
+    { "dot": "emerald", "title": "Service & Repository", "items": ["Decoupled domain logic via repository contracts", "Dual adapters: In-memory mock and PostgreSQL database"] },
+    { "dot": "rose", "title": "Data & Security", "items": ["20 normalized transaction tables with Row Level Security", "Automated email notifications and reminder jobs"] }
+  ]
+}

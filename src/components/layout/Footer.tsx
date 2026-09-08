@@ -1,41 +1,40 @@
-import React from 'react';
-import Link from 'next/link';
+import Link from "next/link";
+import { Clock3, Hospital, MapPin } from "lucide-react";
+
+const patientLinks = [
+  { label: "นัดหมายออนไลน์", href: "/appointments" },
+  { label: "ตารางแพทย์", href: "/schedules" },
+  { label: "ประวัติสุขภาพ", href: "/records" },
+  { label: "โปรไฟล์ของฉัน", href: "/profile" },
+];
+
+const staffLinks = [
+  { label: "เข้าสู่ระบบเจ้าหน้าที่", href: "/login" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "จัดการคลังยา", href: "/pharmacy" },
+  { label: "ค้นหาผู้ป่วย", href: "/patients/search" },
+];
 
 export default function Footer() {
   return (
-    <footer className="w-full border-t py-16 px-6 flex flex-col items-center" style={{background:"#0a2540",borderColor:"rgba(255,255,255,0.08)"}}>
-      <div className="w-full max-w-[1100px] space-y-8">
-        {/* Disclaimer */}
-        <div className="text-[11px] leading-relaxed space-y-2 pb-8 border-b" style={{color:"rgba(255,255,255,0.4)",borderColor:"rgba(255,255,255,0.1)"}}>
-          <p>* ระบบ WU Clinic Booking เป็นระบบจำลองเพื่อการเรียนการสอนเท่านั้น ข้อมูลทั้งหมดเป็นข้อมูลสมมติ ไม่สามารถใช้เป็นคำแนะนำทางการแพทย์ได้</p>
-        </div>
-
-        {/* Footer Columns */}
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4 text-xs">
-          {[
-            { head: "บริการผู้ป่วย", links: [{l:"นัดหมายออนไลน์",h:"/pai-appointments"},{l:"ตารางเวรแพทย์",h:"/shop-schedules"},{l:"แจ้งเตือนทานยา",h:"/glong-reminders"},{l:"แดชบอร์ดสุขภาพ",h:"/herb-dashboard"}] },
-            { head: "สำหรับเจ้าหน้าที่", links: [{l:"จัดการคลังยา",h:"/gun-inventory"},{l:"ตารางเวลาแพทย์",h:"/shop-schedules"},{l:"ศูนย์ควบคุมแดชบอร์ด",h:"/herb-dashboard"},{l:"จัดการสิทธิ์การใช้งาน",h:"/feem-auth"}] },
-            { head: "ข้อมูลสุขภาพ", links: [{l:"คู่มือใช้ยา",h:"#"},{l:"บทความสุขภาพ",h:"#"},{l:"สถิติการใช้บริการ",h:"#"},{l:"ข่าวสาร",h:"#"}] },
-            { head: "เกี่ยวกับเรา", links: [{l:"ติดต่อคลินิก",h:"#"},{l:"นโยบายความเป็นส่วนตัว",h:"#"},{l:"ทีมผู้พัฒนา",h:"#"},{l:"แผนผังเว็บ",h:"#"}] },
-          ].map(col => (
-            <div key={col.head} className="space-y-4">
-              <h4 className="font-bold text-[13px]" style={{color:"#38bdf8"}}>{col.head}</h4>
-              <ul className="space-y-2.5 font-medium" style={{color:"rgba(255,255,255,0.5)"}}>
-                {col.links.map(lk => <li key={lk.l}><Link href={lk.h} className="hover:text-white transition">{lk.l}</Link></li>)}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {/* Copyright */}
-        <div className="text-[11px] flex flex-col md:flex-row justify-between gap-4 pt-8 border-t" style={{color:"rgba(255,255,255,0.35)",borderColor:"rgba(255,255,255,0.1)"}}>
-          <div>Copyright © 2026 WU Clinic Inc. สงวนลิขสิทธิ์ทั้งหมด.</div>
-          <div className="flex gap-4">
-            <Link href="#" className="hover:text-white transition">นโยบายความเป็นส่วนตัว</Link>
-            <span>|</span>
-            <Link href="#" className="hover:text-white transition">แผนผังเว็บไซต์</Link>
+    <footer className="w-full bg-[#102f3d] px-5 py-14 text-white sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-12 border-b border-white/10 pb-12 lg:grid-cols-[1.35fr_0.8fr_0.8fr_1fr]">
+          <div className="max-w-sm">
+            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#83d6c6]">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#83d6c6] text-[#102f3d]"><Hospital className="h-5 w-5" aria-hidden="true" /></span>
+              <span className="text-lg font-semibold tracking-[-0.02em]">WU Clinic</span>
+            </Link>
+            <p className="mt-5 text-sm leading-7 text-[#b6ced0]">คลินิกสุขภาพมหาวิทยาลัยวลัยลักษณ์ ดูแลทุกขั้นตอนของการนัดหมายและบริการสุขภาพให้เป็นเรื่องง่าย</p>
+            <div className="mt-6 space-y-3 text-xs text-[#b6ced0]"><div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#83d6c6]" aria-hidden="true" />มหาวิทยาลัยวลัยลักษณ์</div><div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#83d6c6]" aria-hidden="true" />จันทร์–ศุกร์ 08:30–16:30 น.</div></div>
           </div>
+
+          <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#83d6c6]">สำหรับผู้ป่วย</h2><ul className="mt-5 space-y-3 text-sm text-[#b6ced0]">{patientLinks.map((link) => <li key={link.href}><Link href={link.href} className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#83d6c6]">{link.label}</Link></li>)}</ul></div>
+          <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#83d6c6]">สำหรับบุคลากร</h2><ul className="mt-5 space-y-3 text-sm text-[#b6ced0]">{staffLinks.map((link) => <li key={link.href}><Link href={link.href} className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#83d6c6]">{link.label}</Link></li>)}</ul></div>
+          <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#83d6c6]">ข้อมูลสำคัญ</h2><p className="mt-5 text-sm leading-7 text-[#b6ced0]">หากมีอาการฉุกเฉิน กรุณาติดต่อหน่วยฉุกเฉินใกล้บ้านทันที ระบบนี้ใช้สำหรับการนัดหมายและจัดการข้อมูลคลินิก</p></div>
         </div>
+
+        <div className="flex flex-col gap-3 pt-7 text-xs text-[#88a7aa] sm:flex-row sm:items-center sm:justify-between"><p>© 2026 WU Clinic · มหาวิทยาลัยวลัยลักษณ์</p><p>ระบบสำหรับการเรียนการสอน ข้อมูลในระบบเป็นข้อมูลสาธิต</p></div>
       </div>
     </footer>
   );

@@ -83,33 +83,21 @@ describe('MockShopRepository', () => {
     expect(repository.snapshot().doctors.some((doctor) => doctor.id === result.value.id)).toBe(false);
   });
 
-  it('generates recurring slots and closes only future slots for approved leave', () => {
+  it('generates recurring slots for date range', () => {
     const repository = new MockShopRepository();
     const generated = repository.generateSlotsForRange('2026-09-07', '2026-09-07', '2026-09-07');
     expect(generated).toMatchObject({ ok: true });
-    const before = repository.snapshot();
-    const submitted = repository.submitLeave({ doctorId: 'profile-stephen-strange', startDate: '2026-09-07', endDate: '2026-09-07', reason: 'ลาพักร้อน', requestedBy: 'profile-stephen-strange' });
-    expect(submitted).toMatchObject({ ok: true, value: { status: 'pending' } });
-    if (!submitted.ok) return;
-    expect(repository.snapshot().slots.filter((slot) => slot.doctorId === 'profile-stephen-strange' && slot.slotDate === '2026-09-07' && slot.closedReason === 'doctor_leave')).toHaveLength(0);
-    expect(repository.decideLeave(submitted.value.id, 'approved', 'mock-staff', '2026-09-07')).toMatchObject({ ok: true, value: { status: 'approved' } });
-    const after = repository.snapshot();
-    const affected = after.slots.filter((slot) => slot.doctorId === 'profile-stephen-strange' && slot.slotDate === '2026-09-07');
-    expect(affected.length).toBeGreaterThan(0);
-    expect(affected.every((slot) => slot.status === 'closed' && slot.closedReason === 'doctor_leave')).toBe(true);
-    expect(affected.reduce((sum, slot) => sum + slot.bookedCount, 0)).toBe(before.slots.filter((slot) => slot.doctorId === 'profile-stephen-strange' && slot.slotDate === '2026-09-07').reduce((sum, slot) => sum + slot.bookedCount, 0));
+    const slots = repository.snapshot().slots.filter((slot) => slot.slotDate === '2026-09-07');
+    expect(slots.length).toBeGreaterThan(0);
   });
 
-  it('does not allow overlapping weekly schedules or duplicate leave requests', () => {
+  it('does not allow overlapping weekly schedules', () => {
     const repository = new MockShopRepository();
     const schedule = repository.snapshot().weeklySchedules.find((item) => item.doctorId === 'profile-stephen-strange' && item.weekday === 1);
     expect(schedule).toBeDefined();
     if (!schedule) return;
     const scheduleInput = { doctorId: schedule.doctorId, weekday: schedule.weekday, slotDurationMinutes: schedule.slotDurationMinutes, defaultCapacity: schedule.defaultCapacity, isActive: schedule.isActive, startTime: schedule.startTime, endTime: schedule.endTime };
     expect(repository.saveWeeklySchedule({ ...scheduleInput, startTime: '09:00', endTime: '10:00' })).toMatchObject({ ok: false });
-    const first = repository.submitLeave({ doctorId: 'profile-stephen-strange', startDate: '2026-09-14', endDate: '2026-09-15', reason: 'อบรม', requestedBy: 'profile-stephen-strange' });
-    expect(first.ok).toBe(true);
-    expect(repository.submitLeave({ doctorId: 'profile-stephen-strange', startDate: '2026-09-15', endDate: '2026-09-16', reason: 'ซ้ำ', requestedBy: 'profile-stephen-strange' })).toMatchObject({ ok: false });
   });
   it('requires an active doctor and department before saving recurring schedule', () => {
     const repository = new MockShopRepository();
@@ -118,5 +106,94 @@ describe('MockShopRepository', () => {
     if (!doctor) return;
     expect(repository.toggleDoctor(doctor.id)).toMatchObject({ ok: true });
     expect(repository.saveWeeklySchedule({ doctorId: doctor.id, weekday: 1, startTime: '08:30', endTime: '09:00', slotDurationMinutes: 30, defaultCapacity: 1, isActive: true })).toMatchObject({ ok: false, field: 'doctorId' });
+  });
+
+  it('prevents medical role from closing or modifying slots of another doctor', () => {
+    const repository = new MockShopRepository();
+    const doctors = repository.snapshot().doctors;
+    expect(doctors.length).toBeGreaterThanOrEqual(2);
+    const doctor1 = doctors[0];
+    const doctor2 = doctors[1];
+
+    // หา slot ของ doctor2
+    const slotDoctor2 = repository.snapshot().slots.find((s) => s.doctorId === doctor2.id);
+    expect(slotDoctor2).toBeDefined();
+    if (!slotDoctor2) return;
+
+    // doctor1 (medical) พยายาม toggle slot ของ doctor2 -> ต้องถูกปฏิเสธ
+    const failResult = repository.toggleSlot(slotDoctor2.id, doctor1.profileId, 'medical');
+    expect(failResult).toMatchObject({
+      ok: false,
+      error: 'ไม่มีสิทธิ์จัดการรอบตรวจของแพทย์ท่านอื่น',
+    });
+
+    // staff_admin สามารถ toggle slot ของ doctor2 ได้
+    const adminResult = repository.toggleSlot(slotDoctor2.id, 'admin-id', 'staff_admin');
+    expect(adminResult.ok).toBe(true);
+  });
+
+  it('allows medical role to toggle their own slot', () => {
+    const repository = new MockShopRepository();
+    const doctor = repository.snapshot().doctors[0];
+    const ownSlot = repository.snapshot().slots.find((s) => s.doctorId === doctor.id);
+    expect(ownSlot).toBeDefined();
+    if (!ownSlot) return;
+
+    const result = repository.toggleSlot(ownSlot.id, doctor.profileId, 'medical');
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not return recommendations when doctor has no prior history', () => {
+    const repository = new MockShopRepository();
+    const doctor = repository.snapshot().doctors[0];
+
+    // ตอนเริ่มต้นหมอยังไม่มีประวัติ
+    const templates = repository.getDoctorTemplates(doctor.id);
+    expect(templates).toEqual([]);
+  });
+
+  it('records doctor availability templates and increments usage count for repeated patterns', () => {
+    const repository = new MockShopRepository();
+    const doctor = repository.snapshot().doctors[0];
+
+    // บันทึกครั้งที่ 1
+    const res1 = repository.saveDoctorTemplate({
+      doctorId: doctor.id,
+      startTime: '08:30',
+      endTime: '12:00',
+      defaultCapacity: 10,
+    });
+    expect(res1.ok).toBe(true);
+
+    const history1 = repository.getDoctorTemplates(doctor.id);
+    expect(history1.length).toBe(1);
+    expect(history1[0].usageCount).toBe(1);
+
+    // บันทึกซ้ำ pattern เดิม
+    const res2 = repository.saveDoctorTemplate({
+      doctorId: doctor.id,
+      startTime: '08:30',
+      endTime: '12:00',
+      defaultCapacity: 10,
+    });
+    expect(res2.ok).toBe(true);
+
+    const history2 = repository.getDoctorTemplates(doctor.id);
+    expect(history2.length).toBe(1);
+    expect(history2[0].usageCount).toBe(2);
+
+    // บันทึกอีก pattern หนึ่ง
+    repository.saveDoctorTemplate({
+      doctorId: doctor.id,
+      startTime: '13:00',
+      endTime: '16:00',
+      defaultCapacity: 8,
+    });
+
+    const history3 = repository.getDoctorTemplates(doctor.id);
+    expect(history3.length).toBe(2);
+    // ตรวจสอบว่า pattern ที่ใช้บ่อยกว่าอยู่ลำดับแรก
+    expect(history3[0].usageCount).toBe(2);
+    expect(history3[1].usageCount).toBe(1);
   });
 });

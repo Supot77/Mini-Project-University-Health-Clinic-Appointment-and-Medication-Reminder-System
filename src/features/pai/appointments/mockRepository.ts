@@ -84,8 +84,8 @@ export function createAppointmentPreviewRepository(seed?: AppointmentSnapshot): 
     changeStatus(id, status, role) {
       const item = state.appointments.find((appointment) => appointment.id === id);
       const slot = item && findSlot(item.slotId);
-      if (!item || !slot || role === 'patient' || (role === 'doctor' && slot.doctorId !== DEMO_DOCTOR_ID)) return error('มุมมองนี้ไม่สามารถจัดการนัดดังกล่าวได้');
-      const approve = role === 'staff' && item.status === 'pending' && ['confirmed', 'rejected'].includes(status);
+      if (!item || !slot || role === 'patient' || (role === 'medical' && slot.doctorId !== DEMO_DOCTOR_ID)) return error('มุมมองนี้ไม่สามารถจัดการนัดดังกล่าวได้');
+      const approve = role === 'staff_admin' && item.status === 'pending' && ['confirmed', 'rejected'].includes(status);
       const start = item.status === 'confirmed' && status === 'in_progress' && slot.date === DEMO_TODAY;
       const noShow = item.status === 'confirmed' && status === 'no_show' && new Date(`${slot.date}T${slot.end}:00+07:00`).getTime() < new Date(DEMO_NOW).getTime();
       if (!approve && !start && !noShow) return error('เปลี่ยนสถานะนี้ไม่ได้จากสถานะปัจจุบัน');

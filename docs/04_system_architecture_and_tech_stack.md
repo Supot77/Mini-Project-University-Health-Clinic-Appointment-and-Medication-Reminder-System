@@ -1,55 +1,73 @@
 # 04. สถาปัตยกรรมและจุดเชื่อมระบบ
 
-ปรับปรุง 5 กันยายน 2569 (2026-09-05) — ข้อกำหนดสำหรับพัฒนา ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
+ปรับปรุง 7 กันยายน 2569 (2026-09-07) — ฉบับ scope manual ขนาดเล็กตาม D22 ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
 
-package.json ที่ตรวจระบุ Next.js 16.3.0, React 19.2.8, TypeScript 5, Tailwind CSS 4, Supabase JS และ Vitest ไม่ใช้คำแนะนำ Next.js 15 เก่าเป็นหลักในการพัฒนา
+package.json เป็นแหล่งอ้างอิงเวอร์ชันจริงของ Next.js, React, TypeScript, Tailwind CSS, Supabase และ Vitest ห้ามยึดเอกสารเวอร์ชันเก่าแทน package ที่ติดตั้งจริง
+
+Role contract กลางมี 3 ค่าเท่านั้น: `patient`, `medical` (แพทย์/เภสัชกร) และ `staff_admin` (เจ้าหน้าที่/แอดมิน)
 
 ## ชั้นการทำงาน
 
-- src/app และ components: UI ตามบทบาท จัดการ loading/empty/error และ keyboard
-- services/hooks: เรียกข้อมูลและคำสั่ง ไม่เป็นด่านสิทธิ์เพียงชั้นเดียว
-- Supabase Auth และ PostgreSQL: ตรวจสิทธิ์ปัจจุบัน ขอบเขตผู้ป่วย ความจุ สต๊อก version และธุรกรรม
-- Worker ฝั่ง server: ยืนยันข้อเสนอเมื่อครบ 24 ชั่วโมง จัดการสถานะมื้อ สร้างข้อความ และส่งอีเมล โดยไม่ขึ้นกับการเปิดเว็บ
-- Browser ที่เปิดอยู่: แสดงเตือนตามเวลายืนยันและซิงก์ข้อมูลจาก server เมื่อกลับมา ไม่ใช้เวลาของ browser ตัดสินสิทธิ์บันทึก
+- `src/app` และ components: ฟอร์มและหน้าจอตาม role พร้อม loading/empty/error และ keyboard
+- role-specific pages/containers: แยก data loader, action และ permission boundary เมื่อ role เห็นข้อมูลหรือทำคำสั่งต่างกัน
+- services/hooks: เรียกข้อมูลและคำสั่งผ่าน repository contract
+- database repository: implementation หลักของ runtime เชื่อม Supabase ด้วย session ของผู้ใช้และ RLS/RPC
+- mock repository: implementation สำหรับ automated tests และ offline demo ต้อง deterministic และใช้ contract เดียวกับ database repository
+- ไม่มี worker, cron, queue, email provider, Web Push หรือการเปลี่ยนสถานะตามเวลา
 
-## ธุรกรรมและสิทธิ์
+## หลักการธุรกรรมและสิทธิ์
 
-จอง ยกเลิก เลื่อนนัด กันยา แบ่งจ่าย ปล่อยการกัน และการแก้ส่วนค้างต้องตรวจและเปลี่ยนข้อมูลที่สัมพันธ์กันอย่าง atomic พร้อม idempotency และ audit การทำซ้ำหลัง network timeout ต้องไม่เปลี่ยนยอดซ้ำ
+คำสั่งแต่ละรายการต้องตรวจ role, input และความสัมพันธ์ของข้อมูลก่อนบันทึก เช่น จอง slot, อนุมัตินัด, จบตรวจ และจ่ายยา หากไม่ผ่านต้องไม่เปลี่ยน state เดิม ไม่เพิ่ม idempotency workflow หรือ transaction สำหรับฟีเจอร์ที่ถูกตัดออกจาก scope
 
-การระงับ/เปลี่ยน role ต้องปฏิเสธ session เก่าที่ฝั่งข้อมูลทันที ไม่รอเพียง JWT หมดอายุ UI ต้องขอเข้าสู่ระบบใหม่ การใช้วิธีใดให้กำหนดใน implementation ภายหลัง
+สิทธิ์ต้องตรวจที่ service/data layer ไม่อาศัยการซ่อนเมนู `patient` อ่านข้อมูลของตนเองเท่านั้น `medical` เห็นข้อมูลตามงานที่รับผิดชอบ และ `staff_admin` เห็นข้อมูลรวมตามสิทธิ์โดยไม่เปิดเผย diagnosis ใน Dashboard
 
-Staff/Pharmacist ใช้ข้อมูลเฉพาะช่องผ่าน view/RPC หรือแบบแยกข้อมูลที่ควบคุมสิทธิ์ได้ Admin ไม่มีสิทธิ์อ่านผลตรวจผ่านบทบาทแอป ส่วน service_role อยู่เฉพาะงาน server/เครื่องหัวหน้าทีม ไม่แจกให้ browser
+## ลำดับข้อมูลหลัก
 
-## ลำดับแจ้งเตือน
+```text
+ผู้ป่วยจอง slot
+  → เจ้าหน้าที่/แอดมินอนุมัตินัด
+  → แพทย์/เภสัชกรบันทึกผลตรวจและจัดการรายการยา
+  → เจ้าหน้าที่/แอดมินกรอกรายการเตือน
+  → ผู้ป่วยบันทึกผลเตือนด้วยมือ
+```
 
-เจ้าหน้าที่สร้างจากจ่ายจริง → ผู้ป่วยยืนยันเวลา → สร้างกำหนดมื้อ → อีเมลที่ T−10 นาที → ในเว็บที่ T → missed ที่ T+1 ชั่วโมงหากยังไม่บันทึก
-
-มื้อทั่วไปปิดรับบันทึกที่มื้อถัดไป +30 นาที มื้อสุดท้ายเตือนซ้ำทั้งสองช่องทางที่ T+3 ชั่วโมงถ้ายังไม่บันทึก และปิดที่ T+3 ชั่วโมง 30 นาที ยืนยันมื้อแรกเหลือ <10 นาทีให้ส่งอีเมลทันที
-
-ก่อนส่ง worker ตรวจสถานะล่าสุดและการพักอีเมล งานที่ข้ามเพราะพักไม่ตามส่งย้อนหลัง รอบซ้ำมื้อสุดท้ายก็พักได้ ยกเว้นคำสั่ง Staff ตามกติกาหนึ่งครั้งต่อมื้อ ต้องกันคำขอพร้อมกันในฐานข้อมูล
-
-แยกสถานะสร้างงาน / ผู้ให้บริการรับ / ล้มเหลว / ข้ามเพราะพัก ห้ามอ้างว่าส่งถึงกล่องจากเพียงสร้างงานสำเร็จ ความถี่ worker, retry และ catch-up ยังรอสรุป การใช้รอบ 15 นาทีแบบเดิมไม่ตรงความต้องการใหม่ และยังไม่รับประกันเวลาถึงของอีเมล
-
-Bootstrap ไม่ส่งจริง แต่วันสาธิตต้องส่งจริงสู่กล่องทดสอบที่ทีมควบคุม ลิงก์อีเมลเปิดมื้อในเว็บและยังต้องยืนยันหลังล็อกอิน
+ทุกลูกศรเกิดจากคำสั่งของผู้ใช้ที่มีสิทธิ์ ไม่มีงานที่ทำต่อเองเมื่อเวลาผ่านไปหรือเมื่อปิดเว็บ
 
 ## ภาพรวมชั้นระบบ
 
 ```text
 Next.js App Router
-├── Client UI: ฟอร์ม หน้าจอ และสถานะตาม role
-├── Server layer: งานสิทธิ์สูง, transaction, worker และการเรียก Email provider
-└── Supabase
-    ├── Auth: สมัคร ยืนยันอีเมล session และบัญชีคลินิก
-    ├── PostgreSQL: ข้อมูลธุรกิจ ข้อจำกัด RLS, View/RPC
-    └── Realtime: สะท้อนข้อความ/สถานะเมื่อเลือกใช้
+├── Route/layout guards: ตรวจ session และส่งผู้ใช้เข้า entry page ของ role
+├── Role-specific pages/containers: patient, medical, staff_admin
+├── Shared UI: presentational components ที่ไม่มี permission logic
+├── Services/Repositories: domain contract + Supabase implementation
+└── Supabase: Auth, PostgreSQL, RLS และ RPC ที่จำเป็นต่อ transaction
 ```
-
-CRUD ที่อ่านข้อมูลตามสิทธิ์อาจใช้ Supabase client ผ่าน service layer ได้ งานที่เปลี่ยนหลายข้อมูลพร้อมกัน เช่น จอง/ย้ายรอบ จ่าย/กัน/ปล่อยยา หรือส่ง override ต้องผ่าน Server/RPC ที่ตรวจสิทธิ์, version และ idempotency ไม่เปิด `service_role` ไป browser
 
 ## ขอบเขตเทคโนโลยีและการตรวจ
 
-- ใช้ Next.js App Router, React, TypeScript, Tailwind CSS, Supabase และบริการอีเมลตาม `package.json`; เวอร์ชันจริงยึด package ไม่ยึดเอกสารเก่า
-- Supabase Auth จัดการรหัสผ่านและ email verification ห้ามสร้างระบบ hash/session ของตัวเองโดยไม่มีเหตุผล
-- RLS รายแถวไม่พอสำหรับ Staff/Pharmacist ที่ห้ามอ่าน diagnosis ต้องใช้ View, RPC หรือ query ที่คืนเฉพาะ field อนุญาต
-- แยกสถานะ “สร้างงานส่ง”, “ผู้ให้บริการรับ”, “ล้มเหลว”, “ข้ามเพราะพัก” ออกจาก “อีเมลถึงกล่อง” เพื่อไม่แสดงผลสำเร็จเกินหลักฐาน
-- ความถี่ worker, retry และ catch-up ยังเป็นเรื่องค้าง ห้ามนำ Cron ทุก 15 นาทีเดิมกลับมาเป็นข้อกำหนดใหม่
+- ใช้ Supabase Auth และ database เป็น runtime หลัก แต่ห้ามเปิด `service_role` ใน browser
+- Automated unit/component tests ใช้ mock/fake และห้ามใช้ network หรือฐานจริง; database integration tests แยกชุดและใช้ฐานทดสอบที่ระบุชัด
+- role contract ปัจจุบันใช้ 3 ค่าและ migration/RLS ต้องรองรับค่า canonical เดียวกันก่อน deploy
+- ก่อนส่งมอบต้องผ่าน lint, typecheck, test และ build พร้อมตรวจ Chrome 360px/1280px, keyboard, loading, empty และ error
+
+## ลำดับการประมวลผลคำสั่ง
+
+1. Route/layout guard อ่าน session และ role จาก Supabase แล้วเลือก entry page หรือ role-specific container ที่ถูกต้อง
+2. UI ส่งคำสั่งผ่าน service/repository contract และไม่เขียน Supabase query หรือ mock data โดยตรง
+3. service ตรวจ role, input, ownership และความสัมพันธ์ข้อมูลก่อนเรียก database repository
+4. database repository ใช้ Supabase client ตาม execution context และให้ RLS/RPC ตรวจสิทธิ์/transaction ซ้ำ
+5. UI แสดง loading/empty/error และคงข้อมูลเดิมเมื่อคำสั่งล้มเหลว; tests inject mock repository ผ่าน contract เดียวกัน
+
+## จุดเชื่อมระหว่างโมดูล
+
+| จุดเชื่อม | ข้อมูลที่ต้องส่งต่อ | สิ่งที่ผู้รับต้องตรวจ |
+| --- | --- | --- |
+| Auth → ทุกโมดูล | user ID, role และ session | session ยังใช้ได้ และ role อยู่ใน 3 ค่ากลาง |
+| Schedule → Appointment | slot, แพทย์, วันเวลา, capacity, status | slot ยังว่างและความจุไม่เกิน |
+| Appointment → Medical | appointment, ผู้ป่วย, แพทย์, สถานะตรวจ | ผู้ทำเป็นผู้รับผิดชอบนัด |
+| Medical → Pharmacy | รายการยาและจำนวนที่สั่ง | จ่ายได้เต็มตามจำนวนหรือปฏิเสธโดยไม่ตัด stock |
+| Pharmacy → Reminder | รายการจ่ายเต็มและผู้ป่วย | เตือนเฉพาะรายการที่จ่ายเต็ม |
+| ทุกโมดูล → UI | ผลสำเร็จหรือ error | ไม่รายงานสำเร็จเมื่อ state ไม่ได้เปลี่ยนตามคำสั่ง |
+
+ตารางนี้ขยายความจาก contract เดิมเพื่อให้ทีมตรวจจุดเชื่อมตรงกัน Database repository เป็น adapter ภายนอกหลักเพียงชุดเดียวของ runtime; บริการอื่นยังอยู่นอก scope

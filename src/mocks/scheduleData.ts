@@ -6,7 +6,6 @@ import type {
   ScheduleDoctor,
   ScheduleSlot,
   DoctorWeeklySchedule,
-  DoctorLeaveRequest,
 } from '@/types/schedule';
 
 export const MOCK_WEEK_START = '2026-09-07';
@@ -86,5 +85,3 @@ export const MOCK_WEEKLY_SCHEDULES: DoctorWeeklySchedule[] = MOCK_DOCTORS.flatMa
     },
   ]),
 );
-
-export const MOCK_LEAVE_REQUESTS: DoctorLeaveRequest[] = [];

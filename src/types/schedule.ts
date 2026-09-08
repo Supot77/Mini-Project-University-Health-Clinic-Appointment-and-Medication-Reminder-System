@@ -23,13 +23,13 @@ export type DepartmentTone = 'sky' | 'teal' | 'amber' | 'violet';
 
 export interface ScheduleDepartment {
   id: string;
-  code: string;
   name: string;
   description: string;
-  room: string;
   isActive: boolean;
+  code?: string;
+  room?: string;
+  tone?: DepartmentTone;
   hasHistory?: boolean;
-  tone: DepartmentTone;
 }
 
 export type DoctorAvailability = 'active' | 'on_leave' | 'inactive';
@@ -73,19 +73,17 @@ export interface DoctorWeeklySchedule {
   isActive: boolean;
 }
 
-export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected';
-
-export interface DoctorLeaveRequest {
+export interface DoctorAvailabilityTemplate {
   id: string;
   doctorId: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-  status: LeaveRequestStatus;
-  requestedBy: string;
-  decidedBy?: string;
-  decidedAt?: string;
+  label?: string;
+  startTime: string;
+  endTime: string;
+  defaultCapacity: number;
+  usageCount: number;
+  lastUsedAt: string;
 }
+
 
 export interface DoctorAccountOption {
   profileId: string;
