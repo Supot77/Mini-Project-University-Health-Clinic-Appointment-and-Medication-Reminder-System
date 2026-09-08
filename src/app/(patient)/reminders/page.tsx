@@ -95,6 +95,7 @@ function mapReminderToDisplay(reminder: MedicationReminderWithMedication): Medic
 
 export default function RemindersPage() {
   const { user, role } = useAuth();
+  const isPatient = role === 'patient';
   const { repositories } = useClinicMockDatabase();
 
   const [selectedPatientOverride, setSelectedPatientOverride] = useState<string | null>(null);
@@ -285,12 +286,13 @@ export default function RemindersPage() {
 
   // เปิด Modal ยืนยันการลบรายการเตือนยา
   const handleDeleteClick = (item: MedicationDisplayItem) => {
+    if (isPatient) return;
     setDeletingItem(item);
   };
 
   // ยืนยันการลบรายการเตือนยาจริง
   const confirmDelete = async () => {
-    if (!deletingItem) return;
+    if (isPatient || !deletingItem) return;
     const { id, name } = deletingItem;
     setDeletingItem(null);
 
@@ -317,6 +319,7 @@ export default function RemindersPage() {
 
   // เพิ่มยาตัวอย่างลงฐานข้อมูล Supabase อัตโนมัติ
   const handleSeedSample = async () => {
+    if (isPatient) return;
     setIsSaving(true);
     try {
       const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
@@ -342,6 +345,7 @@ export default function RemindersPage() {
   // บันทึกการจ่ายยาและเพิ่มการเตือนยาใหม่
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPatient) return;
     if (!selectedMedId) {
       alert('กรุณาเลือกตัวยาที่ต้องการจ่าย');
       return;
@@ -443,6 +447,7 @@ export default function RemindersPage() {
   };
 
   const openEditModal = (item: MedicationDisplayItem) => {
+    if (isPatient) return;
     setEditingItem(item);
     // ค้นหาตัวยาที่ตรงกันใน availableMeds จาก id หรือเทียบจากชื่อยา
     const cleanItemName = item.name.toLowerCase().trim();
@@ -678,23 +683,25 @@ export default function RemindersPage() {
                       </div>
                    </div>
 
-                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                     {medicationList.length === 0 && (
+                   {!isPatient && (
+                     <div className="flex items-center gap-2 w-full sm:w-auto">
+                       {medicationList.length === 0 && (
+                         <button 
+                           onClick={() => void handleSeedSample()}
+                           disabled={isSaving}
+                           className="bg-white border border-blue-200 text-blue-700 hover:bg-blue-100/50 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-2xs flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                         >
+                           <Sparkles size={16} /> โหลดตัวอย่างยาลง Supabase
+                         </button>
+                       )}
                        <button 
-                         onClick={() => void handleSeedSample()}
-                         disabled={isSaving}
-                         className="bg-white border border-blue-200 text-blue-700 hover:bg-blue-100/50 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-2xs flex items-center gap-2 disabled:opacity-50"
+                         onClick={() => setIsAddModalOpen(true)}
+                         className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center justify-center gap-2 flex-1 sm:flex-initial cursor-pointer"
                        >
-                         <Sparkles size={16} /> โหลดตัวอย่างยาลง Supabase
+                          จ่ายยา / เพิ่มยา <Plus size={16} />
                        </button>
-                     )}
-                     <button 
-                       onClick={() => setIsAddModalOpen(true)}
-                       className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center justify-center gap-2 flex-1 sm:flex-initial"
-                     >
-                        จ่ายยา / เพิ่มยา <Plus size={16} />
-                     </button>
-                   </div>
+                     </div>
+                   )}
                 </div>
 
                 {/* --- List ยา จาก Supabase --- */}
@@ -719,26 +726,32 @@ export default function RemindersPage() {
                       <Pill size={28} />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-slate-800">ยังไม่มีรายการยาสำหรับ {currentPatient.name}</h3>
+                      <h3 className="text-base font-bold text-slate-800">
+                        {isPatient ? 'คุณยังไม่มีรายการยาในระบบ' : `ยังไม่มีรายการยาสำหรับ ${currentPatient.name}`}
+                      </h3>
                       <p className="text-sm text-slate-500 mt-1">
-                        คลิกปุ่ม &quot;จ่ายยา / เพิ่มยา&quot; เพื่อสั่งจ่ายยาและตั้งรอบเตือนยาให้ผู้ป่วยรายนี้
+                        {isPatient
+                          ? 'เมื่อแพทย์หรือเภสัชกรสั่งจ่ายยา รายการยาและรอบเวลาทานยาจะแสดงที่นี่'
+                          : 'คลิกปุ่ม "จ่ายยา / เพิ่มยา" เพื่อสั่งจ่ายยาและตั้งรอบเตือนยาให้ผู้ป่วยรายนี้'}
                       </p>
                     </div>
-                    <div className="flex justify-center gap-3 pt-2">
-                      <button 
-                        onClick={() => void handleSeedSample()}
-                        disabled={isSaving}
-                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-sm px-4 py-2 rounded-lg border border-blue-200 transition"
-                      >
-                        <Sparkles size={16} className="inline mr-1" /> สร้างชุดยาตัวอย่างใน Supabase
-                      </button>
-                      <button 
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition"
-                      >
-                        <Plus size={16} className="inline mr-1" /> จ่ายยาใหม่
-                      </button>
-                    </div>
+                    {!isPatient && (
+                      <div className="flex justify-center gap-3 pt-2">
+                        <button 
+                          onClick={() => void handleSeedSample()}
+                          disabled={isSaving}
+                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-sm px-4 py-2 rounded-lg border border-blue-200 transition cursor-pointer"
+                        >
+                          <Sparkles size={16} className="inline mr-1" /> สร้างชุดยาตัวอย่างใน Supabase
+                        </button>
+                        <button 
+                          onClick={() => setIsAddModalOpen(true)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition cursor-pointer"
+                        >
+                          <Plus size={16} className="inline mr-1" /> จ่ายยาใหม่
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -788,26 +801,28 @@ export default function RemindersPage() {
                                  </div>
                                </div>
 
-                               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
-                                 <button 
-                                   type="button"
-                                   onClick={() => openEditModal(med)}
-                                   title="แก้ไขข้อมูลยานี้"
-                                   className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition cursor-pointer"
-                                 >
-                                   <Pencil size={15} />
-                                   <span className="hidden sm:inline">แก้ไข</span>
-                                 </button>
-                                 <button 
-                                   type="button"
-                                   onClick={() => handleDeleteClick(med)}
-                                   title="ลบรายการยานี้"
-                                   className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
-                                 >
-                                   <Trash2 size={15} />
-                                   <span className="hidden sm:inline">ลบ</span>
-                                 </button>
-                               </div>
+                               {!isPatient && (
+                                 <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+                                   <button 
+                                     type="button"
+                                     onClick={() => openEditModal(med)}
+                                     title="แก้ไขข้อมูลยานี้"
+                                     className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                                   >
+                                     <Pencil size={15} />
+                                     <span className="hidden sm:inline">แก้ไข</span>
+                                   </button>
+                                   <button 
+                                     type="button"
+                                     onClick={() => handleDeleteClick(med)}
+                                     title="ลบรายการยานี้"
+                                     className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                                   >
+                                     <Trash2 size={15} />
+                                     <span className="hidden sm:inline">ลบ</span>
+                                   </button>
+                                 </div>
+                               )}
                             </div>
                          </div>
                       </div>
