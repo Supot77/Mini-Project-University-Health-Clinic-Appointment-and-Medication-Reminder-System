@@ -72,7 +72,7 @@ const mockSlots: ScheduleSlot[] = [
     endTime: '12:00',
     maxCapacity: 5,
     bookedCount: 0,
-    status: 'closed', // closed
+    status: 'closed',
   },
 ];
 
@@ -97,33 +97,22 @@ describe('ScheduleWorkspace Department Filter', () => {
     shopState.isLoading = false;
   });
 
-  it('only shows department pill buttons for active departments that have open slots', () => {
   it('only shows department options for active departments that have open slots', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    // "ทุกแผนก" pill button must be visible with 2 open slots (slot-1 for general, slot-2 for dental)
-    expect(screen.getByRole('tab', { name: /ทุกแผนก/ })).toBeInTheDocument();
     // Department select dropdown must be present
     const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
     expect(deptSelect).toBeInTheDocument();
 
-    // "เวชปฏิบัติทั่วไป" (active + has open slot) MUST be displayed
-    expect(screen.getByRole('tab', { name: /เวชปฏิบัติทั่วไป/ })).toBeInTheDocument();
     // "ทุกแผนก" option must be visible
     expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
 
-    // "ทันตกรรม" (isActive is FALSE) MUST NOT be displayed even though it has an open slot
-    expect(screen.queryByRole('tab', { name: /ทันตกรรม/ })).not.toBeInTheDocument();
     // "เวชปฏิบัติทั่วไป" (active + has open slot) MUST be displayed in options
     expect(screen.getByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).toBeInTheDocument();
 
-    // "จิตเวช" (all slots are closed) MUST NOT be displayed
-    expect(screen.queryByRole('tab', { name: /จิตเวช/ })).not.toBeInTheDocument();
     // "ทันตกรรม" (isActive is FALSE) MUST NOT be in options even though it has an open slot
     expect(screen.queryByRole('option', { name: 'ทันตกรรม' })).not.toBeInTheDocument();
 
-    // "เภสัชกรรม" (no doctors / no slots) MUST NOT be displayed
-    expect(screen.queryByRole('tab', { name: /เภสัชกรรม/ })).not.toBeInTheDocument();
     // "จิตเวช" (all slots are closed) MUST NOT be in options
     expect(screen.queryByRole('option', { name: 'จิตเวช' })).not.toBeInTheDocument();
 
@@ -131,37 +120,27 @@ describe('ScheduleWorkspace Department Filter', () => {
     expect(screen.queryByRole('option', { name: 'เภสัชกรรม' })).not.toBeInTheDocument();
   });
 
-  it('filters doctor select options when a department pill is clicked', () => {
   it('filters doctor select options when a department is selected', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    // Initially "แพทย์ทุกคน" is selected and all doctors are listed
-    expect(screen.getByRole('combobox', { name: 'กรองแพทย์' })).toBeInTheDocument();
     // Select "เวชปฏิบัติทั่วไป"
     const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
     fireEvent.change(deptSelect, { target: { value: 'dept-general' } });
-
-    // Click "เวชปฏิบัติทั่วไป"
-    const generalTab = screen.getByRole('tab', { name: /เวชปฏิบัติทั่วไป/ });
-    fireEvent.click(generalTab);
 
     // After filtering by "เวชปฏิบัติทั่วไป", only doc-1 is available under doctor options
     expect(screen.getByRole('option', { name: 'นพ. สมชาย ใจดี' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'พญ. สมใจ สายชิล' })).not.toBeInTheDocument();
   });
 
-  it('shows empty state message when no department has open slots', () => {
   it('only displays "ทุกแผนก" when no department has open slots', () => {
     // Set all slots to closed
     shopState.slots = mockSlots.map((s) => ({ ...s, status: 'closed' as const }));
 
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    expect(screen.getByText('(ยังไม่มีแผนกที่เปิดรับรอบตรวจในขณะนี้)')).toBeInTheDocument();
     const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
     expect(deptSelect).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).not.toBeInTheDocument();
   });
 });
-
