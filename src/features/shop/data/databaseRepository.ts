@@ -1,9 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
+  DailyServiceOffering,
   DoctorAccountOption,
   DoctorWeeklySchedule,
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleService,
   ScheduleSlot,
   ScheduleSlotStatus,
 } from '@/types/schedule';
@@ -18,6 +20,8 @@ import {
 export interface DatabaseShopSnapshot {
   departments: ScheduleDepartment[];
   doctors: ScheduleDoctor[];
+  services: ScheduleService[];
+  dailyServiceOfferings: DailyServiceOffering[];
   slots: ScheduleSlot[];
   doctorAccounts: DoctorAccountOption[];
 }
@@ -50,6 +54,48 @@ export class DatabaseShopRepository {
       description: row.description ?? '',
       isActive: row.is_active ?? true,
       hasHistory: true,
+    }));
+  }
+
+  async fetchServices(): Promise<ScheduleService[]> {
+    const { data, error } = await this.client
+      .from('services')
+      .select('id, code, name, description, is_active, created_at, updated_at')
+      .order('name', { ascending: true });
+
+    if (error || !data) {
+      console.error('Error fetching services:', error);
+      return [];
+    }
+
+    return data.map((row: { id: string; code: string; name: string; description: string | null; is_active: boolean }) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      description: row.description ?? '',
+      isActive: row.is_active ?? true,
+      hasHistory: true,
+    }));
+  }
+
+  async fetchDailyServiceOfferings(): Promise<DailyServiceOffering[]> {
+    const { data, error } = await this.client
+      .from('daily_service_offerings')
+      .select('id, service_id, doctor_id, offering_date, is_active, created_by')
+      .order('offering_date', { ascending: true });
+
+    if (error || !data) {
+      console.error('Error fetching daily service offerings:', error);
+      return [];
+    }
+
+    return data.map((row: { id: string; service_id: string; doctor_id: string; offering_date: string; is_active: boolean; created_by: string | null }) => ({
+      id: row.id,
+      serviceId: row.service_id,
+      doctorId: row.doctor_id,
+      offeringDate: row.offering_date,
+      isActive: row.is_active ?? true,
+      createdBy: row.created_by ?? undefined,
     }));
   }
 
@@ -228,6 +274,56 @@ export class DatabaseShopRepository {
     return { ok: true, value: nextState ? 'enabled' : 'disabled' };
   }
 
+  async saveService(
+    input: Omit<ScheduleService, 'id' | 'isActive'>,
+    existingServices: ScheduleService[],
+    id?: string,
+  ): Promise<ShopResult<ScheduleService>> {
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+    if (!code || !name) return { ok: false, error: 'กรอกรหัสและชื่อบริการก่อนบันทึก' };
+    if (existingServices.some((service) => service.id !== id && (service.code.toLowerCase() === code.toLowerCase() || service.name.trim().toLowerCase() === name.toLowerCase()))) {
+      return { ok: false, error: 'รหัสหรือชื่อบริการนี้มีอยู่แล้ว' };
+    }
+
+    const payload = {
+      code,
+      name,
+      description: input.description.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+    const query = id
+      ? this.client.from('services').update(payload).eq('id', id)
+      : this.client.from('services').insert({ ...payload, is_active: true });
+    const { data, error } = await query.select('id, code, name, description, is_active').single();
+    if (error || !data) return { ok: false, error: error?.message || 'ไม่สามารถบันทึกบริการได้' };
+    return {
+      ok: true,
+      value: {
+        id: data.id,
+        code: data.code,
+        name: data.name,
+        description: data.description ?? '',
+        isActive: data.is_active ?? true,
+        hasHistory: Boolean(id),
+      },
+    };
+  }
+
+  async toggleService(
+    id: string,
+    currentActive: boolean,
+  ): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>> {
+    const { data, error } = await this.client
+      .from('services')
+      .update({ is_active: !currentActive, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, is_active');
+    if (error) return { ok: false, error: error.message || 'ไม่สามารถเปลี่ยนสถานะบริการได้' };
+    if (!data || data.length === 0) return { ok: false, error: 'ไม่พบบริการ หรือไม่มีสิทธิ์แก้ไขบริการนี้' };
+    return { ok: true, value: currentActive ? 'disabled' : 'enabled' };
+  }
+
   async saveDoctor(
     input: Omit<ScheduleDoctor, 'id'>,
     existingDoctors: ScheduleDoctor[],
@@ -324,7 +420,7 @@ export class DatabaseShopRepository {
   async fetchSlots(): Promise<ScheduleSlot[]> {
     const { data, error } = await this.client
       .from('appointment_slots')
-      .select('id, doctor_id, slot_date, start_time, end_time, max_capacity, booked_count, status, created_at, updated_at')
+      .select('id, doctor_id, daily_service_offering_id, slot_date, start_time, end_time, max_capacity, booked_count, status, created_at, updated_at, daily_service_offering:daily_service_offerings(service_id)')
       .order('slot_date', { ascending: true })
       .order('start_time', { ascending: true });
 
@@ -336,6 +432,8 @@ export class DatabaseShopRepository {
     return data.map((row: {
       id: string;
       doctor_id: string;
+      daily_service_offering_id: string;
+      daily_service_offering: { service_id: string } | Array<{ service_id: string }> | null;
       slot_date: string;
       start_time: string;
       end_time: string;
@@ -345,6 +443,8 @@ export class DatabaseShopRepository {
     }) => ({
       id: row.id,
       doctorId: row.doctor_id,
+      serviceOfferingId: row.daily_service_offering_id,
+      serviceId: Array.isArray(row.daily_service_offering) ? row.daily_service_offering[0]?.service_id ?? '' : row.daily_service_offering?.service_id ?? '',
       slotDate: row.slot_date,
       startTime: row.start_time.slice(0, 5),
       endTime: row.end_time.slice(0, 5),
@@ -360,8 +460,9 @@ export class DatabaseShopRepository {
     input: SlotInput,
     existingSlots: ScheduleSlot[],
     doctors: ScheduleDoctor[],
-    departments: ScheduleDepartment[],
+    services: ScheduleService[],
     id?: string,
+    todayDate?: string,
   ): Promise<ShopResult<ScheduleSlot>> {
     if (!isValidUUID(input.doctorId)) {
       return {
@@ -374,16 +475,36 @@ export class DatabaseShopRepository {
     const existing = id ? existingSlots.find((item) => item.id === id) : undefined;
     if (id && !existing) return { ok: false, error: 'ไม่พบรอบตรวจที่ต้องการแก้ไข' };
     const bookedCount = existing?.bookedCount ?? 0;
-    const valid = validateSlot(input, existingSlots, doctors, departments, id, bookedCount);
+    const valid = validateSlot(input, existingSlots, doctors, services, id, bookedCount, todayDate);
     if (!valid.ok) return valid;
 
     const nextStatus = deriveSlotStatus(bookedCount, input.maxCapacity, existing?.status);
+
+    const { data: offering, error: offeringError } = await this.client
+      .from('daily_service_offerings')
+      .upsert(
+        {
+          service_id: input.serviceId,
+          doctor_id: input.doctorId,
+          offering_date: input.slotDate,
+          is_active: true,
+        },
+        { onConflict: 'service_id,doctor_id,offering_date' },
+      )
+      .select('id, service_id, doctor_id, offering_date, is_active, created_by')
+      .single();
+    if (offeringError || !offering) {
+      return { ok: false, error: offeringError?.message || 'ไม่สามารถเตรียมบริการสำหรับวันที่เลือกได้' };
+    }
+
+    const offeringId = offering.id as string;
 
     if (id) {
       const { data, error } = await this.client
         .from('appointment_slots')
         .update({
           doctor_id: input.doctorId,
+          daily_service_offering_id: offeringId,
           slot_date: input.slotDate,
           start_time: input.startTime,
           end_time: input.endTime,
@@ -392,7 +513,7 @@ export class DatabaseShopRepository {
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
-        .select('id, doctor_id, slot_date, start_time, end_time, max_capacity, booked_count, status')
+        .select('id, doctor_id, daily_service_offering_id, slot_date, start_time, end_time, max_capacity, booked_count, status')
         .single();
 
       if (error) return { ok: false, error: error.message || 'ไม่สามารถแก้ไขรอบตรวจได้' };
@@ -401,6 +522,8 @@ export class DatabaseShopRepository {
         value: {
           id: data.id,
           doctorId: data.doctor_id,
+          serviceOfferingId: data.daily_service_offering_id,
+          serviceId: input.serviceId,
           slotDate: data.slot_date,
           startTime: data.start_time.slice(0, 5),
           endTime: data.end_time.slice(0, 5),
@@ -416,6 +539,7 @@ export class DatabaseShopRepository {
       .from('appointment_slots')
       .insert({
         doctor_id: input.doctorId,
+        daily_service_offering_id: offeringId,
         slot_date: input.slotDate,
         start_time: input.startTime,
         end_time: input.endTime,
@@ -423,7 +547,7 @@ export class DatabaseShopRepository {
         booked_count: 0,
         status: 'available',
       })
-      .select('id, doctor_id, slot_date, start_time, end_time, max_capacity, booked_count, status')
+      .select('id, doctor_id, daily_service_offering_id, slot_date, start_time, end_time, max_capacity, booked_count, status')
       .single();
 
     if (error) return { ok: false, error: error.message || 'ไม่สามารถสร้างรอบตรวจได้' };
@@ -432,6 +556,8 @@ export class DatabaseShopRepository {
       value: {
         id: data.id,
         doctorId: data.doctor_id,
+        serviceOfferingId: data.daily_service_offering_id,
+        serviceId: input.serviceId,
         slotDate: data.slot_date,
         startTime: data.start_time.slice(0, 5),
         endTime: data.end_time.slice(0, 5),
@@ -489,6 +615,8 @@ export class DatabaseShopRepository {
     today: string,
     weeklySchedules: DoctorWeeklySchedule[],
     existingSlots: ScheduleSlot[],
+    services: ScheduleService[],
+    requestedServiceId?: string,
   ): Promise<ShopResult<number>> {
     if (!startDate || !endDate || startDate > endDate) {
       return { ok: false, error: 'ช่วงวันที่สร้างรอบไม่ถูกต้อง' };
@@ -510,8 +638,14 @@ export class DatabaseShopRepository {
       return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
     };
 
+    const selectedServiceId = requestedServiceId ?? services.find((service) => service.isActive)?.id;
+    if (!selectedServiceId || !services.some((service) => service.id === selectedServiceId && service.isActive)) {
+      return { ok: false, error: 'ต้องเลือกบริการที่เปิดใช้งานก่อนสร้างรอบตรวจ' };
+    }
+
     const newRows: Array<{
       doctor_id: string;
+      service_id: string;
       slot_date: string;
       start_time: string;
       end_time: string;
@@ -573,6 +707,7 @@ export class DatabaseShopRepository {
           if (!exists && !overlaps && date >= today) {
             newRows.push({
               doctor_id: schedule.doctorId,
+              service_id: selectedServiceId,
               slot_date: date,
               start_time: startTime,
               end_time: endTime,
@@ -589,7 +724,40 @@ export class DatabaseShopRepository {
       return { ok: true, value: 0 };
     }
 
-    const { error } = await this.client.from('appointment_slots').insert(newRows);
+    const offeringIds = new Map<string, string>();
+    for (const row of newRows) {
+      const key = `${row.service_id}:${row.doctor_id}:${row.slot_date}`;
+      if (offeringIds.has(key)) continue;
+      const { data: offering, error: offeringError } = await this.client
+        .from('daily_service_offerings')
+        .upsert(
+          {
+            service_id: row.service_id,
+            doctor_id: row.doctor_id,
+            offering_date: row.slot_date,
+            is_active: true,
+          },
+          { onConflict: 'service_id,doctor_id,offering_date' },
+        )
+        .select('id')
+        .single();
+      if (offeringError || !offering) {
+        return { ok: false, error: offeringError?.message || 'ไม่สามารถเตรียมบริการสำหรับวันที่เลือกได้' };
+      }
+      offeringIds.set(key, offering.id as string);
+    }
+
+    const insertRows = newRows.map((row) => ({
+      doctor_id: row.doctor_id,
+      daily_service_offering_id: offeringIds.get(`${row.service_id}:${row.doctor_id}:${row.slot_date}`),
+      slot_date: row.slot_date,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      max_capacity: row.max_capacity,
+      booked_count: row.booked_count,
+      status: row.status,
+    }));
+    const { error } = await this.client.from('appointment_slots').insert(insertRows);
     if (error) {
       return { ok: false, error: error.message || 'ไม่สามารถสร้างรอบตรวจได้' };
     }

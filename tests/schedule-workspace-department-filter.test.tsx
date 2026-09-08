@@ -1,13 +1,20 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ScheduleWorkspace from '@/components/schedules/ScheduleWorkspace';
-import type { ScheduleDepartment, ScheduleDoctor, ScheduleSlot } from '@/types/schedule';
+import type { ScheduleDepartment, ScheduleDoctor, ScheduleService, ScheduleSlot } from '@/types/schedule';
 
 const mockDepartments: ScheduleDepartment[] = [
   { id: 'dept-general', name: 'เวชปฏิบัติทั่วไป', description: 'ตรวจโรคทั่วไป', isActive: true },
   { id: 'dept-dental', name: 'ทันตกรรม', description: 'แผนกทันตกรรม', isActive: false },
   { id: 'dept-psychiatry', name: 'จิตเวช', description: 'แผนกจิตเวช', isActive: true },
   { id: 'dept-pharmacy', name: 'เภสัชกรรม', description: 'แผนกเภสัชกรรม', isActive: true },
+];
+
+const mockServices: ScheduleService[] = [
+  { id: 'service-general', code: 'GEN', name: 'ตรวจโรคทั่วไป', description: 'บริการตรวจโรคทั่วไป', isActive: true },
+  { id: 'service-dental', code: 'DEN', name: 'ตรวจสุขภาพช่องปาก', description: 'บริการทันตกรรม', isActive: false },
+  { id: 'service-psychiatry', code: 'PSY', name: 'ประเมินสุขภาพจิต', description: 'บริการจิตเวช', isActive: true },
+  { id: 'service-pharmacy', code: 'PHA', name: 'ให้คำปรึกษาการใช้ยา', description: 'บริการเภสัชกรรม', isActive: true },
 ];
 
 const mockDoctors: ScheduleDoctor[] = [
@@ -47,6 +54,8 @@ const mockSlots: ScheduleSlot[] = [
   {
     id: 'slot-1',
     doctorId: 'doc-1',
+    serviceOfferingId: 'offering-1',
+    serviceId: 'service-general',
     slotDate: '2026-09-08',
     startTime: '09:00',
     endTime: '12:00',
@@ -57,6 +66,8 @@ const mockSlots: ScheduleSlot[] = [
   {
     id: 'slot-2',
     doctorId: 'doc-2',
+    serviceOfferingId: 'offering-2',
+    serviceId: 'service-dental',
     slotDate: '2026-09-08',
     startTime: '13:00',
     endTime: '16:00',
@@ -67,6 +78,8 @@ const mockSlots: ScheduleSlot[] = [
   {
     id: 'slot-3',
     doctorId: 'doc-3',
+    serviceOfferingId: 'offering-3',
+    serviceId: 'service-psychiatry',
     slotDate: '2026-09-08',
     startTime: '09:00',
     endTime: '12:00',
@@ -78,70 +91,68 @@ const mockSlots: ScheduleSlot[] = [
 
 const shopState = vi.hoisted(() => ({
   departments: [] as ScheduleDepartment[],
+  services: [] as ScheduleService[],
+  dailyServiceOfferings: [],
   doctors: [] as ScheduleDoctor[],
   slots: [] as ScheduleSlot[],
   isLoading: false,
   saveSlot: vi.fn(),
   toggleSlot: vi.fn(),
+  saveService: vi.fn(),
+  toggleService: vi.fn(),
 }));
 
 vi.mock('@/features/shop/context/ShopProvider', () => ({
   useShop: () => shopState,
 }));
 
-describe('ScheduleWorkspace Department Filter', () => {
+describe('ScheduleWorkspace Service Filter', () => {
   beforeEach(() => {
     shopState.departments = [...mockDepartments];
+    shopState.services = [...mockServices];
     shopState.doctors = [...mockDoctors];
     shopState.slots = [...mockSlots];
     shopState.isLoading = false;
   });
 
-  it('only shows department options for active departments that have open slots', () => {
+  it('only shows service options for active services that have open slots', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    // Department select dropdown must be present
-    const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
-    expect(deptSelect).toBeInTheDocument();
+    const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
+    expect(serviceSelect).toBeInTheDocument();
 
-    // "ทุกแผนก" option must be visible
-    expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'ทุกบริการ' })).toBeInTheDocument();
 
-    // "เวชปฏิบัติทั่วไป" (active + has open slot) MUST be displayed in options
-    expect(screen.getByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'ตรวจโรคทั่วไป' })).toBeInTheDocument();
 
-    // "ทันตกรรม" (isActive is FALSE) MUST NOT be in options even though it has an open slot
-    expect(screen.queryByRole('option', { name: 'ทันตกรรม' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'ตรวจสุขภาพช่องปาก' })).not.toBeInTheDocument();
 
-    // "จิตเวช" (all slots are closed) MUST NOT be in options
-    expect(screen.queryByRole('option', { name: 'จิตเวช' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'ประเมินสุขภาพจิต' })).not.toBeInTheDocument();
 
-    // "เภสัชกรรม" (no doctors / no slots) MUST NOT be in options
-    expect(screen.queryByRole('option', { name: 'เภสัชกรรม' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'ให้คำปรึกษาการใช้ยา' })).not.toBeInTheDocument();
   });
 
-  it('filters doctor select options when a department is selected', () => {
+  it('filters doctor select options when a service is selected', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    // Select "เวชปฏิบัติทั่วไป"
-    const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
-    fireEvent.change(deptSelect, { target: { value: 'dept-general' } });
+    const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
+    fireEvent.change(serviceSelect, { target: { value: 'service-general' } });
 
     // After filtering by "เวชปฏิบัติทั่วไป", only doc-1 is available under doctor options
     expect(screen.getByRole('option', { name: 'นพ. สมชาย ใจดี' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'พญ. สมใจ สายชิล' })).not.toBeInTheDocument();
   });
 
-  it('only displays "ทุกแผนก" when no department has open slots', () => {
+  it('only displays "ทุกบริการ" when no service has open slots', () => {
     // Set all slots to closed
     shopState.slots = mockSlots.map((s) => ({ ...s, status: 'closed' as const }));
 
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
-    expect(deptSelect).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).not.toBeInTheDocument();
+    const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
+    expect(serviceSelect).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'ทุกบริการ' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'ตรวจโรคทั่วไป' })).not.toBeInTheDocument();
   });
 
   it('displays ScheduleSkeleton when shop data is loading', () => {
@@ -150,5 +161,21 @@ describe('ScheduleWorkspace Department Filter', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
     expect(screen.getByLabelText('กำลังโหลดตารางตรวจแพทย์')).toBeInTheDocument();
+  });
+
+  it('prevents adding slots for past dates in the schedule workspace', () => {
+    shopState.isLoading = false;
+    shopState.slots = [];
+
+    render(<ScheduleWorkspace role="staff_admin" actorId="admin-1" />);
+
+    // Click global "เพิ่มรอบตรวจ" button
+    const addSlotButton = screen.getByRole('button', { name: 'เพิ่มรอบตรวจ' });
+    fireEvent.click(addSlotButton);
+
+    // Date input should have min attribute set to today
+    const dateInput = screen.getByLabelText('วันที่');
+    expect(dateInput).toHaveAttribute('min');
+    expect(dateInput.getAttribute('min')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

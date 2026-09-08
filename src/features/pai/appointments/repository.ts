@@ -6,6 +6,7 @@ export interface BookingSlot {
   date: string;
   start: string;
   end: string;
+  service: string;
   department: string;
   doctorId: string;
   doctor: string;

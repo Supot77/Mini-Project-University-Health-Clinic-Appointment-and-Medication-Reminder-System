@@ -21,7 +21,7 @@
 | --- | --- | --- |
 | 1 | Database foundation | ตรวจ migration/RLS/RPC, Supabase clients และ repository factory ให้ database เป็น runtime หลัก |
 | 2 | Auth/profile/role shell | สมัคร login session, role guards และ entry page/dashboard สำหรับ 3 roles |
-| 3 | Schedule | Supabase repository; `staff_admin` กรอกแผนก แพทย์ slot และปิด slotด้วยมือ |
+| 3 | Schedule | Supabase repository; `medical`/`staff_admin` จัดการ service catalog, daily offering, แพทย์และ slot โดยแผนกใช้บอกความถนัด |
 | 4 | Appointment | role-specific containers; `patient` จอง, `staff_admin` ตัดสิน, `medical` เริ่ม/จบตรวจ |
 | 5 | Medical record | `medical` บันทึกผลตรวจ/รายการยา; `patient` อ่านของตนผ่าน RLS |
 | 6 | Pharmacy | `medical` ตรวจ stock และจ่ายเต็มครั้งเดียวผ่าน transaction/RPC ที่จำเป็น |
@@ -34,7 +34,7 @@
 | ผู้ส่ง → ผู้รับ | ข้อมูลที่ต้องมี |
 | --- | --- |
 | Auth → ทุกโมดูล | user ID, 3-value role, session validity และขอบเขตข้อมูล |
-| Schedule → Appointment | slot ID, doctor ID, วันเวลาไทย, capacity และสถานะ slot |
+| Schedule → Appointment | slot ID, service ID, daily service offering ID, doctor ID, วันเวลาไทย, capacity และสถานะ slot |
 | Appointment → Medical | appointment ID, patient ID, doctor ID และสถานะการตรวจ |
 | Medical → Pharmacy | prescription/รายการยาและจำนวนที่สั่ง |
 | Pharmacy → Reminder | dispensing ID และจำนวนที่จ่ายเต็ม |
@@ -49,7 +49,7 @@
 | เจ้าของ | งาน | ผู้ตรวจ |
 | --- | --- | --- |
 | ฟีม | สมาชิก โปรไฟล์ สิทธิ์และ session | เฮิร์บ |
-| ช้อป | แผนก แพทย์ ตารางและ slot | ปาย |
+| ช้อป | service catalog, daily offering, แผนกความถนัด, แพทย์ ตารางและ slot | ปาย |
 | ปาย | นัด คิว ผลตรวจ และรายการยา | ช้อป |
 | กัญจน์ | คลังและจ่ายเต็ม | กลอง |
 | กลอง | รายการเตือนแบบ manual | กัญจน์ |
@@ -64,7 +64,7 @@
 | งานก่อนหน้า | งานที่ใช้ต่อ | เหตุผล |
 | --- | --- | --- |
 | Auth/profile/role | ทุกโมดูล | ทุกคำสั่งต้องรู้ user ID, role และ session |
-| Schedule | Appointment | การจองต้องอ้าง slot, แพทย์, เวลา และความจุที่มีอยู่ |
+| Schedule | Appointment | การจองต้องอ้าง service offering, slot, แพทย์, เวลา และความจุที่มีอยู่ |
 | Appointment | Medical record | ผลตรวจต้องผูกกับนัด ผู้ป่วย และแพทย์ที่รับผิดชอบ |
 | Medical record | Pharmacy/Reminder | รายการยาต้องมาจากผลตรวจ และเตือนเฉพาะยาที่จ่ายเต็ม |
 | ข้อมูลจากทุกโมดูล | Dashboard/Broadcast | แสดงหรือส่งเฉพาะข้อมูลที่บันทึกแล้ว |

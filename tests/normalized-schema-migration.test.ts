@@ -12,6 +12,7 @@ const contractFieldsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migr
 const patientSearchRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/08_allow_medical_patient_search.sql'), 'utf8');
 const doctorProfilesRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/10_allow_view_doctor_profiles.sql'), 'utf8');
 const departmentsRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/11_allow_public_view_departments.sql'), 'utf8');
+const serviceOfferingMigration = readFileSync(resolve(process.cwd(), 'supabase/migrations/13_services_and_daily_offerings.sql'), 'utf8');
 
 const normalizedTables = [
   'reschedule_proposals',
@@ -134,5 +135,19 @@ describe('normalized transaction migration', () => {
     expect(migration).toContain("NOT (audience ? 'userIds')");
     expect(broadcastRecipientUpgrade).toContain('SET broadcast_id = recipient.broadcast_id');
     expect(broadcastRecipientUpgrade).toContain('DROP TABLE IF EXISTS public.broadcast_recipients');
+  });
+
+  it('models services and daily offerings as the bookable unit', () => {
+    expect(serviceOfferingMigration).toContain('CREATE TABLE IF NOT EXISTS public.services');
+    expect(serviceOfferingMigration).toContain('CREATE TABLE IF NOT EXISTS public.daily_service_offerings');
+    expect(serviceOfferingMigration).toContain('ADD COLUMN IF NOT EXISTS daily_service_offering_id uuid');
+    expect(serviceOfferingMigration).toContain('UNIQUE (service_id, doctor_id, offering_date)');
+    expect(serviceOfferingMigration).toContain('FOREIGN KEY (daily_service_offering_id, doctor_id, slot_date)');
+    expect(serviceOfferingMigration).toContain('ALTER TABLE public.services ENABLE ROW LEVEL SECURITY');
+    expect(serviceOfferingMigration).toContain('ALTER TABLE public.daily_service_offerings ENABLE ROW LEVEL SECURITY');
+    expect(serviceOfferingMigration).toContain('CREATE POLICY "Authenticated users can view active service slots"');
+    expect(serviceOfferingMigration).toContain('offering.is_active');
+    expect(serviceOfferingMigration).toContain('service.is_active');
+    expect(serviceOfferingMigration).not.toMatch(/service_role|\.env\.local/i);
   });
 });

@@ -18,6 +18,7 @@ import type {
   DoctorAvailabilityTemplate,
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleService,
   ScheduleSlot,
 } from '@/types/schedule';
 import type { UserRole } from '@/types/database';
@@ -31,11 +32,17 @@ interface ShopContextValue extends ShopSnapshot {
     id?: string,
   ): Promise<ShopResult<ScheduleDepartment>>;
   toggleDepartment(id: string): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>>;
+  saveService(
+    input: Omit<ScheduleService, 'id' | 'isActive'>,
+    id?: string,
+  ): Promise<ShopResult<ScheduleService>>;
+  toggleService(id: string): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>>;
   saveDoctor(input: Omit<ScheduleDoctor, 'id'>, id?: string): Promise<ShopResult<ScheduleDoctor>>;
   toggleDoctor(id: string): Promise<ShopResult<ScheduleDoctor | 'deleted'>>;
   saveSlot(
     input: SlotInput,
     id?: string,
+    todayDate?: string,
   ): Promise<ShopResult<ScheduleSlot>> | ShopResult<ScheduleSlot>;
   toggleSlot(
     id: string,
@@ -50,6 +57,7 @@ interface ShopContextValue extends ShopSnapshot {
     startDate: string,
     endDate: string,
     today: string,
+    serviceId?: string,
   ): Promise<ShopResult<number>> | ShopResult<number>;
   getDoctorTemplates(doctorId: string): DoctorAvailabilityTemplate[];
   saveDoctorTemplate(
@@ -79,6 +87,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       return {
         departments: [],
         doctors: [],
+        services: [],
+        dailyServiceOfferings: [],
         slots: [],
         weeklySchedules: [],
         doctorAccounts: [],
@@ -91,9 +101,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     if (!dbRepo) return;
     try {
-      const [deptList, docList, accountList, slotList] = await Promise.all([
+      const [deptList, docList, serviceList, offeringList, accountList, slotList] = await Promise.all([
         dbRepo.fetchDepartments(),
         dbRepo.fetchDoctors(),
+        dbRepo.fetchServices(),
+        dbRepo.fetchDailyServiceOfferings(),
         dbRepo.fetchDoctorAccounts(),
         dbRepo.fetchSlots(),
       ]);
@@ -101,6 +113,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       setSnapshot({
         departments: deptList,
         doctors: docList,
+        services: serviceList,
+        dailyServiceOfferings: offeringList,
         slots: slotList,
         doctorAccounts: accountList,
         weeklySchedules: [],
@@ -115,9 +129,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     (async () => {
       if (dbRepo) {
         try {
-          const [deptList, docList, accountList, slotList] = await Promise.all([
+          const [deptList, docList, serviceList, offeringList, accountList, slotList] = await Promise.all([
             dbRepo.fetchDepartments(),
             dbRepo.fetchDoctors(),
+            dbRepo.fetchServices(),
+            dbRepo.fetchDailyServiceOfferings(),
             dbRepo.fetchDoctorAccounts(),
             dbRepo.fetchSlots(),
           ]);
@@ -125,6 +141,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             setSnapshot({
               departments: deptList,
               doctors: docList,
+              services: serviceList,
+              dailyServiceOfferings: offeringList,
               slots: slotList,
               doctorAccounts: accountList,
               weeklySchedules: [],
@@ -227,6 +245,47 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     [dbRepo, refresh, repository, run, snapshot.doctors],
   );
 
+  const handleSaveService = useCallback(
+    async (
+      input: Omit<ScheduleService, 'id' | 'isActive'>,
+      id?: string,
+    ): Promise<ShopResult<ScheduleService>> => {
+      const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
+      if (dbRepo) {
+        if (!isDbId) return { ok: false, error: 'รหัสบริการไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        try {
+          const result = await dbRepo.saveService(input, snapshot.services, id);
+          if (result.ok) await refresh();
+          return result;
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกบริการ' };
+        }
+      }
+      return run(() => repository.saveService(input, id));
+    },
+    [dbRepo, refresh, repository, run, snapshot.services],
+  );
+
+  const handleToggleService = useCallback(
+    async (id: string): Promise<ShopResult<'deleted' | 'disabled' | 'enabled'>> => {
+      const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (dbRepo) {
+        if (!isDbId) return { ok: false, error: 'รหัสบริการไม่ถูกต้องตามระบบฐานข้อมูล (ต้องเป็น UUID)' };
+        const target = snapshot.services.find((service) => service.id === id);
+        if (!target) return { ok: false, error: 'ไม่พบบริการที่ต้องการแก้ไข' };
+        try {
+          const result = await dbRepo.toggleService(id, target.isActive);
+          if (result.ok) await refresh();
+          return result;
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะบริการ' };
+        }
+      }
+      return run(() => repository.toggleService(id));
+    },
+    [dbRepo, refresh, repository, run, snapshot.services],
+  );
+
   const handleToggleDoctor = useCallback(
     async (id: string): Promise<ShopResult<ScheduleDoctor | 'deleted'>> => {
       const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -254,7 +313,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   );
 
   const handleSaveSlot = useCallback(
-    async (input: SlotInput, id?: string): Promise<ShopResult<ScheduleSlot>> => {
+    async (input: SlotInput, id?: string, todayDate?: string): Promise<ShopResult<ScheduleSlot>> => {
       const isDbId = id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : true;
       const isDbDoctor = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.doctorId);
       if (dbRepo) {
@@ -269,8 +328,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             input,
             snapshot.slots,
             snapshot.doctors,
-            snapshot.departments,
+            snapshot.services,
             id,
+            todayDate,
           );
           if (result.ok) {
             await refresh();
@@ -280,9 +340,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกรอบตรวจ' };
         }
       }
-      return run(() => repository.saveSlot(input, id));
+      return run(() => repository.saveSlot(input, id, todayDate));
     },
-    [dbRepo, refresh, repository, run, snapshot.departments, snapshot.doctors, snapshot.slots],
+    [dbRepo, refresh, repository, run, snapshot.doctors, snapshot.services, snapshot.slots],
   );
 
   const handleToggleSlot = useCallback(
@@ -316,7 +376,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   );
 
   const handleGenerateSlotsForRange = useCallback(
-    async (startDate: string, endDate: string, today: string): Promise<ShopResult<number>> => {
+    async (startDate: string, endDate: string, today: string, serviceId?: string): Promise<ShopResult<number>> => {
       if (dbRepo) {
         try {
           const result = await dbRepo.generateSlotsForRange(
@@ -325,6 +385,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             today,
             snapshot.weeklySchedules,
             snapshot.slots,
+            snapshot.services,
+            serviceId,
           );
           if (result.ok) {
             await refresh();
@@ -334,9 +396,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           return { ok: false, error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการสร้างรอบตรวจ' };
         }
       }
-      return run(() => repository.generateSlotsForRange(startDate, endDate, today));
+      return run(() => repository.generateSlotsForRange(startDate, endDate, today, serviceId));
     },
-    [dbRepo, refresh, repository, run, snapshot.slots, snapshot.weeklySchedules],
+    [dbRepo, refresh, repository, run, snapshot.services, snapshot.slots, snapshot.weeklySchedules],
   );
 
   const value = useMemo<ShopContextValue>(
@@ -346,6 +408,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       refresh,
       saveDepartment: handleSaveDepartment,
       toggleDepartment: handleToggleDepartment,
+      saveService: handleSaveService,
+      toggleService: handleToggleService,
       saveDoctor: handleSaveDoctor,
       toggleDoctor: handleToggleDoctor,
       saveSlot: handleSaveSlot,
@@ -361,6 +425,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       refresh,
       handleSaveDepartment,
       handleToggleDepartment,
+      handleSaveService,
+      handleToggleService,
       handleSaveDoctor,
       handleToggleDoctor,
       handleSaveSlot,
