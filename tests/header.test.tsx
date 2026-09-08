@@ -56,6 +56,21 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: /Dashboard/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /จัดการแผนก/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /นัดหมาย/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /แจ้งเตือน/ })).toHaveAttribute("href", "/notifications");
+  });
+
+  it("shows only doctor schedules and login for unauthenticated guests", () => {
+    authState.user = null;
+    authState.isAuthenticated = false;
+    authState.role = null;
+
+    render(<Header />);
+
+    expect(screen.getByRole("link", { name: /ตารางแพทย์/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Dashboard/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /นัดหมาย/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /เตือนยา/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /เข้าสู่ระบบ/ })).toBeInTheDocument();
   });
 
   it("shows patient search to medical users", () => {

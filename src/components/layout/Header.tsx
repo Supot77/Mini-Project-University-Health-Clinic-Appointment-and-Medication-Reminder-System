@@ -20,6 +20,7 @@ const navigationItems: NavigationItem[] = [
   { href: "/schedules", label: "ตารางแพทย์", icon: CalendarDays, roles: ["patient", "medical", "staff_admin"] },
   { href: "/departments", label: "จัดการแผนก", icon: Hospital, roles: ["staff_admin"] },
   { href: "/appointments", label: "นัดหมาย", icon: ClipboardClock, roles: ["patient", "medical", "staff_admin"] },
+  { href: "/notifications", label: "แจ้งเตือน", icon: Bell, roles: ["patient", "medical", "staff_admin"] },
   { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
   { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },
   { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin", "medical"] },
@@ -48,7 +49,7 @@ export default function Header() {
   const visibleNavigation =
     isAuthenticated && role
       ? navigationItems.filter((item) => item.roles.includes(role as NavigationRole))
-      : navigationItems.filter((item) => item.roles.includes("patient") && item.href !== "/dashboard");
+      : navigationItems.filter((item) => item.href === "/schedules");
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/services/authService';
@@ -109,7 +109,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-zinc-400">กำลังโหลด...</div>}>
+    <Suspense fallback={<div className="flex justify-center p-8">กำลังโหลด...</div>}>
       <LoginForm />
     </Suspense>
   );
