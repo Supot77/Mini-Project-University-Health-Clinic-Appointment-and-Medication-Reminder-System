@@ -1,7 +1,9 @@
 import type {
   DoctorAccountOption,
+  DailyServiceOffering,
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleService,
   ScheduleSlot,
   DoctorWeeklySchedule,
   DoctorAvailabilityTemplate,
@@ -12,6 +14,8 @@ import type { ShopResult, SlotInput } from './rules';
 export interface ShopSnapshot {
   departments: ScheduleDepartment[];
   doctors: ScheduleDoctor[];
+  services: ScheduleService[];
+  dailyServiceOfferings: DailyServiceOffering[];
   slots: ScheduleSlot[];
   doctorAccounts: DoctorAccountOption[];
   weeklySchedules: DoctorWeeklySchedule[];
@@ -29,12 +33,14 @@ export interface ShopRepository {
     id?: string,
   ): ShopResult<ScheduleDepartment>;
   toggleDepartment(id: string): ShopResult<'deleted' | 'disabled' | 'enabled'>;
+  saveService(input: Omit<ScheduleService, 'id' | 'isActive'>, id?: string): ShopResult<ScheduleService>;
+  toggleService(id: string): ShopResult<'deleted' | 'disabled' | 'enabled'>;
   saveDoctor(input: Omit<ScheduleDoctor, 'id'>, id?: string): ShopResult<ScheduleDoctor>;
   toggleDoctor(id: string): ShopResult<ScheduleDoctor | 'deleted'>;
-  saveSlot(input: SlotInput, id?: string): ShopResult<ScheduleSlot>;
+  saveSlot(input: SlotInput, id?: string, todayDate?: string): ShopResult<ScheduleSlot>;
   toggleSlot(id: string, actorId?: string, role?: UserRole): ShopResult<ScheduleSlot>;
   saveWeeklySchedule(input: Omit<DoctorWeeklySchedule, 'id'>, id?: string): ShopResult<DoctorWeeklySchedule>;
-  generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number>;
+  generateSlotsForRange(startDate: string, endDate: string, today: string, serviceId?: string): ShopResult<number>;
   getDoctorTemplates(doctorId: string): DoctorAvailabilityTemplate[];
   saveDoctorTemplate(input: Omit<DoctorAvailabilityTemplate, 'id' | 'usageCount' | 'lastUsedAt'>): ShopResult<DoctorAvailabilityTemplate>;
 }

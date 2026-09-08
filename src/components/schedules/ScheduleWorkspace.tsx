@@ -28,13 +28,7 @@ const inputClass =
 const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-function getBangkokToday(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+import { getBangkokToday } from '@/features/shop/domain/rules';
 
 const TODAY_DATE = getBangkokToday();
 
@@ -52,6 +46,7 @@ type CalendarView = 'day' | 'week' | 'month';
 
 interface SlotDraft {
   doctorId: string;
+  serviceId: string;
   slotDate: string;
   startTime: string;
   endTime: string;
@@ -60,6 +55,7 @@ interface SlotDraft {
 
 const emptySlotDraft: SlotDraft = {
   doctorId: '',
+  serviceId: '',
   slotDate: TODAY_DATE,
   startTime: '08:30',
   endTime: '09:00',
@@ -108,7 +104,9 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const {
     departments,
     doctors,
+    services = [],
     slots,
+    saveService: persistService,
     saveSlot: persistSlot,
     toggleSlot: persistSlotToggle,
     isLoading,
@@ -123,7 +121,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const [weekStart, setWeekStart] = useState(() => getCurrentWeekMonday());
   const [isSaving, setIsSaving] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [serviceFilter, setServiceFilter] = useState('all');
   const [doctorFilter, setDoctorFilter] = useState<string>(() => {
     if (role === 'medical') {
       const match = doctors.find((d) => d.profileId === actorId || d.id === actorId);
@@ -137,29 +135,21 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const [draft, setDraft] = useState<SlotDraft>(emptySlotDraft);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+  const [serviceFormOpen, setServiceFormOpen] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', description: '' });
+  const [serviceFormError, setServiceFormError] = useState('');
 
-  const openDepartments = useMemo(() => {
-    return departments
-      .filter((dept) => dept.isActive)
-      .map((dept) => {
-        const deptDoctorIds = new Set(
-          doctors.filter((d) => d.departmentId === dept.id).map((d) => d.id),
-        );
-        const openSlotsCount = slots.filter(
-          (s) => deptDoctorIds.has(s.doctorId) && s.status !== 'closed',
-        ).length;
-        return {
-          ...dept,
-          openSlotsCount,
-        };
-      })
-      .filter((dept) => dept.openSlotsCount > 0);
-  }, [departments, doctors, slots]);
+  const activeServices = useMemo(() => services.filter((service) => service.isActive), [services]);
+  const openServices = useMemo(
+    () => activeServices.filter((service) => slots.some((slot) => slot.serviceId === service.id && slot.status !== 'closed')),
+    [activeServices, slots],
+  );
 
-  const effectiveDepartmentFilter = useMemo(() => {
-    if (departmentFilter === 'all') return 'all';
-    return openDepartments.some((d) => d.id === departmentFilter) ? departmentFilter : 'all';
-  }, [departmentFilter, openDepartments]);
+  const effectiveServiceFilter = useMemo(() => {
+    if (serviceFilter === 'all') return 'all';
+    return openServices.some((service) => service.id === serviceFilter) ? serviceFilter : 'all';
+  }, [openServices, serviceFilter]);
 
   const canModifySlot = (slot: ScheduleSlot) => {
     if (role === 'staff_admin') return true;
@@ -186,11 +176,8 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   }, [calendarView, weekDays, weekStart]);
 
   const filteredDoctors = useMemo(
-    () =>
-      doctors.filter(
-        (doctor) => effectiveDepartmentFilter === 'all' || doctor.departmentId === effectiveDepartmentFilter,
-      ),
-    [effectiveDepartmentFilter, doctors],
+    () => doctors.filter((doctor) => effectiveServiceFilter === 'all' || slots.some((slot) => slot.doctorId === doctor.id && slot.serviceId === effectiveServiceFilter)),
+    [doctors, effectiveServiceFilter, slots],
   );
 
   const visibleSlots = useMemo(
@@ -198,15 +185,13 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
       slots
         .filter((slot) => displayDays.includes(slot.slotDate))
         .filter((slot) => {
-          const doctor = doctors.find((item) => item.id === slot.doctorId);
-          const matchesDepartment =
-            effectiveDepartmentFilter === 'all' || doctor?.departmentId === effectiveDepartmentFilter;
+          const matchesService = effectiveServiceFilter === 'all' || slot.serviceId === effectiveServiceFilter;
           const matchesDoctor = doctorFilter === 'all' || slot.doctorId === doctorFilter;
           const matchesStatus = statusFilter === 'all' || slot.status === statusFilter;
-          return matchesDepartment && matchesDoctor && matchesStatus;
+          return matchesService && matchesDoctor && matchesStatus;
         })
         .sort((a, b) => `${a.slotDate}${a.startTime}`.localeCompare(`${b.slotDate}${b.startTime}`)),
-    [effectiveDepartmentFilter, doctorFilter, displayDays, doctors, slots, statusFilter],
+    [effectiveServiceFilter, doctorFilter, displayDays, slots, statusFilter],
   );
 
   const weekSummary = useMemo(() => {
@@ -225,20 +210,27 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
       setFormError('คุณไม่มีสิทธิ์แก้ไขรอบตรวจของแพทย์ท่านอื่น');
       return;
     }
+    if (!slot && suggestedDate && suggestedDate < TODAY_DATE) {
+      setNotice('');
+      setFormError('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้');
+      return;
+    }
     setFormError('');
     setNotice('');
     setEditingSlotId(slot?.id ?? null);
     const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : '';
+    const initialDate = suggestedDate && suggestedDate >= TODAY_DATE ? suggestedDate : (weekDays[0] >= TODAY_DATE ? weekDays[0] : TODAY_DATE);
     setDraft(
       slot
         ? {
             doctorId: slot.doctorId,
+            serviceId: slot.serviceId,
             slotDate: slot.slotDate,
             startTime: slot.startTime,
             endTime: slot.endTime,
             maxCapacity: slot.maxCapacity,
           }
-        : { ...emptySlotDraft, doctorId: defaultDoctorId, slotDate: suggestedDate ?? weekDays[0] },
+        : { ...emptySlotDraft, doctorId: defaultDoctorId, serviceId: activeServices[0]?.id ?? '', slotDate: initialDate },
     );
     setFormOpen(true);
   };
@@ -254,6 +246,10 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
 
   const saveSlot = async () => {
     if (role === 'patient') return;
+    if (!editingSlotId && draft.slotDate < TODAY_DATE) {
+      setFormError('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้');
+      return;
+    }
     try {
       setIsSaving(true);
       setFormError('');
@@ -272,6 +268,26 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const openServiceForm = (service?: import('@/types/schedule').ScheduleService) => {
+    setServiceFormError('');
+    setEditingServiceId(service?.id ?? null);
+    setServiceDraft(service ? { code: service.code, name: service.name, description: service.description } : { code: '', name: '', description: '' });
+    setServiceFormOpen(true);
+  };
+
+  const saveService = async () => {
+    setServiceFormError('');
+    const result = await persistService({ ...serviceDraft }, editingServiceId ?? undefined);
+    if (!result.ok) {
+      setServiceFormError(result.error);
+      return;
+    }
+    setServiceFormOpen(false);
+    setEditingServiceId(null);
+    setServiceDraft({ code: '', name: '', description: '' });
+    setNotice(editingServiceId ? 'อัปเดตบริการแล้ว' : 'เพิ่มบริการแล้ว');
   };
 
   const toggleClosed = async (slot: ScheduleSlot) => {
@@ -442,9 +458,24 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 )}
               </label>
               <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-sm font-medium text-slate-700">บริการที่เปิดจอง</span>
+                <select
+                  value={draft.serviceId}
+                  onChange={(event) => setDraft((current) => ({ ...current, serviceId: event.target.value }))}
+                  className={inputClass}
+                >
+                  <option value="">เลือกบริการ</option>
+                  {activeServices.map((service) => (
+                    <option key={service.id} value={service.id}>{service.code} · {service.name}</option>
+                  ))}
+                </select>
+                {!activeServices.length && <span className="text-xs text-rose-600">ยังไม่มีบริการที่เปิดใช้งาน กด “เพิ่มบริการ” ก่อนสร้างรอบ</span>}
+              </label>
+              <label className="space-y-1.5 sm:col-span-2">
                 <span className="text-sm font-medium text-slate-700">วันที่</span>
                 <input
                   type="date"
+                  min={editingSlotId ? undefined : TODAY_DATE}
                   value={draft.slotDate}
                   onChange={(event) => setDraft((current) => ({ ...current, slotDate: event.target.value }))}
                   className={inputClass}
@@ -523,6 +554,37 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
         </div>
       )}
 
+      {serviceFormOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="service-form-title"
+          onClick={(event) => { if (event.target === event.currentTarget) setServiceFormOpen(false); }}
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200/80">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-600">Service catalog</p>
+                <h2 id="service-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingServiceId ? 'แก้ไขบริการ' : 'เพิ่มบริการใหม่'}</h2>
+                <p className="mt-1 text-xs text-slate-500">บริการนี้จะถูกเลือกไปเปิดรับจองในวันและรอบของหมอ</p>
+              </div>
+              <button type="button" onClick={() => setServiceFormOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100" aria-label="ปิดแบบฟอร์มบริการ"><X className="h-5 w-5" aria-hidden="true" /></button>
+            </div>
+            <div className="space-y-4">
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">รหัสบริการ<input className={inputClass} value={serviceDraft.code} onChange={(event) => setServiceDraft((current) => ({ ...current, code: event.target.value }))} placeholder="เช่น GEN-CONSULT" /></label>
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">ชื่อบริการ<input className={inputClass} value={serviceDraft.name} onChange={(event) => setServiceDraft((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น ตรวจโรคทั่วไป" /></label>
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">คำอธิบาย<textarea rows={3} className={`${inputClass} h-auto py-3`} value={serviceDraft.description} onChange={(event) => setServiceDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+              {serviceFormError && <p className="text-sm font-medium text-rose-700" role="alert">{serviceFormError}</p>}
+            </div>
+            <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <button type="button" onClick={() => setServiceFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button>
+              <button type="button" onClick={saveService} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67]">บันทึกบริการ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <section className="order-5 overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80" aria-label="ปฏิทินตารางตรวจ">
         {isLoading ? (
@@ -569,17 +631,18 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {role !== 'patient' && <button type="button" onClick={() => openServiceForm()} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800"><Plus className="h-3.5 w-3.5" aria-hidden="true" />เพิ่มบริการ</button>}
             <label className="relative">
-              <span className="sr-only">กรองแผนก</span>
+              <span className="sr-only">กรองบริการ</span>
               <Filter className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
               <select
-                value={effectiveDepartmentFilter}
-                onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }}
+                value={effectiveServiceFilter}
+                onChange={(event) => { setServiceFilter(event.target.value); setDoctorFilter('all'); }}
                 className="h-10 min-w-36 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               >
-                <option value="all">ทุกแผนก</option>
-                {openDepartments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
+                <option value="all">ทุกบริการ</option>
+                {openServices.map((service) => (
+                  <option key={service.id} value={service.id}>{service.name}</option>
                 ))}
               </select>
             </label>
@@ -672,6 +735,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             slots={visibleSlots}
             doctors={doctors}
             departments={departments}
+            services={services}
             canModifySlot={canModifySlot}
             canCreate={role !== 'patient'}
             onCreate={openSlotForm}
@@ -705,13 +769,14 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                           slot={slot}
                           doctors={doctors}
                           departments={departments}
+                          services={services}
                           canModify={canModifySlot(slot)}
                           onEdit={() => openSlotForm(slot)}
                           onToggleClosed={() => toggleClosed(slot)}
                         />
                       ))}
                       {daySlots.length === 0 && (
-                        role === 'patient' ? (
+                        role === 'patient' || date < TODAY_DATE ? (
                           <div className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
                             ไม่มีรอบตรวจ
                           </div>
@@ -738,7 +803,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                         <div className="text-xs font-semibold text-sky-700">{dayNames[parsed.getUTCDay()]}</div>
                         <h2 className="font-bold text-slate-950">{formatShortDate(date)}</h2>
                       </div>
-                      {role !== 'patient' && (
+                      {role !== 'patient' && date >= TODAY_DATE && (
                         <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-sky-700 hover:bg-sky-50">
                           <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบ
                         </button>
@@ -751,6 +816,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                           slot={slot}
                           doctors={doctors}
                           departments={departments}
+                          services={services}
                           canModify={canModifySlot(slot)}
                           onEdit={() => openSlotForm(slot)}
                           onToggleClosed={() => toggleClosed(slot)}
@@ -778,6 +844,7 @@ function SlotCard({
   slot,
   doctors,
   departments,
+  services,
   canModify = true,
   onEdit,
   onToggleClosed,
@@ -785,12 +852,14 @@ function SlotCard({
   slot: ScheduleSlot;
   doctors: import('@/types/schedule').ScheduleDoctor[];
   departments: import('@/types/schedule').ScheduleDepartment[];
+  services: import('@/types/schedule').ScheduleService[];
   canModify?: boolean;
   onEdit: () => void;
   onToggleClosed: () => void;
 }) {
   const doctor = doctors.find((item) => item.id === slot.doctorId);
   const department = departments.find((item) => item.id === doctor?.departmentId);
+  const service = services.find((item) => item.id === slot.serviceId);
   const statusConfig: Record<ScheduleSlotStatus, { label: string; card: string; pill: string; icon: typeof CircleDot }> = {
     available: { label: 'เปิดรับ', card: 'border-emerald-200 bg-emerald-50/60', pill: 'bg-emerald-100 text-emerald-800', icon: CircleDot },
     full: { label: 'เต็ม', card: 'border-sky-200 bg-sky-50/70', pill: 'bg-sky-100 text-sky-800', icon: Users },
@@ -823,7 +892,7 @@ function SlotCard({
         )}
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-950"><Clock3 className="h-4 w-4 text-slate-500" aria-hidden="true" /><span className="tabular-nums">{slot.startTime}–{slot.endTime}</span></div>
-      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0a2540] text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{doctor?.fullName ?? 'ไม่พบแพทย์'}</div><div className="truncate text-[10px] text-slate-500">{department?.name ?? 'ไม่พบแผนก'}</div></div></div>
+      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0a2540] text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{service?.name ?? 'ไม่พบบริการ'}</div><div className="truncate text-[10px] text-slate-500">{doctor?.fullName ?? 'ไม่พบแพทย์'} · {department?.name ?? 'ไม่พบแผนก'}</div></div></div>
       <div className="mt-3"><div className="mb-1.5 flex items-center justify-between text-[10px] text-slate-500"><span>จองแล้ว</span><strong className="text-slate-700 tabular-nums">{slot.bookedCount}/{slot.maxCapacity}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-white/80"><div className={`h-full rounded-full ${slot.status === 'closed' ? 'bg-rose-400' : slot.status === 'full' ? 'bg-sky-500' : 'bg-emerald-500'}`} style={{ width: `${occupancy}%` }} /></div></div>
     </article>
   );
@@ -835,6 +904,7 @@ function CalendarBoard({
   slots,
   doctors,
   departments,
+  services,
   canModifySlot,
   canCreate = true,
   onCreate,
@@ -847,6 +917,7 @@ function CalendarBoard({
   slots: ScheduleSlot[];
   doctors: import('@/types/schedule').ScheduleDoctor[];
   departments: import('@/types/schedule').ScheduleDepartment[];
+  services: import('@/types/schedule').ScheduleService[];
   canModifySlot: (slot: ScheduleSlot) => boolean;
   canCreate?: boolean;
   onCreate: (slot?: ScheduleSlot, suggestedDate?: string) => void;
@@ -871,6 +942,7 @@ function CalendarBoard({
                   slot={slot}
                   doctors={doctors}
                   departments={departments}
+                  services={services}
                   canModify={canModifySlot(slot)}
                   onEdit={() => onEdit(slot)}
                   onToggleClosed={() => onToggle(slot)}
@@ -879,13 +951,13 @@ function CalendarBoard({
             </div>
           ))}
           {slots.filter((slot) => slot.slotDate === date).length === 0 && (
-            canCreate ? (
+            canCreate && date >= TODAY_DATE ? (
               <button type="button" onClick={() => onCreate(undefined, date)} className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจวันนี้
               </button>
             ) : (
               <div className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-                ไม่มีรอบตรวจวันนี้
+                {date >= TODAY_DATE ? 'ไม่มีรอบตรวจวันนี้' : 'ไม่มีรอบตรวจ'}
               </div>
             )
           )}
@@ -950,13 +1022,14 @@ function CalendarBoard({
                       <MiniSlot
                         slot={slot}
                         doctors={doctors}
+                        services={services}
                         canModify={canModifySlot(slot)}
                         onEdit={() => onEdit(slot)}
                       />
                     </div>
                   ))}
                 </div>
-                {canCreate && (
+                {canCreate && date >= TODAY_DATE && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -981,23 +1054,26 @@ function CalendarBoard({
 function MiniSlot({
   slot,
   doctors,
+  services,
   canModify = true,
   onEdit,
 }: {
   slot: ScheduleSlot;
   doctors: import('@/types/schedule').ScheduleDoctor[];
+  services: import('@/types/schedule').ScheduleService[];
   canModify?: boolean;
   onEdit: () => void;
 }) {
   const doctor = doctors.find((item) => item.id === slot.doctorId);
+  const service = services.find((item) => item.id === slot.serviceId);
   const colors = slot.status === 'closed' ? 'border-rose-500 bg-rose-50 text-rose-800' : slot.status === 'full' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-sky-500 bg-sky-50 text-sky-800';
   if (!canModify) {
     return (
       <div
         className={`mb-1 block w-full truncate rounded border-l-2 px-2 py-1 text-left text-[10px] font-semibold opacity-75 cursor-default ${colors}`}
-        title={`${slot.startTime} ${doctor?.fullName ?? ''} (ดูเท่านั้น)`}
+        title={`${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''} (ดูเท่านั้น)`}
       >
-        <span className="tabular-nums">{slot.startTime}</span> · {doctor?.fullName?.replace('นพ. ', '').replace('พญ. ', '') ?? 'ไม่พบแพทย์'} · {slot.bookedCount}/{slot.maxCapacity}
+        <span className="tabular-nums">{slot.startTime}</span> · {service?.name ?? 'ไม่พบบริการ'} · {slot.bookedCount}/{slot.maxCapacity}
       </div>
     );
   }
@@ -1006,9 +1082,9 @@ function MiniSlot({
       type="button"
       onClick={onEdit}
       className={`mb-1 block w-full truncate rounded border-l-2 px-2 py-1 text-left text-[10px] font-semibold ${colors}`}
-      title={`${slot.startTime} ${doctor?.fullName ?? ''}`}
+      title={`${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''}`}
     >
-      <span className="tabular-nums">{slot.startTime}</span> · {doctor?.fullName?.replace('นพ. ', '').replace('พญ. ', '') ?? 'ไม่พบแพทย์'} · {slot.bookedCount}/{slot.maxCapacity}
+      <span className="tabular-nums">{slot.startTime}</span> · {service?.name ?? 'ไม่พบบริการ'} · {slot.bookedCount}/{slot.maxCapacity}
     </button>
   );
 }

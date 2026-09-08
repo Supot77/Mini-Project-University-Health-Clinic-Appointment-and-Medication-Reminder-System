@@ -2,6 +2,8 @@ import {
   MOCK_DEPARTMENTS,
   MOCK_DOCTOR_ACCOUNT_OPTIONS,
   MOCK_DOCTORS,
+  MOCK_DAILY_SERVICE_OFFERINGS,
+  MOCK_SERVICES,
   MOCK_SLOTS,
   MOCK_WEEKLY_SCHEDULES,
 } from '@/mocks/scheduleData';
@@ -10,6 +12,7 @@ import type {
   DoctorAvailabilityTemplate,
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleService,
   ScheduleSlot,
 } from '@/types/schedule';
 import type { UserRole } from '@/types/database';
@@ -26,6 +29,8 @@ export class MockShopRepository implements ShopRepository {
   private state: ShopSnapshot = {
     departments: structuredClone(MOCK_DEPARTMENTS),
     doctors: structuredClone(MOCK_DOCTORS),
+    services: structuredClone(MOCK_SERVICES),
+    dailyServiceOfferings: structuredClone(MOCK_DAILY_SERVICE_OFFERINGS),
     slots: structuredClone(MOCK_SLOTS),
     doctorAccounts: structuredClone(MOCK_DOCTOR_ACCOUNT_OPTIONS),
     weeklySchedules: structuredClone(MOCK_WEEKLY_SCHEDULES),
@@ -63,6 +68,37 @@ export class MockShopRepository implements ShopRepository {
     return { ok: true, value: department.isActive ? 'disabled' : 'enabled' };
   }
 
+  saveService(input: Omit<ScheduleService, 'id' | 'isActive'>, id?: string): ShopResult<ScheduleService> {
+    const name = input.name.trim();
+    const code = input.code.trim().toUpperCase();
+    if (!name || !code) return { ok: false, error: 'กรอกรหัสและชื่อบริการก่อนบันทึก' };
+    const duplicate = this.state.services.some(
+      (service) => service.id !== id && (service.code.toLowerCase() === code.toLowerCase() || service.name.trim().toLowerCase() === name.toLowerCase()),
+    );
+    if (duplicate) return { ok: false, error: 'รหัสหรือชื่อบริการนี้มีอยู่แล้ว' };
+    const existing = id ? this.state.services.find((service) => service.id === id) : undefined;
+    if (id && !existing) return { ok: false, error: 'ไม่พบบริการที่ต้องการแก้ไข' };
+    const service: ScheduleService = existing
+      ? { ...existing, ...input, code, name, description: input.description.trim() }
+      : { ...input, id: crypto.randomUUID(), code, name, description: input.description.trim(), isActive: true, hasHistory: false };
+    this.state.services = existing
+      ? this.state.services.map((item) => (item.id === id ? service : item))
+      : [...this.state.services, service];
+    return { ok: true, value: service };
+  }
+
+  toggleService(id: string): ShopResult<'deleted' | 'disabled' | 'enabled'> {
+    const service = this.state.services.find((item) => item.id === id);
+    if (!service) return { ok: false, error: 'ไม่พบบริการ' };
+    const referenced = service.hasHistory || this.state.dailyServiceOfferings.some((offering) => offering.serviceId === id);
+    if (service.isActive && !referenced) {
+      this.state.services = this.state.services.filter((item) => item.id !== id);
+      return { ok: true, value: 'deleted' };
+    }
+    this.state.services = this.state.services.map((item) => item.id === id ? { ...item, isActive: !item.isActive } : item);
+    return { ok: true, value: service.isActive ? 'disabled' : 'enabled' };
+  }
+
   saveDoctor(input: Omit<ScheduleDoctor, 'id'>, id?: string): ShopResult<ScheduleDoctor> {
     if (!input.profileId || !input.departmentId || !input.specialty.trim()) {
       return { ok: false, error: 'เลือกบัญชีแพทย์ แผนก และกรอกความเชี่ยวชาญก่อนบันทึก' };
@@ -97,15 +133,27 @@ export class MockShopRepository implements ShopRepository {
     return { ok: true, value: next };
   }
 
-  saveSlot(input: SlotInput, id?: string): ShopResult<ScheduleSlot> {
+  saveSlot(input: SlotInput, id?: string, todayDate?: string): ShopResult<ScheduleSlot> {
     const existing = id ? this.state.slots.find((item) => item.id === id) : undefined;
     if (id && !existing) return { ok: false, error: 'ไม่พบรอบตรวจที่ต้องการแก้ไข' };
     const bookedCount = existing?.bookedCount ?? 0;
-    const valid = validateSlot(input, this.state.slots, this.state.doctors, this.state.departments, id, bookedCount);
+    const valid = validateSlot(input, this.state.slots, this.state.doctors, this.state.services, id, bookedCount, todayDate);
     if (!valid.ok) return valid;
+    const existingOffering = this.state.dailyServiceOfferings.find(
+      (offering) => offering.serviceId === input.serviceId && offering.doctorId === input.doctorId && offering.offeringDate === input.slotDate,
+    );
+    const offering = existingOffering ?? {
+      id: crypto.randomUUID(),
+      serviceId: input.serviceId,
+      doctorId: input.doctorId,
+      offeringDate: input.slotDate,
+      isActive: true,
+      createdBy: 'mock',
+    };
+    if (!existingOffering) this.state.dailyServiceOfferings = [...this.state.dailyServiceOfferings, offering];
     const slot: ScheduleSlot = existing
-      ? { ...existing, ...input, status: deriveSlotStatus(bookedCount, input.maxCapacity, existing.status) }
-      : { ...input, id: crypto.randomUUID(), bookedCount: 0, status: 'available', hasHistory: false };
+      ? { ...existing, ...input, serviceOfferingId: offering.id, status: deriveSlotStatus(bookedCount, input.maxCapacity, existing.status) }
+      : { ...input, id: crypto.randomUUID(), serviceOfferingId: offering.id, bookedCount: 0, status: 'available', hasHistory: false };
     this.state.slots = existing
       ? this.state.slots.map((item) => item.id === id ? slot : item)
       : [...this.state.slots, slot];
@@ -135,7 +183,6 @@ export class MockShopRepository implements ShopRepository {
     const doctor = this.state.doctors.find((item) => item.id === input.doctorId);
     if (!doctor) return { ok: false, error: 'ไม่พบแพทย์' };
     if (doctor.availability !== 'active') return { ok: false, error: 'แพทย์ต้องเปิดใช้งานก่อนตั้งตาราง', field: 'doctorId' };
-    if (!this.state.departments.some((department) => department.id === doctor.departmentId && department.isActive)) return { ok: false, error: 'ระบุแผนกที่เปิดใช้งานก่อนตั้งตาราง', field: 'doctorId' };
     if (!this.state.doctors.some((doctor) => doctor.id === input.doctorId)) return { ok: false, error: 'ไม่พบแพทย์' };
     if (![1, 2, 3, 4, 5].includes(input.weekday)) return { ok: false, error: 'ตารางประจำใช้ได้เฉพาะวันจันทร์ถึงศุกร์', field: 'weekday' };
     if (!Number.isInteger(input.defaultCapacity) || input.defaultCapacity < 1) return { ok: false, error: 'ความจุต้องเป็นจำนวนเต็มมากกว่า 0', field: 'defaultCapacity' };
@@ -152,7 +199,7 @@ export class MockShopRepository implements ShopRepository {
     return { ok: true, value: schedule };
   }
 
-  generateSlotsForRange(startDate: string, endDate: string, today: string): ShopResult<number> {
+  generateSlotsForRange(startDate: string, endDate: string, today: string, requestedServiceId?: string): ShopResult<number> {
     if (!startDate || !endDate || startDate > endDate) return { ok: false, error: 'ช่วงวันที่สร้างรอบไม่ถูกต้อง' };
     let created = 0;
     for (let date = startDate; date <= endDate; date = shiftDate(date, 1)) {
@@ -163,7 +210,16 @@ export class MockShopRepository implements ShopRepository {
           const startTime = fromMinutes(minutes); const endTime = fromMinutes(minutes + schedule.slotDurationMinutes);
           const exists = this.state.slots.some((slot) => slot.doctorId === schedule.doctorId && slot.slotDate === date && slot.startTime === startTime && slot.endTime === endTime);
           const overlaps = this.state.slots.some((slot) => slot.doctorId === schedule.doctorId && slot.slotDate === date && startTime < slot.endTime && endTime > slot.startTime);
-          if (!exists && !overlaps && date >= today) { this.state.slots.push({ id: crypto.randomUUID(), doctorId: schedule.doctorId, slotDate: date, startTime, endTime, maxCapacity: schedule.defaultCapacity, bookedCount: 0, status: 'available', hasHistory: false }); created += 1; }
+          if (!exists && !overlaps && date >= today) {
+            const serviceId = requestedServiceId ?? this.state.services.find((service) => service.id === `service-${this.state.doctors.find((doctor) => doctor.id === schedule.doctorId)?.departmentId}`)?.id ?? this.state.services.find((service) => service.isActive)?.id;
+            if (!serviceId) continue;
+            const offering = this.state.dailyServiceOfferings.find((item) => item.serviceId === serviceId && item.doctorId === schedule.doctorId && item.offeringDate === date) ?? {
+              id: crypto.randomUUID(), serviceId, doctorId: schedule.doctorId, offeringDate: date, isActive: true, createdBy: 'mock',
+            };
+            if (!this.state.dailyServiceOfferings.some((item) => item.id === offering.id)) this.state.dailyServiceOfferings.push(offering);
+            this.state.slots.push({ id: crypto.randomUUID(), doctorId: schedule.doctorId, serviceOfferingId: offering.id, serviceId, slotDate: date, startTime, endTime, maxCapacity: schedule.defaultCapacity, bookedCount: 0, status: 'available', hasHistory: false });
+            created += 1;
+          }
         }
       }
     }

@@ -1,9 +1,11 @@
 import { clinicMockTables } from './clinicDatabase';
 import type {
+  DailyServiceOffering,
   DepartmentTone,
   DoctorAccountOption,
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleService,
   ScheduleSlot,
   DoctorWeeklySchedule,
 } from '@/types/schedule';
@@ -25,6 +27,24 @@ export const MOCK_DEPARTMENTS: ScheduleDepartment[] = clinicMockTables.departmen
   hasHistory: true,
   ...(departmentPresentation[department.id] ?? { code: 'DEP', room: 'ยังไม่กำหนด', tone: 'sky' as const }),
 }));
+
+export const MOCK_SERVICES: ScheduleService[] = MOCK_DEPARTMENTS.map((department) => ({
+  id: `service-${department.id}`,
+  code: department.code ?? department.id.replace(/^dept-/, '').toUpperCase(),
+  name: department.name,
+  description: department.description,
+  isActive: true,
+  hasHistory: true,
+}));
+
+const serviceForDoctor = new Map(
+  clinicMockTables.doctors.map((doctor) => [doctor.id, `service-${doctor.department_id ?? 'general'}`]),
+);
+
+const serviceForSlot = (doctorId: string) => serviceForDoctor.get(doctorId) ?? MOCK_SERVICES[0]?.id ?? '';
+
+const offeringKey = (doctorId: string, serviceId: string, offeringDate: string) =>
+  `offering-${doctorId}-${serviceId}-${offeringDate}`;
 
 const initials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 
@@ -51,6 +71,8 @@ export const MOCK_DOCTOR_ACCOUNT_OPTIONS: DoctorAccountOption[] = [
 export const MOCK_SLOTS: ScheduleSlot[] = clinicMockTables.appointment_slots.map((slot) => ({
   id: slot.id,
   doctorId: slot.doctor_id,
+  serviceOfferingId: offeringKey(slot.doctor_id, serviceForSlot(slot.doctor_id), slot.slot_date),
+  serviceId: serviceForSlot(slot.doctor_id),
   slotDate: slot.slot_date,
   startTime: slot.start_time,
   endTime: slot.end_time,
@@ -59,6 +81,22 @@ export const MOCK_SLOTS: ScheduleSlot[] = clinicMockTables.appointment_slots.map
   status: slot.status,
   hasHistory: slot.booked_count > 0,
 }));
+
+export const MOCK_DAILY_SERVICE_OFFERINGS: DailyServiceOffering[] = Array.from(
+  new Map(
+    MOCK_SLOTS.map((slot) => [
+      slot.serviceOfferingId,
+      {
+        id: slot.serviceOfferingId,
+        serviceId: slot.serviceId,
+        doctorId: slot.doctorId,
+        offeringDate: slot.slotDate,
+        isActive: true,
+        createdBy: 'seed',
+      },
+    ]),
+  ).values(),
+);
 
 const weekdays = [1, 2, 3, 4, 5] as const;
 export const MOCK_WEEKLY_SCHEDULES: DoctorWeeklySchedule[] = MOCK_DOCTORS.flatMap((doctor) =>

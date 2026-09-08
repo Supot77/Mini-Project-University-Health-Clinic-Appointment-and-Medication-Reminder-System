@@ -27,6 +27,7 @@ describe('MockShopRepository', () => {
     const before = repository.snapshot();
     const result = repository.saveSlot({
       doctorId: 'profile-stephen-strange',
+      serviceId: 'service-general',
       slotDate: '2026-09-07',
       startTime: '09:15',
       endTime: '09:45',
@@ -60,7 +61,31 @@ describe('MockShopRepository', () => {
     expect(repository.saveDoctor({
       profileId: 'profile-gregory-house', fullName: 'Gregory House', initials: 'GH', email: 'gh@test', specialty: 'ทดสอบ', departmentId: 'dept-general', availability: 'active',
     }, 'missing')).toMatchObject({ ok: false });
-    expect(repository.saveSlot({ doctorId: 'profile-stephen-strange', slotDate: '2026-09-07', startTime: '09:30', endTime: '10:00', maxCapacity: 1 }, 'missing')).toMatchObject({ ok: false });
+    expect(repository.saveSlot({ doctorId: 'profile-stephen-strange', serviceId: 'service-general', slotDate: '2026-09-07', startTime: '09:30', endTime: '10:00', maxCapacity: 1 }, 'missing')).toMatchObject({ ok: false });
+    expect(repository.snapshot()).toEqual(before);
+  });
+
+  it('rejects adding a slot for a past date', () => {
+    const repository = new MockShopRepository();
+    const before = repository.snapshot();
+    const serviceId = before.services[0].id;
+    const result = repository.saveSlot(
+      {
+        doctorId: 'profile-stephen-strange',
+        serviceId,
+        slotDate: '2026-09-04',
+        startTime: '09:00',
+        endTime: '09:30',
+        maxCapacity: 1,
+      },
+      undefined,
+      '2026-09-07',
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้',
+      field: 'slotDate',
+    });
     expect(repository.snapshot()).toEqual(before);
   });
 

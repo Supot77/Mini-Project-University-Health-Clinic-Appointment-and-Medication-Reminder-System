@@ -1,17 +1,17 @@
 # 03. แบบข้อมูลและ ER
 
-ปรับปรุง 7 กันยายน 2569 (2026-09-07) — เอกสารนี้ยึดตาม schema snapshot ล่าสุดที่ส่งมา ซึ่งมี 11 ตารางหลัก, 3 roles และฟิลด์ contract ที่ใช้งานอยู่จริงในแบบข้อมูล
+ปรับปรุง 8 กันยายน 2569 (2026-09-08) — เพิ่ม catalog บริการและ daily offering สำหรับการจอง โดยคง departments เป็นข้อมูลความถนัดของแพทย์
 
-> ไฟล์ schema snapshot จาก Supabase เป็นข้อมูลอ้างอิง ไม่ควรรันตรง ๆ เพราะไม่มีลำดับ Foreign Key ที่รับประกันได้ ให้ใช้ `supabase/migrations/01_schema.sql` สำหรับฐานใหม่ หรือ `supabase/migrate_existing_schema_preserve_data.sql` สำหรับฐานเดิมที่ต้องรักษาข้อมูล
+> ไฟล์ schema snapshot จาก Supabase เป็นข้อมูลอ้างอิง ไม่ควรรันตรง ๆ เพราะไม่มีลำดับ Foreign Key ที่รับประกันได้ ให้ใช้ migration ตามลำดับ รวม `supabase/migrations/13_services_and_daily_offerings.sql` สำหรับฐานที่มี schema เดิมแล้ว
 
 ## สถานะและขอบเขต
 
-- Runtime ปัจจุบันใช้ mock repository และข้อมูลสังเคราะห์ ไม่เรียกฐานข้อมูลจริง
-- Schema ปัจจุบันมี 11 ตาราง: `profiles`, `departments`, `doctors`, `appointment_slots`, `appointments`, `medical_records`, `medications`, `inventory_logs`, `medication_reminders`, `medication_logs`, `notifications`
+- Runtime หลักใช้ Supabase ผ่าน database repository; mock repository ใช้เฉพาะ automated tests/offline demo ที่ระบุชัด
+- Schema ปัจจุบันมี 13 ตาราง รวม `services` และ `daily_service_offerings`: `profiles`, `departments`, `services`, `doctors`, `daily_service_offerings`, `appointment_slots`, `appointments`, `medical_records`, `medications`, `inventory_logs`, `medication_reminders`, `medication_logs`, `notifications`
 - บทบาทใน `profiles.role` เหลือ 3 ค่าเท่านั้น: `patient`, `medical`, `staff_admin`
 - `medical` ครอบคลุมแพทย์และเภสัชกร; `staff_admin` ครอบคลุมเจ้าหน้าที่และแอดมิน
 - ตาราง normalized รุ่นเก่า เช่น `reschedule_proposals`, `prescription_items`, `dispensing_items`, `stock_reservations`, `email_jobs` และ `broadcasts` ไม่อยู่ใน scope ปัจจุบัน
-- คอลัมน์ compatibility ที่ยังอยู่ใน 11 ตารางไม่ใช่หลักฐานว่าเปิดใช้ workflow เก่าแล้ว
+- คอลัมน์ compatibility ที่ยังอยู่ใน 13 ตารางไม่ใช่หลักฐานว่าเปิดใช้ workflow เก่าแล้ว
 
 ## RLS สำหรับค้นหาผู้ป่วย
 
@@ -34,7 +34,7 @@ CREATE POLICY "Staff admin and medical can view profiles"
 | --- | --- | --- | --- |
 | 1 | ผู้ป่วย | `patient` | โปรไฟล์ นัด รายการเตือน และข้อมูลของตน |
 | 2 | แพทย์/เภสัชกร | `medical` | ตรวจรักษา บันทึกผล และจัดการยาตามหน้าที่ |
-| 3 | เจ้าหน้าที่/แอดมิน | `staff_admin` | จัดการบัญชี แผนก slot นัดหมาย รายการเตือน Dashboard และ Broadcast |
+| 3 | เจ้าหน้าที่/แอดมิน | `staff_admin` | จัดการบัญชี แผนก บริการ daily offering slot นัดหมาย รายการเตือน Dashboard และ Broadcast |
 
 นักศึกษา/บุคลากรเป็น `patient_type` ไม่ใช่ role เพิ่ม และผู้ใช้หนึ่งบัญชีมี role เดียว
 
@@ -43,9 +43,11 @@ CREATE POLICY "Staff admin and medical can view profiles"
 | ตาราง | หน้าที่และความสัมพันธ์ | ข้อจำกัดหลัก |
 | --- | --- | --- |
 | `profiles` | บัญชีผู้ใช้ ขยายจาก `auth.users` | role ต้องเป็น 3 ค่า canonical |
-| `departments` | แผนกการรักษา | ปิดใช้งานด้วย `is_active` โดยไม่ลบประวัติ |
+| `departments` | กลุ่มความถนัด/สาขางานของแพทย์ | ปิดใช้งานด้วย `is_active` โดยไม่ใช้เป็นหน่วยที่ผู้ป่วยจอง |
+| `services` | catalog บริการที่เปิดให้ผู้ป่วยจอง | `code` ไม่ซ้ำ; ปิดใช้งานด้วย `is_active` |
 | `doctors` | รายละเอียดแพทย์ที่เป็นบัญชี `medical` | ผูกกับ `profiles` และ `departments` |
-| `appointment_slots` | รอบเวลาตรวจของแพทย์ | status คือ `available`, `full`, `closed` |
+| `daily_service_offerings` | บริการของแพทย์ที่เปิดในวันนั้น | unique ต่อ `service_id`, `doctor_id`, `offering_date` |
+| `appointment_slots` | รอบเวลาตรวจของบริการในวันนั้น | ต้องอ้าง `daily_service_offering_id`; status คือ `available`, `full`, `closed` |
 | `appointments` | การนัดของผู้ป่วยกับ slot | ผูกผู้ป่วยและ slot; ไม่มี auto-reschedule/auto-no-show |
 | `medical_records` | ผลตรวจและรายการยาแบบ JSONB | ผูกนัด ผู้ป่วย และแพทย์ |
 | `medications` | Catalog และยอดคลังยา | ยอด stock ใช้ประกอบการจ่ายยา |
@@ -65,7 +67,9 @@ erDiagram
     profiles ||--o{ notifications : receives
     profiles ||--o| doctors : has_doctor_detail
     departments ||--o{ doctors : groups
-    doctors ||--o{ appointment_slots : owns
+    services ||--o{ daily_service_offerings : catalogs
+    doctors ||--o{ daily_service_offerings : provides
+    daily_service_offerings ||--o{ appointment_slots : opens
     appointment_slots ||--o{ appointments : holds
     appointments ||--o| medical_records : produces
     medications ||--o{ inventory_logs : changes
@@ -126,12 +130,39 @@ erDiagram
 
 เภสัชกรใช้ role `medical` ได้โดยไม่จำเป็นต้องมีแถวใน `doctors`
 
-### 4. `appointment_slots`
+### 4A. `services`
+
+| ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสบริการ |
+| `code` | `text` | ไม่ได้ | — | UNIQUE | รหัสบริการที่ staff ใช้อ้างอิง |
+| `name` | `text` | ไม่ได้ | — | CHECK ไม่เป็นค่าว่าง | ชื่อบริการที่ผู้ป่วยเห็น |
+| `description` | `text` | ได้ | — | — | รายละเอียดบริการ |
+| `is_active` | `boolean` | ไม่ได้ | `true` | — | เปิด/ปิดบริการสำหรับการสร้าง offering ใหม่ |
+| `created_by` | `uuid` | ได้ | — | FK → `profiles.id` | ผู้สร้าง |
+| `created_at`, `updated_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้าง/แก้ไข |
+
+### 4B. `daily_service_offerings`
+
+| ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสบริการของแพทย์ในวันนั้น |
+| `service_id` | `uuid` | ไม่ได้ | — | FK → `services.id` | บริการที่เปิดให้จอง |
+| `doctor_id` | `uuid` | ไม่ได้ | — | FK → `doctors.id` | แพทย์ผู้ให้บริการ |
+| `offering_date` | `date` | ไม่ได้ | — | — | วันที่เปิดบริการ |
+| `is_active` | `boolean` | ไม่ได้ | `true` | — | เปิด/ปิดการจองของ offering |
+| `created_by` | `uuid` | ได้ | — | FK → `profiles.id` | ผู้สร้าง |
+| `created_at`, `updated_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้าง/แก้ไข |
+
+มี UNIQUE `(service_id, doctor_id, offering_date)` และ composite FK ที่บังคับให้ slot ใช้ doctor/date เดียวกับ offering
+
+### 4C. `appointment_slots`
 
 | ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
 | --- | --- | --- | --- | --- | --- |
 | `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสรอบตรวจ |
 | `doctor_id` | `uuid` | ไม่ได้ | — | FK → `doctors.id` | แพทย์เจ้าของรอบ |
+| `daily_service_offering_id` | `uuid` | ไม่ได้ | — | FK → `daily_service_offerings(id, doctor_id, offering_date)` | บริการของแพทย์ในวันนั้น |
 | `slot_date` | `date` | ไม่ได้ | — | — | วันที่ตรวจ |
 | `start_time` | `time` | ไม่ได้ | — | — | เวลาเริ่ม |
 | `end_time` | `time` | ไม่ได้ | — | — | เวลาสิ้นสุด; domain rule ต้องมากกว่าเวลาเริ่ม |
@@ -258,7 +289,9 @@ erDiagram
 | `profiles` → `appointments` | ผู้ป่วยหนึ่งบัญชีมีนัดของตนได้หลายรายการ |
 | `profiles` → `medical_records` | ผู้ป่วยเห็นผลตรวจของตนตามสิทธิ์ |
 | `profiles` → `notifications` | ข้อความเป็นของผู้รับรายบัญชี |
-| `departments` → `doctors` → `appointment_slots` | แผนกจัดกลุ่มแพทย์ และแพทย์เป็นเจ้าของ slot |
+| `departments` → `doctors` | แผนกใช้บอกความถนัด/สาขางานของแพทย์ |
+| `services` → `daily_service_offerings` → `appointment_slots` | catalog บริการถูกเปิดให้แพทย์ในวันนั้น แล้วจึงสร้างเวลาจอง |
+| `doctors` → `daily_service_offerings` | แพทย์เป็นผู้ให้บริการในวันนั้น |
 | `appointment_slots` → `appointments` → `medical_records` | slot รองรับการจอง และนัดเป็นต้นทางของผลตรวจ |
 | `medications` → `inventory_logs` | ยาหนึ่งรายการมีประวัติคลังหลายรายการ |
 | `medications` → `medication_reminders` → `medication_logs` | ยานำไปสร้างรายการเตือน และผู้ป่วยบันทึกผลแต่ละรายการ |
@@ -267,13 +300,14 @@ erDiagram
 
 ## ลำดับชีวิตของข้อมูล
 
-1. `staff_admin` เตรียมแผนก แพทย์ และ slot
-2. `patient` เลือก slot จนเกิด `appointments`
-3. `staff_admin` หรือ `medical` จัดการสถานะนัดตามสิทธิ์ที่กำหนด
-4. `medical` บันทึก `medical_records` และรายการยาใน JSONB
-5. งานเภสัชกรใน role `medical` ตรวจ stock และบันทึก `inventory_logs`
-6. `staff_admin` จัดทำ `medication_reminders`; `patient` บันทึก `medication_logs`
-7. คำสั่ง Broadcast สร้าง `notifications` ให้ผู้รับ โดยไม่มีตาราง Broadcast ถาวร
+1. `medical` หรือ `staff_admin` เตรียม catalog บริการ; แผนกใช้จัดกลุ่มความถนัดของแพทย์
+2. `medical` หรือ `staff_admin` เปิด `daily_service_offerings` ของบริการ+แพทย์+วันที่ แล้วสร้าง slot
+3. `patient` เลือกบริการ/วันที่/แพทย์/slot จนเกิด `appointments`
+4. `staff_admin` หรือ `medical` จัดการสถานะนัดตามสิทธิ์ที่กำหนด
+5. `medical` บันทึก `medical_records` และรายการยาใน JSONB
+6. งานเภสัชกรใน role `medical` ตรวจ stock และบันทึก `inventory_logs`
+7. `staff_admin` จัดทำ `medication_reminders`; `patient` บันทึก `medication_logs`
+8. คำสั่ง Broadcast สร้าง `notifications` ให้ผู้รับ โดยไม่มีตาราง Broadcast ถาวร
 
 ## ตารางและ workflow ที่ไม่ใช้
 
@@ -290,6 +324,7 @@ erDiagram
 3. `supabase/migrations/06_consolidate_roles.sql`
 4. `supabase/migrations/07_add_contract_fields.sql`
 5. `supabase/migrations/08_allow_medical_patient_search.sql`
+6. `supabase/migrations/13_services_and_daily_offerings.sql`
 
 ไม่ต้องรัน `03_normalized_transactions.sql`, `04_broadcast_notification_type.sql` หรือ `05_simplify_broadcast_recipients.sql` เพราะเป็น migration ของแบบ normalized รุ่นเก่า
 
@@ -299,6 +334,16 @@ erDiagram
 2. รัน `supabase/migrate_existing_schema_preserve_data.sql`
 3. ถ้า legacy table มีข้อมูล สคริปต์จะหยุดและ rollback; ต้อง archive/export ก่อนจึงค่อยตัดสินใจลบ
 4. ตรวจสอบ role และจำนวนข้อมูลใน `profiles`, `departments`, `medications`
+
+### เพิ่มบริการและ offering ในฐานเดิม
+
+หลังตรวจ target และสำรองข้อมูลแล้ว ให้รัน migration ใหม่ด้วยคำสั่ง:
+
+```bash
+supabase db push
+```
+
+Migration `13_services_and_daily_offerings.sql` จะเพิ่ม `services`, `daily_service_offerings`, เพิ่ม `appointment_slots.daily_service_offering_id`, backfill slot เดิมด้วยบริการ legacy ตาม department และเปิด RLS ให้ผู้ป่วยอ่านเฉพาะรายการ active ส่วนการรันกับฐาน remote ต้องทำบน development/staging ที่ยืนยันแล้วเท่านั้น
 
 ### กรณี reset ทั้งฐาน
 

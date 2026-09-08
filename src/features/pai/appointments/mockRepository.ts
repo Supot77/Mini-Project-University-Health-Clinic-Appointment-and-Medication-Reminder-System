@@ -10,9 +10,9 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 function makeSnapshot(): AppointmentSnapshot {
   const slots: BookingSlot[] = [];
   for (const date of ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-14', '2026-09-21']) {
-    for (const [index, department, doctor] of [[1, 'เวชปฏิบัติทั่วไป', 'นพ.กิตติ สุขใจ'], [2, 'ทันตกรรม', 'ทพญ.ธารา ยิ้มดี'], [3, 'กายภาพบำบัด', 'พญ.ปวีณ์ ใจดี']] as const) {
+    for (const [index, service, department, doctor] of [[1, 'ตรวจโรคทั่วไป', 'เวชปฏิบัติทั่วไป', 'นพ.กิตติ สุขใจ'], [2, 'ตรวจสุขภาพช่องปาก', 'ทันตกรรม', 'ทพญ.ธารา ยิ้มดี'], [3, 'กายภาพบำบัด', 'กายภาพบำบัด', 'พญ.ปวีณ์ ใจดี']] as const) {
       for (const [start, end] of [['09:00', '09:30'], ['09:30', '10:00'], ['10:00', '10:30']]) {
-        slots.push({ id: `${date}-${index}-${start}`, date, start, end, department, doctorId: [DEMO_DOCTOR_ID, 'profile-charles-xavier', 'profile-bruce-banner'][index - 1], doctor, capacity: 3, reservedByOthers: start === '09:30' && date !== DEMO_TODAY ? 3 : 0, closed: start === '10:00' && index === 2 });
+        slots.push({ id: `${date}-${index}-${start}`, date, start, end, service, department, doctorId: [DEMO_DOCTOR_ID, 'profile-charles-xavier', 'profile-bruce-banner'][index - 1], doctor, capacity: 3, reservedByOthers: start === '09:30' && date !== DEMO_TODAY ? 3 : 0, closed: start === '10:00' && index === 2 });
       }
     }
   }
@@ -35,7 +35,8 @@ export function appointmentSnapshotFromSharedMock(tables: ClinicMockTables): App
   const doctors = new Map(tables.doctors.map((doctor) => [doctor.id, doctor]));
   const slots = tables.appointment_slots.map((slot) => {
     const doctor = doctors.get(slot.doctor_id);
-    return { id: slot.id, date: slot.slot_date, start: slot.start_time.slice(0, 5), end: slot.end_time.slice(0, 5), doctorId: slot.doctor_id, doctor: profiles.get(slot.doctor_id)?.full_name ?? 'ไม่ระบุแพทย์', department: departments.get(doctor?.department_id ?? '')?.name ?? 'ไม่ระบุแผนก', capacity: slot.max_capacity, reservedByOthers: slot.booked_count, closed: slot.status === 'closed' };
+    const department = departments.get(doctor?.department_id ?? '')?.name ?? 'ไม่ระบุแผนก';
+    return { id: slot.id, date: slot.slot_date, start: slot.start_time.slice(0, 5), end: slot.end_time.slice(0, 5), doctorId: slot.doctor_id, doctor: profiles.get(slot.doctor_id)?.full_name ?? 'ไม่ระบุแพทย์', service: department, department, capacity: slot.max_capacity, reservedByOthers: slot.booked_count, closed: slot.status === 'closed' };
   });
   return { slots, appointments: tables.appointments.map((item) => ({ id: item.id, patientId: item.user_id, patient: profiles.get(item.user_id)?.full_name ?? 'ไม่ระบุผู้ป่วย', slotId: item.slot_id, queue: item.queue_number ? `Q${String(item.queue_number).padStart(3, '0')}` : '-', reason: item.reason ?? '', status: item.status })) };
 }
