@@ -42,6 +42,9 @@ describe('role-based dashboard requirements', () => {
 
     const accountsMetric = result.data?.metrics.find((item) => item.id === 'accounts');
     expect(accountsMetric?.href).toBe('/staff/accounts');
+
+    const departmentMetric = result.data?.metrics.find((item) => item.id === 'department-workload');
+    expect(departmentMetric?.href).toBe('/departments');
   });
 
   it('allows a patient to see only their own appointments', async () => {

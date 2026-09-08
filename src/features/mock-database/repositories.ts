@@ -815,8 +815,8 @@ export function createClinicRepositories(
               tables.departments.length,
               'department-workload',
               'แผนกที่ให้บริการ',
-              'ดูภาระงานแยกตามแผนก',
-              '/schedules',
+              'จัดการและดูภาระงานแผนก',
+              '/departments',
               'violet',
             ),
 
