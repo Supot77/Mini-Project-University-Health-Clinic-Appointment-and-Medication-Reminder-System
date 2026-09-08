@@ -5,8 +5,27 @@ import { createClient } from '@/utils/supabase/client';
 import type {
   Notification,
   NotificationType,
+  UserRole,
 } from '@/types/database';
 import type { BroadcastHistoryItem } from '@/features/dashboard/types';
+
+export interface StaffProfileDirectoryItem {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: UserRole;
+  isActive: boolean;
+}
+
+interface StaffProfileRpcRow {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  role: UserRole;
+  is_active: boolean;
+}
 
 const supabase = createClient();
 
@@ -224,3 +243,20 @@ export async function getDashboardStats() {
     lowStockMedications: lowStockMeds?.length ?? 0,
   };
 }
+
+// --- Staff Directory ---
+export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryItem[]> {
+  const { data, error } = await supabase.rpc('get_staff_profile_directory');
+  if (error) {
+    throw new Error(error.message);
+  }
+  return ((data as StaffProfileRpcRow[] | null) ?? []).map((row) => ({
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone,
+    role: row.role,
+    isActive: row.is_active,
+  }));
+}
+
