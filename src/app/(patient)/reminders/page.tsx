@@ -21,7 +21,8 @@ import {
   getAvailableMedications, 
   seedSampleReminders
 } from '@/services/reminderService';
-import type { Medication, MedicationReminderWithMedication } from '@/types/database';
+import type { Medication, MedicationReminderWithMedication, Profile } from '@/types/database';
+import { getPatients, getProfile } from '@/services/authService';
 
 // รายชื่อผู้ป่วยตัวอย่างสำหรับคลินิก (ใช้เลือกผู้ป่วยเพื่อจ่ายยา)
 interface PatientOption {
@@ -94,25 +95,94 @@ function mapReminderToDisplay(reminder: MedicationReminderWithMedication): Medic
 }
 
 export default function RemindersPage() {
-  const { user, role } = useAuth();
-  const isPatient = role === 'patient';
+  const { user, role, isLoading: authLoading } = useAuth();
+
+  // ตรวจสอบสิทธิ์: อนุญาตเฉพาะบุคลากรทางการแพทย์หรือผู้ดูแลระบบคลินิกเท่านั้นที่สามารถจ่ายยา/แก้ไข/ลบยาได้
+  const effectiveRole = (user?.role || role || '').toString().toLowerCase().trim();
+  const canManageMedication = !authLoading && ['medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'].includes(effectiveRole);
+  const isPatient = !canManageMedication;
+
   const { repositories } = useClinicMockDatabase();
 
   const [selectedPatientOverride, setSelectedPatientOverride] = useState<string | null>(null);
+  const [dbPatients, setDbPatients] = useState<PatientOption[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
+
+  // ดึงข้อมูลโปรไฟล์ของผู้ใช้ปัจจุบัน (สำหรับผู้ป่วย เพื่อนำข้อมูลการแพ้ยา/รหัสนักศึกษามาแสดง)
+  useEffect(() => {
+    if (user && isUuid(user.id)) {
+      getProfile(user.id)
+        .then((p) => {
+          if (p) setCurrentUserProfile(p);
+        })
+        .catch((e) => console.warn('Could not fetch user profile:', e));
+    }
+  }, [user]);
+
+  // โหลดรายชื่อผู้ป่วยจากฐานข้อมูล Supabase (ตาราง profiles โดย role = 'patient')
+  const loadPatients = useCallback(async () => {
+    try {
+      const patients = await getPatients();
+      if (patients && patients.length > 0) {
+        const mapped: PatientOption[] = patients.map((p) => ({
+          id: p.id,
+          name: p.full_name || 'ไม่ระบุชื่อ',
+          studentId: p.student_id || '-',
+          allergies: p.allergies || null,
+          phone: p.phone || undefined,
+          gender: undefined,
+        }));
+        setDbPatients(mapped);
+        return;
+      }
+    } catch (err) {
+      console.warn('Could not fetch patients from Supabase profiles:', err);
+    }
+
+    // Fallback: หากยังไม่ต่อ DB หรือใช้ mock repository
+    try {
+      const { data: mockProfiles } = await repositories.profiles.list();
+      if (mockProfiles && mockProfiles.length > 0) {
+        const patientProfiles = mockProfiles.filter((p) => p.role === 'patient');
+        if (patientProfiles.length > 0) {
+          const mapped: PatientOption[] = patientProfiles.map((p) => ({
+            id: p.id,
+            name: p.full_name || 'ไม่ระบุชื่อ',
+            studentId: p.student_id || '-',
+            allergies: p.allergies || null,
+            phone: p.phone || undefined,
+            gender: undefined,
+          }));
+          setDbPatients(mapped);
+          return;
+        }
+      }
+    } catch (mockErr) {
+      console.warn('Could not fetch patients from mock repository:', mockErr);
+    }
+
+    setDbPatients(CLINIC_PATIENTS);
+  }, [repositories.profiles]);
+
+  useEffect(() => {
+    if (canManageMedication) {
+      void loadPatients();
+    }
+  }, [canManageMedication, loadPatients]);
 
   // คำนวณผู้ป่วยที่เลือกอย่างปลอดภัยและสอดคล้องกับบทบาท
   const selectedPatientId = useMemo(() => {
-    if (role === 'patient') {
-      return (user && isUuid(user.id)) ? user.id : 'profile-peter-parker';
+    if (!canManageMedication) {
+      return (user && isUuid(user.id)) ? user.id : (user?.id || 'profile-peter-parker');
     }
     if (selectedPatientOverride) {
       return selectedPatientOverride;
     }
-    if (user && isUuid(user.id)) {
-      return user.id;
+    if (dbPatients.length > 0) {
+      return dbPatients[0].id;
     }
-    return 'profile-peter-parker';
-  }, [role, user, selectedPatientOverride]);
+    return CLINIC_PATIENTS[0].id;
+  }, [canManageMedication, user, selectedPatientOverride, dbPatients]);
 
   const [medicationList, setMedicationList] = useState<MedicationDisplayItem[]>([]);
   const [availableMeds, setAvailableMeds] = useState<Medication[]>([]);
@@ -142,26 +212,33 @@ export default function RemindersPage() {
   // Modal State: ยืนยันการลบรายการยา
   const [deletingItem, setDeletingItem] = useState<MedicationDisplayItem | null>(null);
 
-  // รายชื่อผู้ป่วยทั้งหมด (รวมผู้ใช้ปัจจุบันถ้ามี)
-  const allPatients = useMemo(() => {
-    if (user) {
-      const currentPatientOpt: PatientOption = {
-        id: user.id,
-        name: user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
-        studentId: (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+  // รายชื่อผู้ป่วยทั้งหมด (แยกตามสิทธิ์)
+  const allPatients = useMemo<PatientOption[]>(() => {
+    // หากเป็นผู้ป่วย ให้มีเฉพาะตนเองเท่านั้น ห้ามเลือกคนอื่น
+    if (!canManageMedication) {
+      if (user) {
+        return [{
+          id: user.id,
+          name: currentUserProfile?.full_name || user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
+          studentId: currentUserProfile?.student_id || (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+          allergies: currentUserProfile?.allergies || (user as unknown as { allergies?: string | null }).allergies || null,
+          phone: currentUserProfile?.phone || (user as unknown as { phone?: string }).phone,
+        }];
+      }
+      return [{
+        id: 'profile-peter-parker',
+        name: 'ผู้ป่วย',
+        studentId: '-',
         allergies: null,
-      };
+      }];
+    }
 
-      if (role === 'patient') {
-        return [currentPatientOpt];
-      }
-
-      if (!CLINIC_PATIENTS.some((p) => p.id === user.id)) {
-        return [currentPatientOpt, ...CLINIC_PATIENTS];
-      }
+    // หากเป็นบุคลากรทางการแพทย์ แสดงรายชื่อผู้ป่วยจาก Database
+    if (dbPatients.length > 0) {
+      return dbPatients;
     }
     return CLINIC_PATIENTS;
-  }, [user, role]);
+  }, [canManageMedication, user, currentUserProfile, dbPatients]);
 
   // ข้อมูลผู้ป่วยที่เลือก
   const currentPatient = useMemo(() => {
@@ -472,7 +549,7 @@ export default function RemindersPage() {
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
+    if (!canManageMedication || !editingItem) return;
 
     if (!editMedId) {
       alert('กรุณาเลือกตัวยา');
@@ -594,7 +671,7 @@ export default function RemindersPage() {
             </div>
 
               {/* --- 1. แถบเลือกผู้ป่วย (Patient Selector เอาไว้จ่ายยา) --- */}
-              {role !== 'patient' ? (
+              {canManageMedication ? (
                 <div className="flex items-center gap-3 bg-white border border-slate-200 p-2 rounded-2xl shadow-2xs">
                   <div className="flex items-center gap-2 px-2 text-slate-600">
                     <User size={18} className="text-blue-600 shrink-0" />
@@ -683,7 +760,7 @@ export default function RemindersPage() {
                       </div>
                    </div>
 
-                   {!isPatient && (
+                   {canManageMedication && (
                      <div className="flex items-center gap-2 w-full sm:w-auto">
                        {medicationList.length === 0 && (
                          <button 
@@ -735,7 +812,7 @@ export default function RemindersPage() {
                           : 'คลิกปุ่ม "จ่ายยา / เพิ่มยา" เพื่อสั่งจ่ายยาและตั้งรอบเตือนยาให้ผู้ป่วยรายนี้'}
                       </p>
                     </div>
-                    {!isPatient && (
+                    {canManageMedication && (
                       <div className="flex justify-center gap-3 pt-2">
                         <button 
                           onClick={() => void handleSeedSample()}
@@ -801,7 +878,7 @@ export default function RemindersPage() {
                                  </div>
                                </div>
 
-                               {!isPatient && (
+                               {canManageMedication && (
                                  <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
                                    <button 
                                      type="button"
