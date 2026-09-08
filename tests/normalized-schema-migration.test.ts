@@ -11,6 +11,7 @@ const roleUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/06_
 const contractFieldsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/07_add_contract_fields.sql'), 'utf8');
 const patientSearchRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/08_allow_medical_patient_search.sql'), 'utf8');
 const doctorProfilesRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/10_allow_view_doctor_profiles.sql'), 'utf8');
+const departmentsRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/11_allow_public_view_departments.sql'), 'utf8');
 
 const normalizedTables = [
   'reschedule_proposals',
@@ -81,6 +82,14 @@ describe('normalized transaction migration', () => {
     expect(doctorProfilesRlsUpgrade).toContain('EXISTS (SELECT 1 FROM public.doctors WHERE doctors.id = profiles.id)');
     expect(doctorProfilesRlsUpgrade).toContain('CREATE POLICY "Anyone can view doctors"');
     expect(doctorProfilesRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
+  });
+
+  it('allows public and unauthenticated users to view departments', () => {
+    expect(departmentsRlsUpgrade).toContain('DROP POLICY IF EXISTS "Authenticated users can view departments"');
+    expect(departmentsRlsUpgrade).toContain('DROP POLICY IF EXISTS "Anyone can view departments"');
+    expect(departmentsRlsUpgrade).toContain('CREATE POLICY "Anyone can view departments"');
+    expect(departmentsRlsUpgrade).toContain('USING (true)');
+    expect(departmentsRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
   });
 
   it('creates every approved transaction table and enables default-deny RLS', () => {

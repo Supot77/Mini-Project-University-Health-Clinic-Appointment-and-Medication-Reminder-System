@@ -102,3 +102,11 @@ CREATE POLICY "Anyone can view doctors"
   ON public.doctors FOR SELECT
   USING (true);
 
+-- เปิดให้อ่านแผนกได้ทั่วไป (Public Read) เพื่อให้ตารางตรวจแสดงชื่อแผนกแม้ยังไม่ล็อกอิน
+DROP POLICY IF EXISTS "Authenticated users can view departments" ON public.departments;
+DROP POLICY IF EXISTS "Anyone can view departments" ON public.departments;
+CREATE POLICY "Anyone can view departments"
+  ON public.departments FOR SELECT
+  USING (true);
+
+
