@@ -100,3 +100,17 @@ export async function searchPatients(
     totalCount: total,
   };
 }
+
+export async function getPatients(): Promise<Profile[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'patient')
+    .order('full_name', { ascending: true });
+
+  if (error) {
+    console.warn('Error fetching patients from Supabase profiles:', error);
+    return [];
+  }
+  return data ?? [];
+}
