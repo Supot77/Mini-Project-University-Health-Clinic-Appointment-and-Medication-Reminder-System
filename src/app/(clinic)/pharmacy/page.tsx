@@ -17,8 +17,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import type { Medication } from '@/types/database';
+
+const supabase = createClient();
 
 type StockStatus = 'sufficient' | 'reorder' | 'critical' | 'expired' | 'inactive';
 
