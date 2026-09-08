@@ -141,3 +141,29 @@ CREATE POLICY "Staff and medical can manage medication logs"
     )
   );
 
+-- 4. เพิ่มตัวอย่างยาลงในตาราง medications (กรณีที่ยังไม่มีข้อมูลยา)
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Paracetamol 500mg', 'เม็ด', 'ยาแก้ปวดลดไข้', 500, 50, 'ยาแก้ปวดและลดไข้ทั่วไป'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Paracetamol 500mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Amoxicillin 500mg', 'แคปซูล', 'ยาปฏิชีวนะ', 200, 30, 'ยาปฏิชีวนะกลุ่มเพนิซิลลิน'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Amoxicillin 500mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Omeprazole 20mg', 'แคปซูล', 'ยาระบบทางเดินอาหาร', 300, 40, 'ยาลดกรดในกระเพาะอาหาร'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Omeprazole 20mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Loratadine 10mg', 'เม็ด', 'ยาแก้แพ้', 150, 20, 'ยาแก้แพ้ ลดอาการคัดจมูก'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Loratadine 10mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Ibuprofen 400mg', 'เม็ด', 'ยาแก้ปวดลดไข้', 250, 30, 'ยาแก้ปวด ลดไข้ ต้านการอักเสบ'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Ibuprofen 400mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Cetirizine 10mg', 'เม็ด', 'ยาแก้แพ้', 200, 25, 'ยาแก้แพ้ ลดอาการคันและผื่น'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Cetirizine 10mg');
+
+

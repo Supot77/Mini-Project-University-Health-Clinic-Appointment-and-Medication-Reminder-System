@@ -40,3 +40,4 @@ CREATE POLICY "Staff and medical can manage medication logs"
       WHERE id = medication_logs.reminder_id AND user_id = auth.uid()
     )
   );
+

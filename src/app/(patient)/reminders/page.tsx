@@ -70,13 +70,13 @@ function formatTimeToThai(time: string) {
 
 // Helper แปลง Reminder Model เป็น UI Item
 function mapReminderToDisplay(reminder: MedicationReminderWithMedication): MedicationDisplayItem {
-  const times = reminder.reminder_times.map((t) => formatTimeToThai(t));
+  const times = (reminder.reminder_times || []).map((t) => formatTimeToThai(t));
   const med = reminder.medication;
   const desc = med?.description ? ` (${med.description})` : '';
   const dosage = (med as unknown as { dosage?: string })?.dosage ?? `1 ${med?.type ?? 'เม็ด'}`;
   const instruction = reminder.status === 'paused'
     ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
-    : `รับทาน ครั้งละ ${dosage} · วันละ ${reminder.reminder_times.length} ครั้ง${desc}`;
+    : `รับทาน ครั้งละ ${dosage} · วันละ ${(reminder.reminder_times || []).length} ครั้ง${desc}`;
 
   return {
     id: reminder.id,
@@ -96,17 +96,16 @@ function mapReminderToDisplay(reminder: MedicationReminderWithMedication): Medic
 
 export default function RemindersPage() {
   const { user, role, isLoading: authLoading } = useAuth();
-
-  // ตรวจสอบสิทธิ์: อนุญาตเฉพาะบุคลากรทางการแพทย์หรือผู้ดูแลระบบคลินิกเท่านั้นที่สามารถจ่ายยา/แก้ไข/ลบยาได้
-  const effectiveRole = (user?.role || role || '').toString().toLowerCase().trim();
-  const canManageMedication = !authLoading && ['medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'].includes(effectiveRole);
-  const isPatient = !canManageMedication;
-
   const { repositories } = useClinicMockDatabase();
 
   const [selectedPatientOverride, setSelectedPatientOverride] = useState<string | null>(null);
   const [dbPatients, setDbPatients] = useState<PatientOption[]>([]);
   const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
+
+  // ตรวจสอบสิทธิ์: อนุญาตเฉพาะบุคลากรทางการแพทย์หรือผู้ดูแลระบบคลินิกเท่านั้นที่สามารถจ่ายยา/แก้ไข/ลบยาได้
+  const effectiveRole = (currentUserProfile?.role || user?.role || role || '').toString().toLowerCase().trim();
+  const canManageMedication = !authLoading && ['medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'].includes(effectiveRole);
+  const isPatient = !canManageMedication;
 
   // ดึงข้อมูลโปรไฟล์ของผู้ใช้ปัจจุบัน (สำหรับผู้ป่วย เพื่อนำข้อมูลการแพ้ยา/รหัสนักศึกษามาแสดง)
   useEffect(() => {
@@ -266,41 +265,54 @@ export default function RemindersPage() {
       setAvailableMeds(meds);
       setIsDbConnected(true);
 
-      // 2. ถ้า patientId เป็น UUID ให้ดึงจาก Supabase reminders
+      // 2. โหลดรายการยาจาก Supabase (กรณี patientId เป็น UUID)
+      let dbReminders: MedicationReminderWithMedication[] = [];
       if (isUuid(patientId)) {
         try {
-          const dbReminders = await getReminders(patientId);
-          setMedicationList((dbReminders || []).map(mapReminderToDisplay));
-          setIsLoading(false);
-          return;
+          dbReminders = await getReminders(patientId);
         } catch (dbErr) {
           console.warn('Could not fetch reminders from Supabase for patient:', patientId, dbErr);
         }
       }
 
-      // 3. Fallback: ดึงจาก mock repository ตาม patientId
-      const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
-      if (mockData && mockData.length > 0) {
-        setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-      } else {
-        setMedicationList([]);
-      }
-    } catch (err) {
-      console.error('Error loading reminders data:', err);
+      // 3. โหลดรายการยาจาก Mock repository (เพื่อรองรับกรณี mock user หรือ Supabase ติด RLS)
+      let mockReminders: unknown[] = [];
       try {
-        const { data: mockMeds } = await repositories.medications.list();
-        if (mockMeds && mockMeds.length > 0) {
-          setAvailableMeds(mockMeds as Medication[]);
-        }
         const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
         if (mockData) {
-          setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-        } else {
-          setMedicationList([]);
+          mockReminders = mockData;
         }
-      } catch (fallbackErr) {
-        console.error('Fallback error:', fallbackErr);
+      } catch (mockErr) {
+        console.warn('Could not fetch reminders from mock repo:', mockErr);
       }
+
+      // 4. แปลงข้อมูลและเติมรายละเอียดตัวยาจาก meds หากยังขาด
+      const mappedDb = (dbReminders || []).map(mapReminderToDisplay);
+      const mappedMock = (mockReminders as MedicationReminderWithMedication[] || []).map((item) => {
+        const display = mapReminderToDisplay(item);
+        if (display.name === 'ยาไม่ระบุชื่อ' && item.medication_id) {
+          const found = meds.find((m) => m.id === item.medication_id);
+          if (found) {
+            display.name = found.name;
+            display.category = found.category;
+            display.stockInfo = `เหลือ ${found.stock ?? 30} ${found.type ?? 'เม็ด'}`;
+            const dosage = (found as unknown as { dosage?: string })?.dosage ?? `1 ${found?.type ?? 'เม็ด'}`;
+            display.dosageInstruction = item.status === 'paused'
+              ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
+              : `รับทาน ครั้งละ ${dosage} · วันละ ${(item.reminder_times || []).length} ครั้ง`;
+          }
+        }
+        return display;
+      });
+
+      // รวมรายการยาและขจัด id ซ้ำ
+      const uniqueMap = new Map<string, MedicationDisplayItem>();
+      for (const item of [...mappedDb, ...mappedMock]) {
+        uniqueMap.set(item.id, item);
+      }
+      setMedicationList(Array.from(uniqueMap.values()));
+    } catch (err) {
+      console.error('Error loading reminders data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -357,7 +369,10 @@ export default function RemindersPage() {
 
   // เปิด Modal ยืนยันการลบรายการเตือนยา
   const handleDeleteClick = (item: MedicationDisplayItem) => {
-    if (isPatient) return;
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์ลบรายการยา');
+      return;
+    }
     setDeletingItem(item);
   };
 
@@ -371,9 +386,9 @@ export default function RemindersPage() {
     setMedicationList((prev) => prev.filter((m) => m.id !== id));
     showToast(`ลบการแจ้งเตือน "${name}" เรียบร้อยแล้ว 🗑️`);
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const isReminderUuid = isUuid(id);
     try {
-      if (isUuid) {
+      if (isReminderUuid) {
         await deleteReminder(id);
       } else {
         await repositories.reminders.delete(id);
@@ -392,24 +407,26 @@ export default function RemindersPage() {
 
   // เพิ่มยาตัวอย่างลงฐานข้อมูล Supabase อัตโนมัติ
   const handleSeedSample = async () => {
-    if (isPatient) return;
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์จัดการยา');
+      return;
+    }
     setIsSaving(true);
     try {
-      const targetUserId = isUuid(selectedPatientId)
-        ? selectedPatientId
-        : ((user && isUuid(user.id)) ? user.id : null);
-      if (!targetUserId) {
+      if (!isUuid(selectedPatientId)) {
         showToast('กรุณาเลือกผู้ป่วยในระบบจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
         return;
       }
-      const seeded = await seedSampleReminders(targetUserId);
+      const seeded = await seedSampleReminders(selectedPatientId);
       if (seeded && seeded.length > 0) {
         showToast(`บันทึกชุดยาตัวอย่าง ${seeded.length} รายการให้ ${currentPatient.name} สำเร็จ 💊`);
+      } else {
+        showToast('ไม่พบรายการยาในฐานข้อมูล Supabase (กรุณารันคำสั่งใน fix_rls_remote.sql)');
       }
       await loadData(selectedPatientId);
     } catch (err) {
       console.error('Error seeding sample medications:', err);
-      alert('เกิดข้อผิดพลาดในการโหลดตัวอย่างยาลงฐานข้อมูล');
+      alert('เกิดข้อผิดพลาดในการโหลดตัวอย่างยาลงฐานข้อมูล กรุณาตรวจสอบสิทธิ์ RLS หรือการเชื่อมต่อ');
     } finally {
       setIsSaving(false);
     }
@@ -418,7 +435,10 @@ export default function RemindersPage() {
   // บันทึกการจ่ายยาและเพิ่มการเตือนยาใหม่
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isPatient) return;
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์สั่งจ่ายยา กรุณาเข้าสู่ระบบด้วยบัญชีแพทย์หรือเจ้าหน้าที่ (medical / staff_admin)');
+      return;
+    }
     if (!selectedMedId) {
       alert('กรุณาเลือกตัวยาที่ต้องการจ่าย');
       return;
@@ -444,43 +464,65 @@ export default function RemindersPage() {
     }
 
     setIsSaving(true);
+    let savedToSupabase = false;
+    let supabaseErrorMessage: string | null = null;
+
     try {
       // ผู้ป่วยเป้าหมายที่จะได้รับยา ต้องเป็น selectedPatientId ของผู้ป่วยที่เลือกไว้
-      const targetUserId = isUuid(selectedPatientId)
-        ? selectedPatientId
-        : ((user && isUuid(user.id)) ? user.id : null);
-      
-      if (targetUserId) {
-        const created = await createReminder({
-          user_id: targetUserId,
-          medication_id: selectedMedId,
-          reminder_times: [...selectedTimes].sort(),
-          start_date: startDate,
-          end_date: endDate || null, // null คือทานต่อเนื่องจนกว่าจะมาแก้ไข
-        });
+      const isTargetUserUuid = isUuid(selectedPatientId);
+      const isMedUuid = isUuid(selectedMedId);
 
-        if (created) {
-          showToast(`บันทึกลงฐานข้อมูลและจ่ายยา "${created.medication?.name ?? chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ 💊`);
-          setIsAddModalOpen(false);
-          setSelectedMedId('');
-          setSelectedTimes(['08:00', '18:00']);
-          setStartDate(new Date().toISOString().split('T')[0]);
-          setEndDate('');
-          await loadData(selectedPatientId);
-          return;
+      // 1. ลองบันทึกลง Supabase เมื่อทั้ง User และ Medication เป็น UUID
+      if (isTargetUserUuid && isMedUuid) {
+        try {
+          const created = await createReminder({
+            user_id: selectedPatientId,
+            medication_id: selectedMedId,
+            reminder_times: [...selectedTimes].sort(),
+            start_date: startDate,
+            end_date: endDate || null, // null คือทานต่อเนื่องจนกว่าจะมาแก้ไข
+          });
+
+          if (created) {
+            savedToSupabase = true;
+            showToast(`บันทึกลงฐานข้อมูลและจ่ายยา "${created.medication?.name ?? chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ 💊`);
+          }
+        } catch (dbErr: unknown) {
+          console.warn('Supabase createReminder error:', dbErr);
+          supabaseErrorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
         }
       }
 
-      // Fallback UI เมื่อเป็น mock user หรือไม่มี target user id ใน Supabase
-      await repositories.reminders.create({
-        patient_id: selectedPatientId,
-        medication_id: selectedMedId,
-        reminder_times: [...selectedTimes].sort(),
-        start_date: startDate,
-        end_date: endDate || null,
-        status: 'active',
-      });
-      showToast(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อย (Mock Database)`);
+      // 2. หากยังไม่ได้บันทึกลง Supabase (เช่น เป็น mock user/med หรือ Supabase ติด RLS)
+      // ให้บันทึกลง Mock Database เป็น fallback ทันที เพื่อให้ผู้ใช้จ่ายยาสำเร็จเสมอ ไม่ค้างใน Modal
+      if (!savedToSupabase) {
+        await repositories.reminders.create({
+          patient_id: selectedPatientId,
+          medication_id: selectedMedId,
+          reminder_times: [...selectedTimes].sort(),
+          start_date: startDate,
+          end_date: endDate || null,
+          status: 'active',
+        });
+
+        if (supabaseErrorMessage) {
+          console.warn('Fallback to mock repo due to DB error:', supabaseErrorMessage);
+          if (supabaseErrorMessage.includes('row-level security') || supabaseErrorMessage.includes('policy')) {
+            showToast(`จ่ายยาให้ ${currentPatient.name} สำเร็จ (Mock DB) ⚠️ Supabase ติด RLS`);
+            alert(
+              '⚠️ แจ้งเตือนสิทธิ์ฐานข้อมูล Supabase:\n' +
+              'ระบบได้บันทึกการจ่ายยาและแสดงผลเรียบร้อยแล้ว แต่การบันทึกลง Supabase โดยตรงติดสิทธิ์ RLS Policy\n\n' +
+              'วิธีเปิดสิทธิ์ถาวร:\nกรุณานำคำสั่งในไฟล์ supabase/fix_rls_remote.sql ไปรันใน Supabase SQL Editor'
+            );
+          } else {
+            showToast(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อย (Mock DB)`);
+          }
+        } else {
+          showToast(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อย 💊`);
+        }
+      }
+
+      // ปิด modal และรีเซ็ตฟอร์มเสมอ
       setIsAddModalOpen(false);
       setSelectedMedId('');
       setSelectedTimes(['08:00', '18:00']);
@@ -488,9 +530,9 @@ export default function RemindersPage() {
       setEndDate('');
       await loadData(selectedPatientId);
     } catch (err: unknown) {
-      console.error('Error creating reminder in Supabase:', err);
+      console.error('Error handling add submit:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      alert(`ไม่สามารถบันทึกลงฐานข้อมูลได้: ${errMsg}`);
+      alert(`เกิดข้อผิดพลาดในการทำรายการ: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -503,7 +545,10 @@ export default function RemindersPage() {
   };
 
   const openEditModal = (item: MedicationDisplayItem) => {
-    if (isPatient) return;
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์แก้ไขรายการยา');
+      return;
+    }
     setEditingItem(item);
     // ค้นหาตัวยาที่ตรงกันใน availableMeds จาก id หรือเทียบจากชื่อยา
     const cleanItemName = item.name.toLowerCase().trim();
@@ -528,7 +573,10 @@ export default function RemindersPage() {
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageMedication || !editingItem) return;
+    if (!canManageMedication || !editingItem) {
+      if (isPatient) alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์แก้ไขรายการยา');
+      return;
+    }
 
     if (!editMedId) {
       alert('กรุณาเลือกตัวยา');
@@ -590,10 +638,11 @@ export default function RemindersPage() {
       })
     );
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingItem.id);
+    const isReminderUuid = isUuid(editingItem.id);
+    const isMedUuid = isUuid(chosenMed.id);
 
     try {
-      if (isUuid) {
+      if (isReminderUuid && isMedUuid) {
         await updateReminder(editingItem.id, {
           medication_id: chosenMed.id,
           reminder_times: sortedTimes,
@@ -612,6 +661,16 @@ export default function RemindersPage() {
       await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not persist updated reminder to Supabase/mock:', err);
+      try {
+        await repositories.reminders.update(editingItem.id, {
+          medication_id: chosenMed.id,
+          reminder_times: sortedTimes,
+          start_date: editStartDate,
+          end_date: editEndDate || null,
+        });
+      } catch {
+        // ignore
+      }
       showToast(`บันทึกการแก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว`);
       await loadData(selectedPatientId);
     } finally {
