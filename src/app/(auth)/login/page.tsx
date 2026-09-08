@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/services/authService';
 
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -107,5 +108,9 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return <LoginForm />;
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-zinc-400">กำลังโหลด...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
 }
