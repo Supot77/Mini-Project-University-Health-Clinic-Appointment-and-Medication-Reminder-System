@@ -100,6 +100,37 @@ function addMinutesToTime(timeStr: string, minutes = 30): string {
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
 }
 
+export function getNextAvailableTimeSlot(
+  slots: ScheduleSlot[],
+  doctorId: string,
+  slotDate: string,
+): { startTime: string; endTime: string } {
+  if (!doctorId || !slotDate) {
+    return { startTime: '08:30', endTime: '09:00' };
+  }
+  const doctorDaySlots = slots.filter(
+    (s) => s.doctorId === doctorId && s.slotDate === slotDate,
+  );
+  if (doctorDaySlots.length === 0) {
+    return { startTime: '08:30', endTime: '09:00' };
+  }
+  const latestEndTime = doctorDaySlots.reduce((max, s) => (s.endTime > max ? s.endTime : max), '08:30');
+
+  // Skip lunch break 12:00–13:00
+  if (latestEndTime >= '12:00' && latestEndTime < '13:00') {
+    return { startTime: '13:00', endTime: '13:30' };
+  }
+  // If latestEndTime is already at or past closing time 16:30
+  if (latestEndTime >= '16:30') {
+    return { startTime: '16:00', endTime: '16:30' };
+  }
+  const nextEndTime = addMinutesToTime(latestEndTime, 30);
+  return {
+    startTime: latestEndTime,
+    endTime: nextEndTime > '16:30' ? '16:30' : nextEndTime,
+  };
+}
+
 export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; actorId: string }) {
   const {
     departments,
@@ -218,8 +249,11 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     setFormError('');
     setNotice('');
     setEditingSlotId(slot?.id ?? null);
-    const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : '';
+    const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : (doctorFilter !== 'all' ? doctorFilter : '');
     const initialDate = suggestedDate && suggestedDate >= TODAY_DATE ? suggestedDate : (weekDays[0] >= TODAY_DATE ? weekDays[0] : TODAY_DATE);
+    const initialTimes = !slot && defaultDoctorId && initialDate
+      ? getNextAvailableTimeSlot(slots, defaultDoctorId, initialDate)
+      : { startTime: '08:30', endTime: '09:00' };
     setDraft(
       slot
         ? {
@@ -230,7 +264,14 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             endTime: slot.endTime,
             maxCapacity: slot.maxCapacity,
           }
-        : { ...emptySlotDraft, doctorId: defaultDoctorId, serviceId: activeServices[0]?.id ?? '', slotDate: initialDate },
+        : {
+            ...emptySlotDraft,
+            doctorId: defaultDoctorId,
+            serviceId: activeServices[0]?.id ?? '',
+            slotDate: initialDate,
+            startTime: initialTimes.startTime,
+            endTime: initialTimes.endTime,
+          },
     );
     setFormOpen(true);
   };
@@ -439,7 +480,20 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 ) : (
                   <select
                     value={draft.doctorId}
-                    onChange={(event) => setDraft((current) => ({ ...current, doctorId: event.target.value }))}
+                    onChange={(event) => {
+                      const newDoctorId = event.target.value;
+                      setDraft((current) => {
+                        const nextTimes = !editingSlotId && newDoctorId && current.slotDate
+                          ? getNextAvailableTimeSlot(slots, newDoctorId, current.slotDate)
+                          : { startTime: current.startTime, endTime: current.endTime };
+                        return {
+                          ...current,
+                          doctorId: newDoctorId,
+                          startTime: nextTimes.startTime,
+                          endTime: nextTimes.endTime,
+                        };
+                      });
+                    }}
                     className={inputClass}
                   >
                     <option value="">เลือกแพทย์</option>
@@ -477,7 +531,20 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                   type="date"
                   min={editingSlotId ? undefined : TODAY_DATE}
                   value={draft.slotDate}
-                  onChange={(event) => setDraft((current) => ({ ...current, slotDate: event.target.value }))}
+                  onChange={(event) => {
+                    const newDate = event.target.value;
+                    setDraft((current) => {
+                      const nextTimes = !editingSlotId && current.doctorId && newDate
+                        ? getNextAvailableTimeSlot(slots, current.doctorId, newDate)
+                        : { startTime: current.startTime, endTime: current.endTime };
+                      return {
+                        ...current,
+                        slotDate: newDate,
+                        startTime: nextTimes.startTime,
+                        endTime: nextTimes.endTime,
+                      };
+                    });
+                  }}
                   className={inputClass}
                 />
               </label>
