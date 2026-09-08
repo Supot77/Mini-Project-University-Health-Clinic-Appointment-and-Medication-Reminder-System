@@ -102,3 +102,42 @@ CREATE POLICY "Anyone can view doctors"
   ON public.doctors FOR SELECT
   USING (true);
 
+-- เปิดให้เจ้าหน้าที่คลินิก/แพทย์ (medical, staff_admin) จัดการข้อมูลการเตือนยาและการจ่ายยาให้ผู้ป่วยได้
+DROP POLICY IF EXISTS "Users can view own reminders" ON public.medication_reminders;
+DROP POLICY IF EXISTS "Users can manage own reminders" ON public.medication_reminders;
+DROP POLICY IF EXISTS "Staff and medical can manage medication reminders" ON public.medication_reminders;
+CREATE POLICY "Staff and medical can manage medication reminders"
+  ON public.medication_reminders
+  FOR ALL
+  TO authenticated
+  USING (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR user_id = auth.uid()
+  )
+  WITH CHECK (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR user_id = auth.uid()
+  );
+
+DROP POLICY IF EXISTS "Users can view own medication logs" ON public.medication_logs;
+DROP POLICY IF EXISTS "Users can manage own medication logs" ON public.medication_logs;
+DROP POLICY IF EXISTS "Staff and medical can manage medication logs" ON public.medication_logs;
+CREATE POLICY "Staff and medical can manage medication logs"
+  ON public.medication_logs
+  FOR ALL
+  TO authenticated
+  USING (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR EXISTS (
+      SELECT 1 FROM public.medication_reminders
+      WHERE id = medication_logs.reminder_id AND user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR EXISTS (
+      SELECT 1 FROM public.medication_reminders
+      WHERE id = medication_logs.reminder_id AND user_id = auth.uid()
+    )
+  );
+

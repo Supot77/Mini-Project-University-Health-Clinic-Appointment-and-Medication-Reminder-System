@@ -196,11 +196,7 @@ export default function RemindersPage() {
   const [selectedMedId, setSelectedMedId] = useState('');
   const [selectedTimes, setSelectedTimes] = useState<string[]>(['08:00', '18:00']);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().split('T')[0];
-  });
+  const [endDate, setEndDate] = useState(''); // ค่าเริ่มต้นว่างไว้เพื่อให้แจ้งเตือนต่อเนื่องจนกว่าจะมาแก้ไข
 
   // Modal State: แก้ไขตัวยาที่จ่ายไปแล้ว
   const [editingItem, setEditingItem] = useState<MedicationDisplayItem | null>(null);
@@ -274,11 +270,9 @@ export default function RemindersPage() {
       if (isUuid(patientId)) {
         try {
           const dbReminders = await getReminders(patientId);
-          if (dbReminders && dbReminders.length > 0) {
-            setMedicationList(dbReminders.map(mapReminderToDisplay));
-            setIsLoading(false);
-            return;
-          }
+          setMedicationList((dbReminders || []).map(mapReminderToDisplay));
+          setIsLoading(false);
+          return;
         } catch (dbErr) {
           console.warn('Could not fetch reminders from Supabase for patient:', patientId, dbErr);
         }
@@ -384,10 +378,12 @@ export default function RemindersPage() {
       } else {
         await repositories.reminders.delete(id);
       }
+      await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not delete reminder from database/mock:', err);
       try {
         await repositories.reminders.delete(id);
+        await loadData(selectedPatientId);
       } catch {
         // ignore
       }
@@ -399,18 +395,18 @@ export default function RemindersPage() {
     if (isPatient) return;
     setIsSaving(true);
     try {
-      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
+      const targetUserId = isUuid(selectedPatientId)
+        ? selectedPatientId
+        : ((user && isUuid(user.id)) ? user.id : null);
       if (!targetUserId) {
-        showToast('กรุณาเข้าสู่ระบบด้วยบัญชีจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
+        showToast('กรุณาเลือกผู้ป่วยในระบบจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
         return;
       }
       const seeded = await seedSampleReminders(targetUserId);
       if (seeded && seeded.length > 0) {
-        setMedicationList(seeded.map(mapReminderToDisplay));
-        showToast(`บันทึกชุดยาตัวอย่าง ${seeded.length} รายการให้ ${currentPatient.name} สำเร็จ`);
-      } else {
-        await loadData(selectedPatientId);
+        showToast(`บันทึกชุดยาตัวอย่าง ${seeded.length} รายการให้ ${currentPatient.name} สำเร็จ 💊`);
       }
+      await loadData(selectedPatientId);
     } catch (err) {
       console.error('Error seeding sample medications:', err);
       alert('เกิดข้อผิดพลาดในการโหลดตัวอย่างยาลงฐานข้อมูล');
@@ -449,69 +445,52 @@ export default function RemindersPage() {
 
     setIsSaving(true);
     try {
-      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
+      // ผู้ป่วยเป้าหมายที่จะได้รับยา ต้องเป็น selectedPatientId ของผู้ป่วยที่เลือกไว้
+      const targetUserId = isUuid(selectedPatientId)
+        ? selectedPatientId
+        : ((user && isUuid(user.id)) ? user.id : null);
       
       if (targetUserId) {
         const created = await createReminder({
           user_id: targetUserId,
           medication_id: selectedMedId,
-          reminder_times: selectedTimes.sort(),
+          reminder_times: [...selectedTimes].sort(),
           start_date: startDate,
-          end_date: endDate || null,
+          end_date: endDate || null, // null คือทานต่อเนื่องจนกว่าจะมาแก้ไข
         });
 
         if (created) {
-          setMedicationList((prev) => [mapReminderToDisplay(created), ...prev]);
-          showToast(`จ่ายยาและบันทึก "${created.medication?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ`);
+          showToast(`บันทึกลงฐานข้อมูลและจ่ายยา "${created.medication?.name ?? chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ 💊`);
           setIsAddModalOpen(false);
           setSelectedMedId('');
           setSelectedTimes(['08:00', '18:00']);
+          setStartDate(new Date().toISOString().split('T')[0]);
+          setEndDate('');
+          await loadData(selectedPatientId);
           return;
         }
       }
 
       // Fallback UI เมื่อเป็น mock user หรือไม่มี target user id ใน Supabase
-      const med = availableMeds.find((m) => m.id === selectedMedId);
-      const newItem: MedicationDisplayItem = {
-        id: `reminder-local-${Date.now()}`,
-        medicationId: selectedMedId,
-        name: med?.name ?? 'ยาที่เลือก',
-        category: med?.category,
-        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
-        times: selectedTimes.sort().map(formatTimeToThai),
-        rawTimes: selectedTimes.sort(),
-        startDate: startDate,
-        endDate: endDate || null,
-        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
-        nextDoseMinutes: 15,
-        isActive: true,
-      };
-      setMedicationList((prev) => [newItem, ...prev]);
-      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
+      await repositories.reminders.create({
+        patient_id: selectedPatientId,
+        medication_id: selectedMedId,
+        reminder_times: [...selectedTimes].sort(),
+        start_date: startDate,
+        end_date: endDate || null,
+        status: 'active',
+      });
+      showToast(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อย (Mock Database)`);
       setIsAddModalOpen(false);
       setSelectedMedId('');
       setSelectedTimes(['08:00', '18:00']);
-    } catch (err) {
+      setStartDate(new Date().toISOString().split('T')[0]);
+      setEndDate('');
+      await loadData(selectedPatientId);
+    } catch (err: unknown) {
       console.error('Error creating reminder in Supabase:', err);
-      // Fallback UI
-      const med = availableMeds.find((m) => m.id === selectedMedId);
-      const newItem: MedicationDisplayItem = {
-        id: `reminder-local-${Date.now()}`,
-        medicationId: selectedMedId,
-        name: med?.name ?? 'ยาที่เลือก',
-        category: med?.category,
-        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
-        times: selectedTimes.sort().map(formatTimeToThai),
-        rawTimes: selectedTimes.sort(),
-        startDate: startDate,
-        endDate: endDate || null,
-        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
-        nextDoseMinutes: 15,
-        isActive: true,
-      };
-      setMedicationList((prev) => [newItem, ...prev]);
-      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
-      setIsAddModalOpen(false);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      alert(`ไม่สามารถบันทึกลงฐานข้อมูลได้: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -630,9 +609,11 @@ export default function RemindersPage() {
         });
       }
       showToast(`แก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว ✏️`);
+      await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not persist updated reminder to Supabase/mock:', err);
       showToast(`บันทึกการแก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว`);
+      await loadData(selectedPatientId);
     } finally {
       setIsSaving(false);
       setEditingItem(null);
@@ -866,6 +847,16 @@ export default function RemindersPage() {
                                         </span>
                                      ))}
                                   </div>
+
+                                  {/* ข้อมูลระยะเวลาทานยา */}
+                                  <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500">
+                                    <span className="font-medium text-slate-600">เริ่ม: {med.startDate || 'วันนี้'}</span>
+                                    <span>•</span>
+                                    <span className={med.endDate ? 'text-slate-600' : 'text-emerald-700 font-semibold flex items-center gap-1'}>
+                                      {!med.endDate && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>}
+                                      {med.endDate ? `สิ้นสุด: ${med.endDate}` : 'ทานต่อเนื่อง (จนกว่าจะมีการแก้ไข)'}
+                                    </span>
+                                  </div>
                                </div>
                             </div>
 
@@ -1020,8 +1011,11 @@ export default function RemindersPage() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {endDate ? `สิ้นสุดวันที่ ${endDate}` : '✨ ปล่อยว่างไว้เพื่อให้แสดงผลต่อเนื่องจนกว่าจะมาแก้ไข'}
+                  </p>
                 </div>
               </div>
 
@@ -1162,8 +1156,11 @@ export default function RemindersPage() {
                     type="date"
                     value={editEndDate}
                     onChange={(e) => setEditEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {editEndDate ? `สิ้นสุดวันที่ ${editEndDate}` : '✨ ปล่อยว่างไว้เพื่อให้แสดงผลต่อเนื่องจนกว่าจะมาแก้ไข'}
+                  </p>
                 </div>
               </div>
 
