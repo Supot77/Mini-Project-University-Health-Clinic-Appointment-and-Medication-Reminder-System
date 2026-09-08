@@ -39,6 +39,9 @@ describe('role-based dashboard requirements', () => {
     expect(result.data?.roleCounts).toHaveLength(3);
     expect(serialized).not.toContain('diagnosis');
     expect(serialized).not.toContain('ไข้และปวดศีรษะ');
+
+    const accountsMetric = result.data?.metrics.find((item) => item.id === 'accounts');
+    expect(accountsMetric?.href).toBe('/staff/accounts');
   });
 
   it('allows a patient to see only their own appointments', async () => {
