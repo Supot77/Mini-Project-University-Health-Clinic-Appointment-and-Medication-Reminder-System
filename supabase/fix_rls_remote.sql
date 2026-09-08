@@ -82,9 +82,9 @@ CREATE POLICY "Doctors can view and create medical records" ON public.medical_re
 -- เปิดให้อ่านข้อมูลยาได้โดยไม่ต้อง Login (Public Read)
 CREATE POLICY "Anyone can view medications" ON public.medications FOR SELECT USING (true);
 
-CREATE POLICY "Pharmacist/Admin can manage medications" ON public.medications FOR ALL USING (public.get_user_role() = 'staff_admin');
-CREATE POLICY "Pharmacist/Admin can view inventory logs" ON public.inventory_logs FOR SELECT USING (public.get_user_role() = 'staff_admin');
-CREATE POLICY "Pharmacist can create inventory logs" ON public.inventory_logs FOR INSERT WITH CHECK (public.get_user_role() = 'staff_admin');
+CREATE POLICY "Medical and Staff admin can manage medications" ON public.medications FOR ALL TO authenticated USING (public.get_user_role() IN ('medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin')) WITH CHECK (public.get_user_role() IN ('medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'));
+CREATE POLICY "Medical and Staff admin can view inventory logs" ON public.inventory_logs FOR SELECT TO authenticated USING (public.get_user_role() IN ('medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'));
+CREATE POLICY "Medical and Staff admin can create inventory logs" ON public.inventory_logs FOR INSERT TO authenticated WITH CHECK (public.get_user_role() IN ('medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'));
 
 -- เปิดให้อ่านโปรไฟล์แพทย์และข้อมูลแพทย์ได้ทั่วไป เพื่อให้ชื่อแพทย์แสดงในตารางตรวจและนัดหมาย
 DROP POLICY IF EXISTS "Anyone can view medical profiles" ON public.profiles;

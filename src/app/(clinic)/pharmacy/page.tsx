@@ -339,7 +339,9 @@ export default function PharmacyPage() {
       setIsModalOpen(false);
       await loadMedications();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'บันทึกข้อมูลไม่สำเร็จ';
+      const errObj = err as { message?: string; details?: string; hint?: string };
+      const msg = errObj?.message || (err instanceof Error ? err.message : 'บันทึกข้อมูลไม่สำเร็จ');
+      console.error('Failed to save medication:', err);
       setFormError(msg);
     } finally {
       setIsSubmitting(false);
