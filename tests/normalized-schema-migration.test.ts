@@ -14,6 +14,7 @@ const doctorProfilesRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/m
 const departmentsRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/11_allow_public_view_departments.sql'), 'utf8');
 const staffDirectoryUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/12_staff_profile_directory.sql'), 'utf8');
 const serviceOfferingMigration = readFileSync(resolve(process.cwd(), 'supabase/migrations/13_services_and_daily_offerings.sql'), 'utf8');
+const publicServicesSlotsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/17_allow_public_view_services_and_slots.sql'), 'utf8');
 
 const normalizedTables = [
   'reschedule_proposals',
@@ -159,5 +160,15 @@ describe('normalized transaction migration', () => {
     expect(serviceOfferingMigration).toContain('offering.is_active');
     expect(serviceOfferingMigration).toContain('service.is_active');
     expect(serviceOfferingMigration).not.toMatch(/service_role|\.env\.local/i);
+  });
+
+  it('allows public and unauthenticated users to view active services, offerings, and slots', () => {
+    expect(publicServicesSlotsUpgrade).toContain('DROP POLICY IF EXISTS "Authenticated users can view services"');
+    expect(publicServicesSlotsUpgrade).toContain('CREATE POLICY "Anyone can view active services"');
+    expect(publicServicesSlotsUpgrade).toContain('CREATE POLICY "Anyone can view active daily service offerings"');
+    expect(publicServicesSlotsUpgrade).toContain('CREATE POLICY "Anyone can view active service slots"');
+    expect(publicServicesSlotsUpgrade).toContain('is_active');
+    expect(publicServicesSlotsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
+    expect(publicServicesSlotsUpgrade).not.toMatch(/service_role|\.env\.local/i);
   });
 });

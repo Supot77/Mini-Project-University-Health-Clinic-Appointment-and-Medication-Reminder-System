@@ -1,8 +1,8 @@
 import AppointmentPage from '../runtime/AppointmentPage';
 import type { PreviewRole } from './repository';
 
-export function PatientAppointmentWorkspace() {
-  return <AppointmentPage role="patient" />;
+export function PatientAppointmentWorkspace({ initialSlotId }: { initialSlotId?: string }) {
+  return <AppointmentPage role="patient" initialSlotId={initialSlotId} />;
 }
 
 export function MedicalAppointmentWorkspace() {

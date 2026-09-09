@@ -88,6 +88,23 @@ describe('Pai database adapter boundary', () => {
     const c = client(); await expect(createPaiDatabaseRepository(c.fake, 'patient').load()).resolves.toEqual(fixture());
     expect(c.getUser).toHaveBeenCalled(); expect(c.rpc).toHaveBeenCalledWith('pai_workspace', undefined);
   });
+  it.each(['medical', 'staff_admin'] as const)('loads only appointment patient phones for %s', async (role) => {
+    const seed = withAppointment(role);
+    const inIds = vi.fn().mockResolvedValue({ data: [{ id: patientId, phone: '0800000000' }], error: null });
+    const fake = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: seed.actor.id } }, error: null }) },
+      rpc: vi.fn().mockResolvedValue({ data: seed, error: null }),
+      from: vi.fn(() => ({ select: () => ({
+        eq: () => ({ single: vi.fn().mockResolvedValue({ data: { role, is_active: true }, error: null }) }),
+        in: inIds,
+      }) })),
+    };
+    const repo = createPaiDatabaseRepository(fake as unknown as SupabaseClient, role);
+    expect((await repo.load()).appointments[0].patient_phone).toBe('0800000000');
+    expect(inIds).toHaveBeenCalledWith('id', [patientId]);
+    inIds.mockResolvedValueOnce({ data: null, error: { message: 'denied' } });
+    await expect(repo.load()).rejects.toThrow('ไม่สามารถโหลดเบอร์โทร');
+  });
   it.each([['medical', true], ['patient', false], ['unknown', true]])('rejects mismatched/inactive/unknown role %s %s before RPC', async (role, active) => {
     const c = client(String(role), Boolean(active));
     await expect(createPaiDatabaseRepository(c.fake, 'patient').book(slotId, 'ทดสอบ')).rejects.toThrow('ไม่มีสิทธิ์');

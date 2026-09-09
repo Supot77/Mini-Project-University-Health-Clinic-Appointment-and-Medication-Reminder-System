@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
+  ArrowRight,
   Ban,
   CalendarDays,
   Check,
@@ -805,6 +807,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             services={services}
             canModifySlot={canModifySlot}
             canCreate={role !== 'patient'}
+            canBook={role === 'patient'}
             onCreate={openSlotForm}
             onEdit={openSlotForm}
             onToggle={toggleClosed}
@@ -818,10 +821,23 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                   const parsed = parseClinicDate(date);
                   const isToday = date === TODAY_DATE;
                   return (
-                    <div key={date} className={`px-3 py-4 text-center ${isToday ? 'bg-sky-50' : ''}`}>
+                    <button
+                      type="button"
+                      key={date}
+                      onDoubleClick={() => handleDrillDownDay(date)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          handleDrillDownDay(date);
+                        }
+                      }}
+                      aria-label={`เปิดตารางตรวจวันที่ ${formatShortDate(date)}`}
+                      className={`cursor-pointer select-none px-3 py-4 text-center outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky-600 ${isToday ? 'bg-sky-50' : ''}`}
+                      title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                    >
                       <div className={`text-xs font-semibold ${isToday ? 'text-sky-700' : 'text-slate-500'}`}>{dayNames[parsed.getUTCDay()]}</div>
                       <div className={`mx-auto mt-2 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold tabular-nums ${isToday ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -829,7 +845,12 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 {weekDays.map((date) => {
                   const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
                   return (
-                    <div key={date} className={`min-w-0 space-y-3 p-3 ${date === TODAY_DATE ? 'bg-sky-50/30' : ''}`}>
+                    <div
+                      key={date}
+                      onDoubleClick={() => handleDrillDownDay(date)}
+                      className={`min-w-0 cursor-pointer select-none space-y-3 p-3 ${date === TODAY_DATE ? 'bg-sky-50/30' : ''}`}
+                      title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                    >
                       {daySlots.map((slot) => (
                         <SlotCard
                           key={slot.id}
@@ -864,7 +885,12 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 const parsed = parseClinicDate(date);
                 const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
                 return (
-                  <article key={date} className="rounded-xl border border-slate-200 p-4">
+                  <article
+                    key={date}
+                    onDoubleClick={() => handleDrillDownDay(date)}
+                    className="cursor-pointer select-none rounded-xl border border-slate-200 p-4"
+                    title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                  >
                     <div className="mb-3 flex items-center justify-between">
                       <div>
                         <div className="text-xs font-semibold text-sky-700">{dayNames[parsed.getUTCDay()]}</div>
@@ -974,6 +1000,7 @@ function CalendarBoard({
   services,
   canModifySlot,
   canCreate = true,
+  canBook = false,
   onCreate,
   onEdit,
   onToggle,
@@ -987,6 +1014,7 @@ function CalendarBoard({
   services: import('@/types/schedule').ScheduleService[];
   canModifySlot: (slot: ScheduleSlot) => boolean;
   canCreate?: boolean;
+  canBook?: boolean;
   onCreate: (slot?: ScheduleSlot, suggestedDate?: string) => void;
   onEdit: (slot?: ScheduleSlot, suggestedDate?: string) => void;
   onToggle: (slot: ScheduleSlot) => void;
@@ -1015,6 +1043,15 @@ function CalendarBoard({
                   onToggleClosed={() => onToggle(slot)}
                 />
               </div>
+              {canBook && slot.status === 'available' && slot.bookedCount < slot.maxCapacity && slot.slotDate > TODAY_DATE && (
+                <Link
+                  href={{ pathname: '/appointments', query: { slotId: slot.id } }}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-brand-ink px-4 text-sm font-semibold text-white shadow-xs hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-sky-600"
+                >
+                  จอง
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )}
             </div>
           ))}
           {slots.filter((slot) => slot.slotDate === date).length === 0 && (
