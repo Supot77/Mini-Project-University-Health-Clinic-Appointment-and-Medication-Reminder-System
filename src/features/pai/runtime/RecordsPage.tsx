@@ -9,6 +9,7 @@ import { usePaiWorkspace } from './usePaiWorkspace';
 import WorkspaceShell from './WorkspaceShell';
 
 type Prescription = RecordInput['prescriptions'][number];
+type PrescriptionDraft = Prescription & { meal: string; times: string };
 function RecordEditor({ data, busy, selectedId, save }: {
   data: PaiSnapshot; busy: boolean; selectedId?: string; save: (input: RecordInput) => Promise<boolean>;
 }) {
@@ -16,14 +17,20 @@ function RecordEditor({ data, busy, selectedId, save }: {
   const [appointmentId, setAppointmentId] = useState(pending.find((a) => a.id === selectedId)?.id ?? pending[0]?.id ?? '');
   const [diagnosis, setDiagnosis] = useState('');
   const [advice, setAdvice] = useState('');
-  const [items, setItems] = useState<Prescription[]>([]);
+  const [items, setItems] = useState<PrescriptionDraft[]>([]);
   const [complete, setComplete] = useState(true);
   const chosen = pending.find((a) => a.id === appointmentId);
-  function update(index: number, patch: Partial<Prescription>) { setItems((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row)); }
+  function update(index: number, patch: Partial<PrescriptionDraft>) {
+    setItems((rows) => rows.map((row, i) => {
+      if (i !== index) return row;
+      const next = { ...row, ...patch };
+      return { ...next, frequency: `${next.meal} · ${next.times.trim()}` };
+    }));
+  }
   if (!pending.length) return <p className="rounded-xl bg-sky-50 p-4 text-sm">ไม่มีคิวที่รอบันทึกผลตรวจ เริ่มตรวจจากหน้านัดหมายก่อน</p>;
   return <form className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" onSubmit={async (e) => {
     e.preventDefault();
-    if (chosen && await save({ appointmentId: chosen.id, diagnosis, advice, prescriptions: items, complete })) { setDiagnosis(''); setAdvice(''); setItems([]); }
+    if (chosen && await save({ appointmentId: chosen.id, diagnosis, advice, prescriptions: items.map((item) => ({ medication_id: item.medication_id, name: item.name, dosage: item.dosage, frequency: item.frequency, quantity: item.quantity, duration_days: item.duration_days })), complete })) { setDiagnosis(''); setAdvice(''); setItems([]); }
   }}>
     <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><FileHeart className="h-5 w-5" aria-hidden="true" /></span><div><h2 className="font-semibold text-slate-950">บันทึกผลตรวจและรายการยา</h2><p className="mt-1 text-xs text-slate-500">ข้อมูลจะส่งต่อให้ผู้ป่วยและจุดจ่ายยาตามสิทธิ์</p></div></div>
     <p className="px-5 pt-5 text-sm text-slate-500 sm:px-6">ตรวจทานก่อนบันทึก ผลตรวจและใบสั่งยาแก้ไขไม่ได้หลังบันทึก ผู้ป่วยเห็นเมื่อจบตรวจ</p>
@@ -39,11 +46,12 @@ function RecordEditor({ data, busy, selectedId, save }: {
         <label className="text-sm sm:col-span-2">ยา<select required className={inputClass} value={item.medication_id} onChange={(e) => { const m = data.medications.find((v) => v.id === e.target.value); update(index, { medication_id: m?.id ?? '', name: m?.name ?? '' }); }}><option value="">เลือกยาจากคลัง</option>{data.medications.map((m) => <option key={m.id} value={m.id} disabled={items.some((v, i) => i !== index && v.medication_id === m.id)}>{m.name} · {m.type}</option>)}</select></label>
         <label className="text-sm">จำนวนที่สั่ง<input type="number" required min={1} max={100000} step={1} className={inputClass} value={item.quantity} onChange={(e) => update(index, { quantity: Number(e.target.value) })} /></label>
         <label className="text-sm">ระยะเวลา (วัน)<input type="number" required min={1} max={365} step={1} className={inputClass} value={item.duration_days} onChange={(e) => update(index, { duration_days: Number(e.target.value) })} /></label>
-        <label className="text-sm">ขนาดยาต่อครั้ง<input required maxLength={500} className={inputClass} value={item.dosage} onChange={(e) => update(index, { dosage: e.target.value })} /></label>
-        <label className="text-sm">ความถี่และวิธีใช้<input required maxLength={500} className={inputClass} value={item.frequency} onChange={(e) => update(index, { frequency: e.target.value })} /></label>
+        <label className="text-sm">ขนาดยาต่อครั้ง (ระบุหน่วย)<input required maxLength={500} placeholder="เช่น 2 เม็ด หรือ 5 มล." className={inputClass} value={item.dosage} onChange={(e) => update(index, { dosage: e.target.value })} /></label>
+        <label className="text-sm">การใช้ยากับอาหาร<select required className={inputClass} value={item.meal} onChange={(e) => update(index, { meal: e.target.value })}><option value="">เลือกวิธีใช้</option><option>ก่อนอาหาร</option><option>หลังอาหาร</option><option>พร้อมอาหาร</option><option>ไม่ขึ้นกับมื้ออาหาร</option></select></label>
+        <label className="text-sm sm:col-span-2">ช่วงเวลาและความถี่ในการใช้ยา<input required maxLength={400} placeholder="เช่น เช้า เที่ยง เย็น หรือก่อนนอน วันละ 1 ครั้ง" className={inputClass} value={item.times} onChange={(e) => update(index, { times: e.target.value })} /></label>
         <button type="button" className={secondaryButtonClass} onClick={() => setItems((rows) => rows.filter((_, i) => i !== index))}>ลบยารายการที่ {index + 1}</button>
       </fieldset>)}
-      <button type="button" disabled={!data.medications.length || items.length >= 50} className={secondaryButtonClass} onClick={() => setItems((rows) => [...rows, { medication_id: '', name: '', dosage: '', frequency: '', quantity: 1, duration_days: 1 }])}>เพิ่มรายการยา</button>
+      <button type="button" disabled={!data.medications.length || items.length >= 50} className={secondaryButtonClass} onClick={() => setItems((rows) => [...rows, { medication_id: '', name: '', dosage: '', frequency: '', meal: '', times: '', quantity: 1, duration_days: 1 }])}>เพิ่มรายการยา</button>
       <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={complete} onChange={(e) => setComplete(e.target.checked)} />จบตรวจพร้อมบันทึกผล</label>
       <button disabled={!chosen || !diagnosis.trim()} className={primaryButtonClass}>{busy ? 'กำลังบันทึก…' : complete ? 'ยืนยันบันทึกผลและจบตรวจ' : 'ยืนยันบันทึกผลตรวจ'}</button>
     </fieldset>
@@ -67,7 +75,12 @@ function RecordList({ data, selectedId }: { data: PaiSnapshot; selectedId?: stri
       <h4 className="font-semibold">รายการยาที่สั่ง</h4>
       {!r.prescribed_medications?.length && <p className="text-sm text-slate-500">ไม่มีรายการยา</p>}
       <ul className="space-y-2">{r.prescribed_medications?.map((m) => <li key={m.medication_id} className="rounded-xl bg-slate-50 p-3 text-sm">
-        <p className="font-semibold">{m.name} · จำนวน {m.quantity}</p><p className="break-words">{m.dosage} · {m.frequency} · {m.duration_days} วัน</p>
+        <p className="break-words font-semibold">{m.name} · จำนวนที่สั่ง {m.quantity}</p>
+        <dl className="mt-2 space-y-1 break-words">
+          <div><dt className="inline font-medium">ขนาดยาต่อครั้ง: </dt><dd className="inline">{m.dosage}</dd></div>
+          <div><dt className="inline font-medium">วิธีใช้และช่วงเวลา: </dt><dd className="inline">{m.frequency}</dd></div>
+          <div><dt className="inline font-medium">ระยะเวลา: </dt><dd className="inline">{m.duration_days} วัน</dd></div>
+        </dl>
       </li>)}</ul>
       <p className="text-xs text-slate-500">รายการสั่งยาไม่ใช่หลักฐานการจ่ายยา ติดต่อจุดจ่ายยาตามขั้นตอนของคลินิก</p>
     </article>)}
