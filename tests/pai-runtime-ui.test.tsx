@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
 import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
 import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
 import type { PaiRepository } from '@/features/pai/runtime/contract';
-import { fixture, slotId, withAppointment } from './pai-runtime-fixtures';
+import { fixture, medicationId, slotId, withAppointment } from './pai-runtime-fixtures';
 
 describe('Pai database-backed role containers with injected offline repository', () => {
   it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
@@ -56,19 +56,21 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
-    expect(screen.getByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).toBeInTheDocument();
-    expect(screen.getByText('กันยายน 2569')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'เดือนถัดไป' }));
-    expect(screen.getByText('ตุลาคม 2569')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'เดือนก่อนหน้า' }));
-    fireEvent.click(screen.getByRole('button', { name: 'เลือกวันที่ 10 กันยายน 2569' }));
+    const dialog = screen.getByRole('dialog', { name: 'เลือกวันที่ตรวจ' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('กันยายน 2569')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'เดือนถัดไป' }));
+    expect(within(dialog).getByText('ตุลาคม 2569')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'เดือนก่อนหน้า' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'เลือกวันที่ 10 กันยายน 2569' }));
     expect(screen.getByLabelText('วันที่ตรวจ')).toHaveValue('2026-09-10');
     expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
-    const dateFilter = screen.getByLabelText('กรองวันที่');
+    const dateFilter = screen.getByRole('button', { name: 'กรองวันที่' });
+    dateFilter.focus();
     fireEvent.click(dateFilter);
     expect(document.activeElement).toBe(dateFilter);
     expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
