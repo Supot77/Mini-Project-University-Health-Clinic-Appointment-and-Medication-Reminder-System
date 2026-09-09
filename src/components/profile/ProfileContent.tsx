@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { getProfile, updateProfile } from "@/services/authService";
+import { getProfile } from "@/services/authService";
 import { createClient } from "@/utils/supabase/client";
 import type { Profile } from "@/types/database";
 
@@ -34,6 +34,27 @@ type HealthStatus = "yes" | "no" | "unknown";
 interface DoctorInfo {
   specialty: string | null;
   department: { name: string } | null;
+}
+
+async function updateProfile(
+  userId: string,
+  updates: Partial<Profile>,
+): Promise<Profile> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Profile;
 }
 
 export default function ProfileContent() {
@@ -360,65 +381,7 @@ export default function ProfileContent() {
     >
       <div className="flex min-h-[calc(100vh-80px)] w-full min-w-0 flex-col lg:flex-row">
 
-        {/* =====================================================
-            Sidebar
-        ====================================================== */}
-
-        <aside className="w-full shrink-0 border-b border-sky-100 bg-white lg:w-[260px] lg:border-b-0 lg:border-r">
-          <nav className="p-3 sm:p-4 lg:sticky lg:top-[80px] lg:p-5">
-            <div className="flex gap-2 overflow-x-auto pb-0.5 lg:block lg:space-y-1.5">
-
-              {/* Profile */}
-
-              <div className="flex min-w-max items-center gap-3 rounded-xl bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700 lg:w-full">
-                <Users className="size-[18px]" />
-
-                <span>
-                  ข้อมูลส่วนตัว
-                </span>
-              </div>
-
-              {/* Treatment history */}
-
-              <Link
-                href="/appointments"
-                className="flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 lg:w-full"
-              >
-                <FileClock className="size-[18px]" />
-
-                <span>
-                  ประวัติการรักษา
-                </span>
-              </Link>
-
-              {/* Results */}
-
-              <Link
-                href="/results"
-                className="flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 lg:w-full"
-              >
-                <Stethoscope className="size-[18px]" />
-
-                <span>
-                  ผลการตรวจ
-                </span>
-              </Link>
-
-              {/* Settings */}
-
-              <Link
-                href="/settings"
-                className="flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 lg:w-full"
-              >
-                <ShieldCheck className="size-[18px]" />
-
-                <span>
-                  ตั้งค่า
-                </span>
-              </Link>
-            </div>
-          </nav>
-        </aside>
+      
 
         {/* =====================================================
             Main
@@ -430,13 +393,8 @@ export default function ProfileContent() {
             {/* Page heading */}
 
             <div className="mb-6">
-              <h1 className="text-[22px] font-bold tracking-tight text-slate-800 sm:text-[24px]">
-                ข้อมูลส่วนตัว
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-500">
-                จัดการข้อมูลส่วนตัวและข้อมูลสุขภาพของคุณ
-              </p>
+              <h1 className="text-[22px] font-bold tracking-tight text-slate-800 sm:text-[24px]">ข้อมูลส่วนตัว</h1>
+              <p className="mt-1 text-sm text-slate-500">จัดการข้อมูลส่วนตัวและข้อมูลสุขภาพของคุณ</p>
             </div>
 
             {/* =================================================
