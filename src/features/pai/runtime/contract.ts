@@ -22,6 +22,7 @@ export const snapshotSchema = z.object({
   })),
   appointments: z.array(z.object({
     id: z.string().uuid(), user_id: z.string().uuid(), patient: z.string(), slot_id: z.string().uuid(),
+    patient_phone: z.string().nullable().optional(),
     queue_number: z.number().nullable(), reason: z.string().nullable(), status: appointmentStateSchema,
     cancel_requested_at: z.string().nullable(), rejection_reason: z.string().nullable(), has_record: z.boolean(),
   })),
