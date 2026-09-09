@@ -260,4 +260,32 @@ describe('ScheduleWorkspace Service Filter', () => {
     expect(startTimeInput).toHaveValue('09:00');
     expect(endTimeInput).toHaveValue('09:30');
   });
+
+  it('double-clicks a week day into day view and exposes booking for an available future slot', () => {
+    shopState.slots = [
+      ...mockSlots,
+      { ...mockSlots[0], id: 'slot-future', slotDate: '2026-09-10', bookedCount: 0, status: 'available' },
+    ];
+
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+
+    fireEvent.doubleClick(screen.getAllByTitle(/ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่.*10 ก\.ย\./)[0]);
+
+    expect(screen.getByLabelText('ปฏิทินรายวัน')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'จอง' })).toHaveAttribute('href', '/appointments?slotId=slot-future');
+  });
+
+  it('does not expose booking for a full or closed slot in day view', () => {
+    shopState.slots = [
+      { ...mockSlots[0], id: 'slot-full', slotDate: '2026-09-10', bookedCount: mockSlots[0].maxCapacity, status: 'full' },
+      { ...mockSlots[0], id: 'slot-closed', slotDate: '2026-09-10', bookedCount: 0, status: 'closed' },
+    ];
+
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+
+    fireEvent.doubleClick(screen.getAllByTitle(/ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่.*10 ก\.ย\./)[0]);
+
+    expect(screen.getByLabelText('ปฏิทินรายวัน')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'จอง' })).not.toBeInTheDocument();
+  });
 });

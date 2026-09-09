@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
-import { CalendarDays, CheckCircle2, Clock3, Search, Stethoscope, TicketCheck, UsersRound } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search, Stethoscope, TicketCheck, UsersRound } from 'lucide-react';
 import { actionLabels, allowedActions, bangkokDate, type PaiRepository, type PaiRole, type PaiSnapshot } from './contract';
 import { statusLabels, formatAppointmentDate } from '../appointments/repository';
 import { inputClass, primaryButtonClass, secondaryButtonClass } from '../components/PaiPageHeader';
@@ -16,15 +16,108 @@ const statusStyles: Record<string, string> = {
   cancelled: 'bg-status-neutral-bg text-status-neutral ring-brand-border-soft', rejected: 'bg-status-critical-bg text-status-critical ring-red-200', no_show: 'bg-status-critical-bg text-status-critical ring-red-200',
 };
 
+const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const thaiWeekdays = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+function toCalendarDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12);
+}
+
+function toIsoDate(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+}
+
+function formatThaiDate(value: string) {
+  const date = toCalendarDate(value);
+  return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
+}
+
+function formatThaiMonth(value: Date) {
+  return `${thaiMonths[value.getMonth()]} ${value.getFullYear() + 543}`;
+}
+
+function getCalendarDays(value: Date) {
+  const firstDay = new Date(value.getFullYear(), value.getMonth(), 1).getDay();
+  const daysInMonth = new Date(value.getFullYear(), value.getMonth() + 1, 0).getDate();
+  return [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => toIsoDate(new Date(value.getFullYear(), value.getMonth(), index + 1, 12)))];
+}
+
+function AppointmentDatePicker({ value, minDate, onChange }: { value: string; minDate: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(() => new Date(toCalendarDate(value).getFullYear(), toCalendarDate(value).getMonth(), 1));
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const minMonth = new Date(toCalendarDate(minDate).getFullYear(), toCalendarDate(minDate).getMonth(), 1);
+  const days = getCalendarDays(month);
+  const previousDisabled = month.getFullYear() === minMonth.getFullYear() && month.getMonth() === minMonth.getMonth();
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!calendarRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  return <div ref={calendarRef} className="relative">
+    <button
+      ref={triggerRef}
+      type="button"
+      id="appointment-date-picker"
+      aria-label={`เปิดปฏิทินเลือกวันที่ตรวจ ${formatThaiDate(value)}`}
+      aria-expanded={open}
+      aria-controls="appointment-date-calendar"
+      onClick={() => {
+        const selected = toCalendarDate(value);
+        setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+        setOpen((current) => !current);
+      }}
+      className={`${inputClass} flex items-center justify-between gap-3 text-left transition hover:border-sky-400 focus:border-sky-500`}
+    >
+      <span className="flex min-w-0 items-center gap-2"><CalendarDays className="h-4 w-4 shrink-0 text-sky-600" aria-hidden="true" /><span className="truncate">{formatThaiDate(value)}</span></span>
+      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+    </button>
+    <input id="appointment-date" type="date" name="appointment_date" required min={minDate} value={value} onChange={(event) => onChange(event.target.value)} tabIndex={-1} aria-hidden="true" className="sr-only" />
+    {open && <div id="appointment-date-calendar" role="dialog" aria-label="เลือกวันที่ตรวจ" className="absolute left-0 z-20 mt-2 w-[min(21rem,calc(100vw-2.5rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl ring-1 ring-slate-950/5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button type="button" aria-label="เดือนก่อนหน้า" disabled={previousDisabled} onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
+        <h3 className="text-sm font-bold text-slate-900">{formatThaiMonth(month)}</h3>
+        <button type="button" aria-label="เดือนถัดไป" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400">{thaiWeekdays.map((day) => <span key={day}>{day}</span>)}</div>
+      <div className="mt-1 grid grid-cols-7 gap-1">
+        {days.map((day, index) => {
+          if (!day) return <span key={`empty-${index}`} className="h-9" aria-hidden="true" />;
+          const disabled = day < minDate;
+          const selected = day === value;
+          return <button key={day} type="button" disabled={disabled} aria-label={`เลือกวันที่ ${formatThaiDate(day)}`} aria-current={selected ? 'date' : undefined} onClick={() => { onChange(day); setOpen(false); }} className={`h-9 rounded-xl text-sm transition ${selected ? 'bg-sky-600 font-bold text-white shadow-sm' : 'text-slate-700 hover:bg-sky-50 hover:text-sky-700'} disabled:cursor-not-allowed disabled:text-slate-300`}>{Number(day.slice(-2))}</button>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
 function MetricCard({ icon: Icon, label, value, tone }: { icon: typeof CalendarDays; label: string; value: number | string; tone: string }) {
   return <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><div className="min-w-0"><p className="text-xl font-bold tracking-tight text-slate-950">{value}</p><p className="truncate text-xs text-slate-500">{label}</p></div></div>;
 }
 
-function BookingForm({ data, busy, book }: { data: PaiSnapshot; busy: boolean; book: (id: string, reason: string) => Promise<boolean> }) {
-  const [date, setDate] = useState(bangkokDate);
-  const dateInputRef = useRef<HTMLInputElement>(null);
-  const [department, setDepartment] = useState('');
-  const [slotId, setSlotId] = useState('');
+function BookingForm({ data, busy, book, initialSlotId }: { data: PaiSnapshot; busy: boolean; book: (id: string, reason: string) => Promise<boolean>; initialSlotId?: string }) {
+  const initialSlot = initialSlotId ? data.slots.find((slot) => slot.id === initialSlotId && slot.bookable && slot.status === 'available' && slot.booked_count < slot.max_capacity) : undefined;
+  const [date, setDate] = useState(initialSlot?.slot_date ?? bangkokDate);
+  const [department, setDepartment] = useState(initialSlot?.department ?? '');
+  const [slotId, setSlotId] = useState(initialSlot?.id ?? '');
   const [reason, setReason] = useState('');
   const slots = data.slots.filter((s) => s.slot_date === date && (!department || s.department === department) && s.bookable && s.booked_count < s.max_capacity);
   const selected = slots.find((s) => s.id === slotId);
@@ -34,12 +127,7 @@ function BookingForm({ data, busy, book }: { data: PaiSnapshot; busy: boolean; b
   }}>
     <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span><div><h2 className="font-semibold text-slate-950">จองนัดใหม่</h2><p className="mt-1 text-xs text-slate-500">เลือกรอบบริการที่สะดวก แล้วส่งคำขอให้เจ้าหน้าที่อนุมัติ</p></div></div>
     <fieldset disabled={busy} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-      <label htmlFor="appointment-date" className="group cursor-pointer space-y-1.5 text-sm font-medium text-slate-700" onClick={() => {
-        const input = dateInputRef.current;
-        if (!input) return;
-        input.focus({ preventScroll: true });
-        input.showPicker?.();
-      }}>วันที่ตรวจ<input ref={dateInputRef} id="appointment-date" type="date" required min={bangkokDate()} value={date} onChange={(e) => { setDate(e.target.value); setSlotId(''); }} className={`${inputClass} cursor-pointer transition group-hover:border-sky-400`} /></label>
+      <div className="space-y-1.5 text-sm font-medium text-slate-700"><label htmlFor="appointment-date">วันที่ตรวจ</label><AppointmentDatePicker value={date} minDate={bangkokDate()} onChange={(value) => { setDate(value); setSlotId(''); }} /></div>
       <label className="space-y-1.5 text-sm font-medium text-slate-700">บริการ<select value={department} onChange={(e) => { setDepartment(e.target.value); setSlotId(''); }} className={inputClass}><option value="">ทุกบริการ</option>{[...new Set(data.slots.map((s) => s.department))].sort().map((d) => <option key={d}>{d}</option>)}</select></label>
       <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">รอบตรวจ<select required value={selected?.id ?? ''} onChange={(e) => setSlotId(e.target.value)} className={inputClass}>
         <option value="">เลือกรอบตรวจ</option>{slots.map((s) => <option key={s.id} value={s.id}>{s.start_time.slice(0,5)}–{s.end_time.slice(0,5)} · {s.doctor} · ว่าง {s.max_capacity - s.booked_count} ที่</option>)}
@@ -52,7 +140,7 @@ function BookingForm({ data, busy, book }: { data: PaiSnapshot; busy: boolean; b
   </form>;
 }
 
-export default function AppointmentPage({ role, repository }: { role: PaiRole; repository?: PaiRepository }) {
+export default function AppointmentPage({ role, repository, initialSlotId }: { role: PaiRole; repository?: PaiRepository; initialSlotId?: string }) {
   const state = usePaiWorkspace(role, repository);
   const [query, setQuery] = useState('');
   const [date, setDate] = useState('');
@@ -79,7 +167,7 @@ export default function AppointmentPage({ role, repository }: { role: PaiRole; r
   return <WorkspaceShell {...state} role={role} section="appointments" stats={headerStats}>
     {state.loading ? <PaiPageLoading /> : data && <>
       {stats && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><MetricCard icon={CalendarDays} label={role === 'patient' ? 'นัดหมายของฉัน' : 'นัดหมายทั้งหมด'} value={stats.total} tone="bg-sky-50 text-sky-600" /><MetricCard icon={Clock3} label="รออนุมัติ" value={stats.pending} tone="bg-amber-50 text-amber-600" /><MetricCard icon={UsersRound} label="ยืนยันแล้ว" value={stats.confirmed} tone="bg-violet-50 text-violet-600" /><MetricCard icon={CheckCircle2} label="ตรวจเสร็จแล้ว" value={stats.completed} tone="bg-emerald-50 text-emerald-600" /></div>}
-      {role === 'patient' && <BookingForm data={data} busy={state.busy} book={(id, reason) => state.run((r) => r.book(id, reason), 'จองนัดสำเร็จ รอเจ้าหน้าที่อนุมัติ')} />}
+      {role === 'patient' && <BookingForm data={data} busy={state.busy} initialSlotId={initialSlotId} book={(id, reason) => state.run((r) => r.book(id, reason), 'จองนัดสำเร็จ รอเจ้าหน้าที่อนุมัติ')} />}
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-950">{role === 'medical' ? 'คิวที่รับผิดชอบ' : role === 'staff_admin' ? 'รายการนัดทั้งหมด' : 'นัดหมายของฉัน'}</h2><p className="mt-1 text-xs text-slate-500">ข้อมูลล่าสุดจากระบบ · ใช้ตัวกรองเพื่อค้นหารายการ</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{rows.length} รายการ</span></div></div>
         <div className="grid gap-3 border-b border-slate-100 bg-slate-50/70 p-4 sm:grid-cols-3 sm:p-5">
