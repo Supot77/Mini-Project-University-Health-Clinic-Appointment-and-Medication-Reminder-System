@@ -22,9 +22,9 @@ import type { UserRole } from '@/types/database';
 const roleOrder: UserRole[] = ['patient', 'medical', 'staff_admin'];
 
 function rolePillClass(role: UserRole): string {
-  if (role === 'staff_admin') return 'bg-violet-50 text-violet-700 ring-violet-100';
-  if (role === 'medical') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
-  return 'bg-sky-50 text-sky-700 ring-sky-100';
+  if (role === 'staff_admin') return 'bg-status-info-bg text-status-info ring-brand-border';
+  if (role === 'medical') return 'bg-status-success-bg text-status-success ring-emerald-200';
+  return 'bg-brand-page text-brand-strong ring-brand-border';
 }
 
 function displayValue(value: string | null): string {

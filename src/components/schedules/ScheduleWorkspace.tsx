@@ -100,6 +100,37 @@ function addMinutesToTime(timeStr: string, minutes = 30): string {
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
 }
 
+export function getNextAvailableTimeSlot(
+  slots: ScheduleSlot[],
+  doctorId: string,
+  slotDate: string,
+): { startTime: string; endTime: string } {
+  if (!doctorId || !slotDate) {
+    return { startTime: '08:30', endTime: '09:00' };
+  }
+  const doctorDaySlots = slots.filter(
+    (s) => s.doctorId === doctorId && s.slotDate === slotDate,
+  );
+  if (doctorDaySlots.length === 0) {
+    return { startTime: '08:30', endTime: '09:00' };
+  }
+  const latestEndTime = doctorDaySlots.reduce((max, s) => (s.endTime > max ? s.endTime : max), '08:30');
+
+  // Skip lunch break 12:00–13:00
+  if (latestEndTime >= '12:00' && latestEndTime < '13:00') {
+    return { startTime: '13:00', endTime: '13:30' };
+  }
+  // If latestEndTime is already at or past closing time 16:30
+  if (latestEndTime >= '16:30') {
+    return { startTime: '16:00', endTime: '16:30' };
+  }
+  const nextEndTime = addMinutesToTime(latestEndTime, 30);
+  return {
+    startTime: latestEndTime,
+    endTime: nextEndTime > '16:30' ? '16:30' : nextEndTime,
+  };
+}
+
 export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; actorId: string }) {
   const {
     departments,
@@ -218,8 +249,11 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     setFormError('');
     setNotice('');
     setEditingSlotId(slot?.id ?? null);
-    const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : '';
+    const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : (doctorFilter !== 'all' ? doctorFilter : '');
     const initialDate = suggestedDate && suggestedDate >= TODAY_DATE ? suggestedDate : (weekDays[0] >= TODAY_DATE ? weekDays[0] : TODAY_DATE);
+    const initialTimes = !slot && defaultDoctorId && initialDate
+      ? getNextAvailableTimeSlot(slots, defaultDoctorId, initialDate)
+      : { startTime: '08:30', endTime: '09:00' };
     setDraft(
       slot
         ? {
@@ -230,7 +264,14 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             endTime: slot.endTime,
             maxCapacity: slot.maxCapacity,
           }
-        : { ...emptySlotDraft, doctorId: defaultDoctorId, serviceId: activeServices[0]?.id ?? '', slotDate: initialDate },
+        : {
+            ...emptySlotDraft,
+            doctorId: defaultDoctorId,
+            serviceId: activeServices[0]?.id ?? '',
+            slotDate: initialDate,
+            startTime: initialTimes.startTime,
+            endTime: initialTimes.endTime,
+          },
     );
     setFormOpen(true);
   };
@@ -439,7 +480,20 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 ) : (
                   <select
                     value={draft.doctorId}
-                    onChange={(event) => setDraft((current) => ({ ...current, doctorId: event.target.value }))}
+                    onChange={(event) => {
+                      const newDoctorId = event.target.value;
+                      setDraft((current) => {
+                        const nextTimes = !editingSlotId && newDoctorId && current.slotDate
+                          ? getNextAvailableTimeSlot(slots, newDoctorId, current.slotDate)
+                          : { startTime: current.startTime, endTime: current.endTime };
+                        return {
+                          ...current,
+                          doctorId: newDoctorId,
+                          startTime: nextTimes.startTime,
+                          endTime: nextTimes.endTime,
+                        };
+                      });
+                    }}
                     className={inputClass}
                   >
                     <option value="">เลือกแพทย์</option>
@@ -477,7 +531,20 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                   type="date"
                   min={editingSlotId ? undefined : TODAY_DATE}
                   value={draft.slotDate}
-                  onChange={(event) => setDraft((current) => ({ ...current, slotDate: event.target.value }))}
+                  onChange={(event) => {
+                    const newDate = event.target.value;
+                    setDraft((current) => {
+                      const nextTimes = !editingSlotId && current.doctorId && newDate
+                        ? getNextAvailableTimeSlot(slots, current.doctorId, newDate)
+                        : { startTime: current.startTime, endTime: current.endTime };
+                      return {
+                        ...current,
+                        slotDate: newDate,
+                        startTime: nextTimes.startTime,
+                        endTime: nextTimes.endTime,
+                      };
+                    });
+                  }}
                   className={inputClass}
                 />
               </label>
@@ -544,7 +611,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 type="button"
                 disabled={isSaving}
                 onClick={saveSlot}
-                className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50 shadow-xs inline-flex items-center justify-center gap-2"
+                className="min-h-11 rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 shadow-xs inline-flex items-center justify-center gap-2"
               >
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin text-white" aria-hidden="true" />}
                 {isSaving ? 'กำลังบันทึก...' : 'บันทึกรอบตรวจ'}
@@ -579,7 +646,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             </div>
             <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
               <button type="button" onClick={() => setServiceFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button>
-              <button type="button" onClick={saveService} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67]">บันทึกบริการ</button>
+              <button type="button" onClick={saveService} className="min-h-11 rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover">บันทึกบริการ</button>
             </div>
           </div>
         </div>
@@ -719,7 +786,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
               <button
                 type="button"
                 onClick={() => openSlotForm()}
-                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0a2540] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#123e67] active:scale-[0.98]"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-brand-ink px-4 text-xs font-bold text-white shadow-xs hover:bg-brand-hover active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 เพิ่มรอบตรวจ
@@ -892,7 +959,7 @@ function SlotCard({
         )}
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-950"><Clock3 className="h-4 w-4 text-slate-500" aria-hidden="true" /><span className="tabular-nums">{slot.startTime}–{slot.endTime}</span></div>
-      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0a2540] text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{service?.name ?? 'ไม่พบบริการ'}</div><div className="truncate text-[10px] text-slate-500">{doctor?.fullName ?? 'ไม่พบแพทย์'} · {department?.name ?? 'ไม่พบแผนก'}</div></div></div>
+      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-ink text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{service?.name ?? 'ไม่พบบริการ'}</div><div className="truncate text-[10px] text-slate-500">{doctor?.fullName ?? 'ไม่พบแพทย์'} · {department?.name ?? 'ไม่พบแผนก'}</div></div></div>
       <div className="mt-3"><div className="mb-1.5 flex items-center justify-between text-[10px] text-slate-500"><span>จองแล้ว</span><strong className="text-slate-700 tabular-nums">{slot.bookedCount}/{slot.maxCapacity}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-white/80"><div className={`h-full rounded-full ${slot.status === 'closed' ? 'bg-rose-400' : slot.status === 'full' ? 'bg-sky-500' : 'bg-emerald-500'}`} style={{ width: `${occupancy}%` }} /></div></div>
     </article>
   );

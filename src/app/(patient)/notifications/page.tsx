@@ -20,10 +20,10 @@ const filters: Array<{ value: InboxFilter; label: string }> = [
 ];
 
 const typeMeta: Record<NotificationType, { label: string; icon: typeof Bell; className: string }> = {
-  appointment: { label: 'นัดหมาย', icon: CalendarDays, className: 'bg-sky-50 text-sky-700' },
-  reminder: { label: 'เตือนยา', icon: Pill, className: 'bg-violet-50 text-violet-700' },
-  broadcast: { label: 'ประกาศ', icon: Megaphone, className: 'bg-amber-50 text-amber-700' },
-  system: { label: 'ระบบ', icon: BellRing, className: 'bg-slate-100 text-slate-700' },
+  appointment: { label: 'นัดหมาย', icon: CalendarDays, className: 'bg-status-info-bg text-status-info' },
+  reminder: { label: 'เตือนยา', icon: Pill, className: 'bg-status-warning-bg text-status-warning' },
+  broadcast: { label: 'ประกาศ', icon: Megaphone, className: 'bg-status-warning-bg text-status-warning' },
+  system: { label: 'ระบบ', icon: BellRing, className: 'bg-status-neutral-bg text-status-neutral' },
 };
 
 function formatDateTime(value: string): string {

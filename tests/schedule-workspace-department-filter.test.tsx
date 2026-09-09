@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import ScheduleWorkspace from '@/components/schedules/ScheduleWorkspace';
+import ScheduleWorkspace, { getNextAvailableTimeSlot } from '@/components/schedules/ScheduleWorkspace';
 import type { ScheduleDepartment, ScheduleDoctor, ScheduleService, ScheduleSlot } from '@/types/schedule';
 
 const mockDepartments: ScheduleDepartment[] = [
@@ -177,5 +177,87 @@ describe('ScheduleWorkspace Service Filter', () => {
     const dateInput = screen.getByLabelText('วันที่');
     expect(dateInput).toHaveAttribute('min');
     expect(dateInput.getAttribute('min')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('getNextAvailableTimeSlot calculates adjacent time and skips lunch break', () => {
+    // Case 1: no slots
+    expect(getNextAvailableTimeSlot([], 'doc-1', '2026-09-08')).toEqual({
+      startTime: '08:30',
+      endTime: '09:00',
+    });
+
+    // Case 2: slot ending at 09:30
+    const slotA: ScheduleSlot = {
+      id: 'slot-a',
+      doctorId: 'doc-1',
+      serviceOfferingId: 'offering-1',
+      serviceId: 'service-general',
+      slotDate: '2026-09-08',
+      startTime: '09:00',
+      endTime: '09:30',
+      maxCapacity: 5,
+      bookedCount: 0,
+      status: 'available',
+    };
+    expect(getNextAvailableTimeSlot([slotA], 'doc-1', '2026-09-08')).toEqual({
+      startTime: '09:30',
+      endTime: '10:00',
+    });
+
+    // Case 3: slot ending at 12:00 (lunch break 12:00–13:00) -> jumps to 13:00–13:30
+    const slotLunch: ScheduleSlot = {
+      id: 'slot-lunch',
+      doctorId: 'doc-1',
+      serviceOfferingId: 'offering-1',
+      serviceId: 'service-general',
+      slotDate: '2026-09-08',
+      startTime: '11:30',
+      endTime: '12:00',
+      maxCapacity: 5,
+      bookedCount: 0,
+      status: 'available',
+    };
+    expect(getNextAvailableTimeSlot([slotLunch], 'doc-1', '2026-09-08')).toEqual({
+      startTime: '13:00',
+      endTime: '13:30',
+    });
+  });
+
+  it('auto-fills next available time when doctor already has slots on the same day', () => {
+    shopState.isLoading = false;
+    shopState.slots = [
+      {
+        id: 'slot-existing',
+        doctorId: 'doc-1',
+        serviceOfferingId: 'offering-1',
+        serviceId: 'service-general',
+        slotDate: '2026-09-08',
+        startTime: '08:30',
+        endTime: '09:00',
+        maxCapacity: 5,
+        bookedCount: 0,
+        status: 'available',
+      },
+    ];
+
+    render(<ScheduleWorkspace role="staff_admin" actorId="admin-1" />);
+
+    // Click global "เพิ่มรอบตรวจ" button
+    const addSlotButton = screen.getByRole('button', { name: 'เพิ่มรอบตรวจ' });
+    fireEvent.click(addSlotButton);
+
+    // Select doctor doc-1
+    const doctorSelect = screen.getByRole('combobox', { name: 'แพทย์' });
+    fireEvent.change(doctorSelect, { target: { value: 'doc-1' } });
+
+    // Ensure slotDate is 2026-09-08
+    const dateInput = screen.getByLabelText('วันที่');
+    fireEvent.change(dateInput, { target: { value: '2026-09-08' } });
+
+    // Time should be auto-filled to 09:00 - 09:30
+    const startTimeInput = screen.getByLabelText('เวลาเริ่ม');
+    const endTimeInput = screen.getByLabelText('เวลาสิ้นสุด');
+    expect(startTimeInput).toHaveValue('09:00');
+    expect(endTimeInput).toHaveValue('09:30');
   });
 });

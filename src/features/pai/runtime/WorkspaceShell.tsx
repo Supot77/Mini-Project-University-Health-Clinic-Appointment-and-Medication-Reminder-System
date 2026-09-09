@@ -6,7 +6,7 @@ import type { PaiRole } from './contract';
 export interface WorkspaceHeaderStat {
   label: string;
   value: number | string;
-  tone: 'default' | 'success' | 'info' | 'danger';
+  tone: 'default' | 'success' | 'info' | 'warning' | 'danger';
 }
 
 export default function WorkspaceShell({ role, section, error, message, busy, reload, children, stats }: {
@@ -16,15 +16,15 @@ export default function WorkspaceShell({ role, section, error, message, busy, re
   const roleLabel = role === 'patient' ? 'ผู้ป่วย' : role === 'medical' ? 'แพทย์/เภสัชกร' : 'เจ้าหน้าที่/แอดมิน';
   const title = section === 'appointments' ? 'นัดหมายและคิวตรวจ' : 'ผลตรวจและรายการยา';
   return <section className="mx-auto max-w-6xl space-y-5 text-slate-800">
-    <header className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="absolute inset-y-3 left-0 w-2 rounded-r-full bg-sky-500" aria-hidden="true" />
+    <header className="relative overflow-hidden rounded-3xl border border-brand-border-soft bg-white shadow-sm">
+      <div className="absolute inset-y-3 left-0 w-2 rounded-r-full bg-brand" aria-hidden="true" />
       <div className="relative flex flex-col gap-6 px-6 py-6 sm:px-8 sm:py-7 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 max-w-2xl"><div className="flex flex-wrap items-center gap-3"><span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />LIVE DATABASE</span><span className="text-xs font-semibold tracking-wide text-slate-400">ASIA/BANGKOK</span></div>
-          <p className="mt-4 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-sky-600"><ShieldCheck className="h-4 w-4" aria-hidden="true" /> WU CLINIC · {roleLabel}</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-4xl">{title}</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">{role === 'patient' ? 'จัดการนัดหมายและติดตามข้อมูลการรักษาของคุณได้ในที่เดียว' : role === 'medical' ? 'ดูคิวที่รับผิดชอบและบันทึกผลตรวจอย่างปลอดภัย' : 'จัดการคำขอนัดและติดตามคิวของผู้รับบริการทีละรายการ'} · ข้อมูลจากระบบปัจจุบัน</p></div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:shrink-0"><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-50" disabled={busy} onClick={() => void reload()}><RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />โหลดข้อมูลใหม่</button>
-          {stats && stats.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{stats.map((stat) => <div key={stat.label} className="min-w-[82px] rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-3 text-center"><p className={`text-xl font-bold ${stat.tone === 'success' ? 'text-emerald-600' : stat.tone === 'info' ? 'text-sky-600' : stat.tone === 'danger' ? 'text-rose-600' : 'text-slate-950'}`}>{stat.value}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">{stat.label}</p></div>)}</div>}
+        <div className="min-w-0 max-w-2xl"><div className="flex flex-wrap items-center gap-3"><span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-status-success-bg px-3 py-1.5 text-xs font-semibold text-status-success"><span className="h-2 w-2 rounded-full bg-status-success" aria-hidden="true" />LIVE DATABASE</span><span className="text-xs font-semibold tracking-wide text-brand-muted">ASIA/BANGKOK</span></div>
+          <p className="mt-4 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-brand-strong"><ShieldCheck className="h-4 w-4" aria-hidden="true" /> WU CLINIC · {roleLabel}</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-brand-ink sm:text-4xl">{title}</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-brand-muted">{role === 'patient' ? 'จัดการนัดหมายและติดตามข้อมูลการรักษาของคุณได้ในที่เดียว' : role === 'medical' ? 'ดูคิวที่รับผิดชอบและบันทึกผลตรวจอย่างปลอดภัย' : 'จัดการคำขอนัดและติดตามคิวของผู้รับบริการทีละรายการ'} · ข้อมูลจากระบบปัจจุบัน</p></div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:shrink-0"><button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-brand-border-soft bg-white px-4 py-2 text-sm font-semibold text-brand-hover transition hover:border-brand-border hover:bg-brand-surface hover:text-brand-strong focus-visible:outline-2 focus-visible:outline-brand-strong disabled:cursor-not-allowed disabled:opacity-50" disabled={busy} onClick={() => void reload()}><RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />โหลดข้อมูลใหม่</button>
+          {stats && stats.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{stats.map((stat) => <div key={stat.label} className="min-w-[82px] rounded-2xl border border-brand-border-soft bg-brand-surface/70 px-3 py-3 text-center"><p className={`text-xl font-bold ${stat.tone === 'success' ? 'text-status-success' : stat.tone === 'info' ? 'text-status-info' : stat.tone === 'warning' ? 'text-status-warning' : stat.tone === 'danger' ? 'text-status-critical' : 'text-brand-ink'}`}>{stat.value}</p><p className="mt-1 text-[11px] leading-4 text-brand-muted">{stat.label}</p></div>)}</div>}
         </div>
       </div>
     </header>

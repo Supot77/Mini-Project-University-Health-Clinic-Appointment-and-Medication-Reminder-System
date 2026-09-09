@@ -6,9 +6,9 @@ import { searchPatients } from '@/services/authService';
 import type { Profile } from '@/types/database';
 
 const healthStatusLabel: Record<string, { text: string; className: string }> = {
-  yes: { text: 'มี', className: 'bg-red-100 text-red-700 border-red-200' },
-  no: { text: 'ไม่มี', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  unknown: { text: 'ไม่ทราบ', className: 'bg-zinc-100 text-zinc-600 border-zinc-200' },
+  yes: { text: 'มี', className: 'bg-status-critical-bg text-status-critical border-red-200' },
+  no: { text: 'ไม่มี', className: 'bg-status-success-bg text-status-success border-emerald-200' },
+  unknown: { text: 'ไม่ทราบ', className: 'bg-status-neutral-bg text-status-neutral border-brand-border-soft' },
 };
 
 function HealthBadge({ status }: { status: string | null }) {

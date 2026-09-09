@@ -17,24 +17,24 @@ const staffLinks = [
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-[#102f3d] px-5 py-14 text-white sm:px-8 lg:px-12">
-      <div className="mx-auto max-w-7xl">
+    <footer className="w-full bg-brand-ink px-5 py-[60px] text-white sm:px-8 lg:min-h-[413px] lg:px-[51px]">
+      <div className="mx-auto max-w-[1419px]">
         <div className="grid gap-12 border-b border-white/10 pb-12 lg:grid-cols-[1.35fr_0.8fr_0.8fr_1fr]">
           <div className="max-w-sm">
-            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#83d6c6]">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#83d6c6] text-[#102f3d]"><Hospital className="h-5 w-5" aria-hidden="true" /></span>
-              <span className="text-lg font-semibold tracking-[-0.02em]">WU Clinic</span>
+            <Link href="/" className="inline-flex items-center gap-3 rounded-brand-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent">
+              <span className="flex h-10 w-10 items-center justify-center rounded-brand-button bg-brand-accent text-brand-ink"><Hospital className="h-5 w-5" aria-hidden="true" /></span>
+              <span className="text-[19px] font-semibold tracking-[-0.02em]">WU Clinic</span>
             </Link>
-            <p className="mt-5 text-sm leading-7 text-[#b6ced0]">คลินิกสุขภาพมหาวิทยาลัยวลัยลักษณ์ ดูแลทุกขั้นตอนของการนัดหมายและบริการสุขภาพให้เป็นเรื่องง่าย</p>
-            <div className="mt-6 space-y-3 text-xs text-[#b6ced0]"><div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#83d6c6]" aria-hidden="true" />มหาวิทยาลัยวลัยลักษณ์</div><div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#83d6c6]" aria-hidden="true" />จันทร์–ศุกร์ 08:30–16:30 น.</div></div>
+            <p className="mt-5 text-[15px] leading-7 text-brand-footer-text">คลินิกสุขภาพมหาวิทยาลัยวลัยลักษณ์ ดูแลทุกขั้นตอนของการนัดหมายและบริการสุขภาพให้เป็นเรื่องง่าย</p>
+            <div className="mt-6 space-y-3 text-[13px] text-brand-footer-text"><div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-brand-accent" aria-hidden="true" />มหาวิทยาลัยวลัยลักษณ์</div><div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-brand-accent" aria-hidden="true" />จันทร์–ศุกร์ 08:30–16:30 น.</div></div>
           </div>
 
-          <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#83d6c6]">สำหรับผู้ป่วย</h2><ul className="mt-5 space-y-3 text-sm text-[#b6ced0]">{patientLinks.map((link) => <li key={link.href}><Link href={link.href} className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#83d6c6]">{link.label}</Link></li>)}</ul></div>
-          <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#83d6c6]">สำหรับบุคลากร</h2><ul className="mt-5 space-y-3 text-sm text-[#b6ced0]">{staffLinks.map((link) => <li key={link.href}><Link href={link.href} className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#83d6c6]">{link.label}</Link></li>)}</ul></div>
-          <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#83d6c6]">ข้อมูลสำคัญ</h2><p className="mt-5 text-sm leading-7 text-[#b6ced0]">หากมีอาการฉุกเฉิน กรุณาติดต่อหน่วยฉุกเฉินใกล้บ้านทันที ระบบนี้ใช้สำหรับการนัดหมายและจัดการข้อมูลคลินิก</p></div>
+          <div><h2 className="text-[13px] font-bold uppercase tracking-[0.16em] text-brand-accent">สำหรับผู้ป่วย</h2><ul className="mt-5 space-y-3 text-[15px] text-brand-footer-text">{patientLinks.map((link) => <li key={link.href}><Link href={link.href} className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent">{link.label}</Link></li>)}</ul></div>
+          <div><h2 className="text-[13px] font-bold uppercase tracking-[0.16em] text-brand-accent">สำหรับบุคลากร</h2><ul className="mt-5 space-y-3 text-[15px] text-brand-footer-text">{staffLinks.map((link) => <li key={link.href}><Link href={link.href} className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent">{link.label}</Link></li>)}</ul></div>
+          <div><h2 className="text-[13px] font-bold uppercase tracking-[0.16em] text-brand-accent">ข้อมูลสำคัญ</h2><p className="mt-5 text-[15px] leading-7 text-brand-footer-text">หากมีอาการฉุกเฉิน กรุณาติดต่อหน่วยฉุกเฉินใกล้บ้านทันที ระบบนี้ใช้สำหรับการนัดหมายและจัดการข้อมูลคลินิก</p></div>
         </div>
 
-        <div className="flex flex-col gap-3 pt-7 text-xs text-[#88a7aa] sm:flex-row sm:items-center sm:justify-between"><p>© 2026 WU Clinic · มหาวิทยาลัยวลัยลักษณ์</p><p>ระบบสำหรับการเรียนการสอน ข้อมูลในระบบเป็นข้อมูลสาธิต</p></div>
+        <div className="flex flex-col gap-3 pt-7 text-[13px] text-brand-footer-muted sm:flex-row sm:items-center sm:justify-between"><p>© 2026 WU Clinic · มหาวิทยาลัยวลัยลักษณ์</p><p>ระบบสำหรับการเรียนการสอน ข้อมูลในระบบเป็นข้อมูลสาธิต</p></div>
       </div>
     </footer>
   );

@@ -165,7 +165,10 @@ export default function RemindersPage() {
 
   useEffect(() => {
     if (canManageMedication) {
-      void loadPatients();
+      const frame = requestAnimationFrame(() => {
+        void loadPatients();
+      });
+      return () => cancelAnimationFrame(frame);
     }
   }, [canManageMedication, loadPatients]);
 

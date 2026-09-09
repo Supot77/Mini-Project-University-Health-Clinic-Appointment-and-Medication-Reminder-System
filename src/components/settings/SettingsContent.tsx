@@ -30,7 +30,7 @@ export default function SettingsContent() {
   };
 
   return (
-    <main className="min-h-[calc(100vh-80px)] w-full bg-[#f6fbff]">
+    <main className="min-h-[calc(100vh-80px)] w-full bg-brand-surface">
       <div className="flex min-h-[calc(100vh-80px)] w-full items-center justify-center px-6">
         <button
           type="button"

@@ -11,9 +11,9 @@ import WorkspaceShell, { type WorkspaceHeaderStat } from './WorkspaceShell';
 import { usePaiWorkspace } from './usePaiWorkspace';
 
 const statusStyles: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-800 ring-amber-100', confirmed: 'bg-sky-50 text-sky-700 ring-sky-100',
-  in_progress: 'bg-violet-50 text-violet-700 ring-violet-100', completed: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-  cancelled: 'bg-slate-100 text-slate-600 ring-slate-200', rejected: 'bg-rose-50 text-rose-700 ring-rose-100', no_show: 'bg-rose-50 text-rose-700 ring-rose-100',
+  pending: 'bg-status-warning-bg text-status-warning ring-amber-200', confirmed: 'bg-status-info-bg text-status-info ring-brand-border',
+  in_progress: 'bg-status-info-bg text-status-info ring-brand-border', completed: 'bg-status-success-bg text-status-success ring-emerald-200',
+  cancelled: 'bg-status-neutral-bg text-status-neutral ring-brand-border-soft', rejected: 'bg-status-critical-bg text-status-critical ring-red-200', no_show: 'bg-status-critical-bg text-status-critical ring-red-200',
 };
 
 function MetricCard({ icon: Icon, label, value, tone }: { icon: typeof CalendarDays; label: string; value: number | string; tone: string }) {
@@ -72,9 +72,9 @@ export default function AppointmentPage({ role, repository }: { role: PaiRole; r
   } : null;
   const headerStats: WorkspaceHeaderStat[] = stats ? [
     { label: role === 'patient' ? 'นัดหมายของฉัน' : 'นัดหมายทั้งหมด', value: stats.total, tone: 'default' },
-    { label: 'รออนุมัติ', value: stats.pending, tone: 'success' },
+    { label: 'รออนุมัติ', value: stats.pending, tone: 'warning' },
     { label: 'ยืนยันแล้ว', value: stats.confirmed, tone: 'info' },
-    { label: 'จบตรวจแล้ว', value: stats.completed, tone: 'danger' },
+    { label: 'จบตรวจแล้ว', value: stats.completed, tone: 'success' },
   ] : [];
   return <WorkspaceShell {...state} role={role} section="appointments" stats={headerStats}>
     {state.loading ? <PaiPageLoading /> : data && <>
