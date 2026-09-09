@@ -4,12 +4,7 @@ import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
 import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
 import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
 import type { PaiRepository } from '@/features/pai/runtime/contract';
-import { fixture, medicationId, withAppointment } from './pai-runtime-fixtures';
-
-beforeAll(() => {
-  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
-  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
-});
+import { fixture, slotId, withAppointment } from './pai-runtime-fixtures';
 
 describe('Pai database-backed role containers with injected offline repository', () => {
   it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
@@ -45,6 +40,38 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(await screen.findByText('ไม่พบนัดหมายตามเงื่อนไขนี้')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /มุมมอง/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'อนุมัตินัด' })).not.toBeInTheDocument();
+  });
+  it('hydrates booking form from a slot deep link', async () => {
+    render(<AppointmentPage role="patient" initialSlotId={slotId} repository={createPaiMockRepository(fixture())} />);
+
+    expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
+    expect(screen.getByLabelText('วันที่ตรวจ')).toHaveValue('2026-09-09');
+    expect(screen.getByLabelText('บริการ')).toHaveValue('ทั่วไป');
+    expect(screen.getByLabelText('รอบตรวจ')).toHaveValue(slotId);
+  });
+  it('uses a compact Thai calendar for booking date while keeping the list filter separate', async () => {
+    render(<AppointmentPage role="patient" repository={createPaiMockRepository(fixture())} />);
+    expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: /เปิดปฏิทินเลือกวันที่ตรวจ/ });
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).toBeInTheDocument();
+    expect(screen.getByText('กันยายน 2569')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'เดือนถัดไป' }));
+    expect(screen.getByText('ตุลาคม 2569')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'เดือนก่อนหน้า' }));
+    fireEvent.click(screen.getByRole('button', { name: 'เลือกวันที่ 10 กันยายน 2569' }));
+    expect(screen.getByLabelText('วันที่ตรวจ')).toHaveValue('2026-09-10');
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
+    const dateFilter = screen.getByLabelText('กรองวันที่');
+    fireEvent.click(dateFilter);
+    expect(document.activeElement).toBe(dateFilter);
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
   });
   it('shows database error and supports retry instead of rendering demo data', async () => {
     const repo = createPaiMockRepository(fixture());

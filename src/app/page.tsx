@@ -30,8 +30,8 @@ const services: ClinicService[] = [
     accent: "bg-brand-soft text-brand-strong",
   },
   {
-    title: "ทันตกรรม",
-    description: "ตรวจสุขภาพช่องปากและวางแผนการรักษาอย่างเหมาะสม",
+    title: "ตรวจสุขภาพประจำปี",
+    description: "ประเมินสุขภาพเบื้องต้นและรับคำแนะนำในการดูแลตัวเอง",
     href: "/schedules",
     icon: HeartPulse,
     accent: "bg-brand-soft text-brand-strong",
