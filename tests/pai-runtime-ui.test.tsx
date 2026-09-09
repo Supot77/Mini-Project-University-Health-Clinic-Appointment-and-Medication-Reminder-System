@@ -1,12 +1,44 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
 import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
 import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
 import type { PaiRepository } from '@/features/pai/runtime/contract';
-import { fixture, withAppointment } from './pai-runtime-fixtures';
+import { fixture, medicationId, withAppointment } from './pai-runtime-fixtures';
+
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+});
 
 describe('Pai database-backed role containers with injected offline repository', () => {
+  it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
+    const seed = withAppointment(role);
+    seed.appointments[0].patient_phone = '0800000000';
+    render(<AppointmentPage role={role} repository={createPaiMockRepository(seed)} />);
+    expect(await screen.findByText('เบอร์โทรผู้ป่วย: 0800000000')).toBeInTheDocument();
+  });
+  it('labels a missing phone without inventing a contact', async () => {
+    render(<AppointmentPage role="medical" repository={createPaiMockRepository(withAppointment())} />);
+    expect(await screen.findByText('เบอร์โทรผู้ป่วย: ไม่ได้ระบุ')).toBeInTheDocument();
+  });
+  it('saves and displays the prescribed dose, meal, times and duration', async () => {
+    const repo = createPaiMockRepository(withAppointment());
+    render(<MedicalRecordsPage repository={repo} />);
+    fireEvent.change(await screen.findByLabelText('ผลวินิจฉัย'), { target: { value: 'ผลทดสอบ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มรายการยา' }));
+    fireEvent.change(screen.getByLabelText('ยา', { exact: true }), { target: { value: medicationId } });
+    fireEvent.change(screen.getByLabelText('ขนาดยาต่อครั้ง (ระบุหน่วย)'), { target: { value: '2 เม็ด' } });
+    fireEvent.change(screen.getByLabelText('การใช้ยากับอาหาร'), { target: { value: 'หลังอาหาร' } });
+    fireEvent.change(screen.getByLabelText('ช่วงเวลาและความถี่ในการใช้ยา'), { target: { value: 'เช้า เที่ยง เย็น' } });
+    fireEvent.change(screen.getByLabelText('ระยะเวลา (วัน)'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('จำนวนที่สั่ง'), { target: { value: '18' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันบันทึกผลและจบตรวจ' }));
+    expect(await screen.findByText('หลังอาหาร · เช้า เที่ยง เย็น')).toBeInTheDocument();
+    expect(screen.getByText('2 เม็ด')).toBeInTheDocument();
+    expect(screen.getByText('3 วัน')).toBeInTheDocument();
+    expect((await repo.load()).records[0].prescribed_medications?.[0]).toMatchObject({ dosage: '2 เม็ด', frequency: 'หลังอาหาร · เช้า เที่ยง เย็น', duration_days: 3, quantity: 18 });
+  });
   it('shows loading, then empty state without a role switcher', async () => {
     render(<AppointmentPage role="patient" repository={createPaiMockRepository(fixture())} />);
     expect(screen.getByRole('status', { name: 'กำลังโหลดหน้าบริการ' })).toBeInTheDocument();
@@ -35,8 +67,10 @@ describe('Pai database-backed role containers with injected offline repository',
   it('opens the whole date filter block and requires a rejection reason for staff', async () => {
     const seed = withAppointment('staff_admin'); seed.appointments[0].status = 'pending';
     render(<AppointmentPage role="staff_admin" repository={createPaiMockRepository(seed)} />);
-    const dateFilter = await screen.findByLabelText('กรองวันที่');
+    const dateFilter = await screen.findByRole('button', { name: 'กรองวันที่' });
     fireEvent.click(dateFilter);
+    expect(screen.getByRole('dialog', { name: 'กรองวันที่' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'ปิดปฏิทิน' }));
     expect(document.activeElement).toBe(dateFilter);
     fireEvent.click(screen.getByText('ปฏิเสธนัด', { selector: 'summary' }));
     const reason = screen.getByRole('textbox', { name: 'เหตุผลการปฏิเสธ' });
