@@ -16,7 +16,7 @@ type InboxFilter = 'all' | 'unread' | NotificationType;
 const filters: Array<{ value: InboxFilter; label: string }> = [
   { value: 'all', label: 'ทั้งหมด' }, { value: 'unread', label: 'ยังไม่อ่าน' },
   { value: 'appointment', label: 'นัดหมาย' }, { value: 'reminder', label: 'เตือนยา' },
-  { value: 'broadcast', label: 'ประกาศ' }, { value: 'system', label: 'ระบบ' },
+  { value: 'broadcast', label: 'ประกาศ' },
 ];
 
 const typeMeta: Record<NotificationType, { label: string; icon: typeof Bell; className: string }> = {
