@@ -353,7 +353,7 @@ export default function ProfileContent() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-80px)] w-screen overflow-x-hidden bg-[#f6fbff]"
+      className="relative min-h-[calc(100vh-80px)] w-screen overflow-x-hidden bg-brand-surface"
       style={{
         marginLeft: "calc(50% - 50vw)",
       }}
@@ -1103,7 +1103,7 @@ export default function ProfileContent() {
 
                   <div className="p-5">
 
-                    <div className="flex min-h-[190px] items-center justify-center rounded-2xl bg-[#f8fcff] text-center">
+                    <div className="flex min-h-[190px] items-center justify-center rounded-2xl bg-brand-page text-center">
 
                       <div>
 

@@ -45,7 +45,7 @@ function TopProgressBarContent() {
       className="pointer-events-none fixed inset-x-0 top-0 z-[99999] h-[2.5px] bg-transparent"
     >
       <div
-        className="h-full bg-gradient-to-r from-[#0a2540] via-sky-500 to-emerald-400 shadow-[0_0_8px_rgba(14,165,233,0.5)] transition-all duration-300 ease-out"
+        className="h-full bg-gradient-to-r from-brand-ink via-brand to-status-success shadow-[0_0_8px_rgba(31,163,154,0.5)] transition-all duration-300 ease-out"
         style={{
           width: `${progress}%`,
           opacity: visible ? 1 : 0,

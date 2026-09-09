@@ -28,9 +28,9 @@ const metricIcons: Record<string, LucideIcon> = {
 };
 
 const toneClasses = {
-  blue: 'bg-sky-50 text-sky-700 ring-sky-100', emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-  amber: 'bg-amber-50 text-amber-700 ring-amber-100', violet: 'bg-violet-50 text-violet-700 ring-violet-100',
-  rose: 'bg-rose-50 text-rose-700 ring-rose-100',
+  blue: 'bg-status-info-bg text-status-info ring-brand-border', emerald: 'bg-status-success-bg text-status-success ring-emerald-200',
+  amber: 'bg-status-warning-bg text-status-warning ring-amber-200', violet: 'bg-status-info-bg text-status-info ring-brand-border',
+  rose: 'bg-status-critical-bg text-status-critical ring-red-200',
 };
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
@@ -39,9 +39,9 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
 };
 
 const appointmentStatusClasses: Record<AppointmentStatus, string> = {
-  pending: 'bg-amber-50 text-amber-800', confirmed: 'bg-sky-50 text-sky-700',
-  in_progress: 'bg-violet-50 text-violet-700', completed: 'bg-emerald-50 text-emerald-700',
-  cancelled: 'bg-slate-100 text-slate-600', no_show: 'bg-rose-50 text-rose-700', rejected: 'bg-rose-50 text-rose-700',
+  pending: 'bg-status-warning-bg text-status-warning', confirmed: 'bg-status-info-bg text-status-info',
+  in_progress: 'bg-status-info-bg text-status-info', completed: 'bg-status-success-bg text-status-success',
+  cancelled: 'bg-status-neutral-bg text-status-neutral', no_show: 'bg-status-critical-bg text-status-critical', rejected: 'bg-status-critical-bg text-status-critical',
 };
 
 const broadcastRoleOrder = ['patient', 'medical', 'staff_admin'] as const;

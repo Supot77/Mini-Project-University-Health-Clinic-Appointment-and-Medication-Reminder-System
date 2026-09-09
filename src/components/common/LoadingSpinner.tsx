@@ -19,7 +19,7 @@ const sizeMap = {
 };
 
 const toneMap = {
-  brand: 'text-[#0a2540]',
+  brand: 'text-brand-ink',
   white: 'text-white',
   sky: 'text-sky-600',
   slate: 'text-slate-400',

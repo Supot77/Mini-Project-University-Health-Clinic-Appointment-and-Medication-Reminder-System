@@ -611,7 +611,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 type="button"
                 disabled={isSaving}
                 onClick={saveSlot}
-                className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50 shadow-xs inline-flex items-center justify-center gap-2"
+                className="min-h-11 rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 shadow-xs inline-flex items-center justify-center gap-2"
               >
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin text-white" aria-hidden="true" />}
                 {isSaving ? 'กำลังบันทึก...' : 'บันทึกรอบตรวจ'}
@@ -646,7 +646,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             </div>
             <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
               <button type="button" onClick={() => setServiceFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button>
-              <button type="button" onClick={saveService} className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67]">บันทึกบริการ</button>
+              <button type="button" onClick={saveService} className="min-h-11 rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover">บันทึกบริการ</button>
             </div>
           </div>
         </div>
@@ -786,7 +786,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
               <button
                 type="button"
                 onClick={() => openSlotForm()}
-                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0a2540] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#123e67] active:scale-[0.98]"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-brand-ink px-4 text-xs font-bold text-white shadow-xs hover:bg-brand-hover active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 เพิ่มรอบตรวจ
@@ -959,7 +959,7 @@ function SlotCard({
         )}
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-950"><Clock3 className="h-4 w-4 text-slate-500" aria-hidden="true" /><span className="tabular-nums">{slot.startTime}–{slot.endTime}</span></div>
-      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0a2540] text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{service?.name ?? 'ไม่พบบริการ'}</div><div className="truncate text-[10px] text-slate-500">{doctor?.fullName ?? 'ไม่พบแพทย์'} · {department?.name ?? 'ไม่พบแผนก'}</div></div></div>
+      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-ink text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{service?.name ?? 'ไม่พบบริการ'}</div><div className="truncate text-[10px] text-slate-500">{doctor?.fullName ?? 'ไม่พบแพทย์'} · {department?.name ?? 'ไม่พบแผนก'}</div></div></div>
       <div className="mt-3"><div className="mb-1.5 flex items-center justify-between text-[10px] text-slate-500"><span>จองแล้ว</span><strong className="text-slate-700 tabular-nums">{slot.bookedCount}/{slot.maxCapacity}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-white/80"><div className={`h-full rounded-full ${slot.status === 'closed' ? 'bg-rose-400' : slot.status === 'full' ? 'bg-sky-500' : 'bg-emerald-500'}`} style={{ width: `${occupancy}%` }} /></div></div>
     </article>
   );

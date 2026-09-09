@@ -326,6 +326,8 @@ describe('DatabaseShopRepository', () => {
       [],
       [{ id: validDoctorId, profileId: validDoctorId, fullName: 'หมอสมชาย', email: '', initials: 'SC', specialty: 'ทั่วไป', departmentId: 'dept-1', availability: 'active' }],
       [{ id: 'service-1', code: 'GEN', name: 'ตรวจโรคทั่วไป', description: '', isActive: true }],
+      undefined,
+      '2026-09-07',
     );
 
     expect(result.ok).toBe(true);

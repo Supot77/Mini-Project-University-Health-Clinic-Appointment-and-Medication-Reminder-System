@@ -2,19 +2,159 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0a2540;
+  --background: #f5faf8;
+  --foreground: #102f3d;
 
   /* Clinical Color Tokens */
-  --primary: #0ea5e9;
-  --primary-dark: #0a2540;
-  --primary-mid: #0d3b6e;
-  --primary-accent: #38bdf8;
-  --surface-light: #f8fafb;
+  --primary: #1fa39a;
+  --primary-dark: #102f3d;
+  --primary-mid: #174858;
+  --primary-accent: #83d6c6;
+  --surface-light: #eaf5f2;
   --surface-white: #ffffff;
-  --text-muted: #6b7280;
-  --border-soft: #e5e7eb;
+  --text-muted: #49636b;
+  --border-soft: #e8efed;
   --emerald: #10b981;
+}
+
+/* Shared brand utilities. Keep status colors (error/warning/success) separate. */
+@theme {
+  --color-brand: #1fa39a;
+  --color-brand-strong: #087f78;
+  --color-brand-ink: #102f3d;
+  --color-brand-hover: #174858;
+  --color-brand-page: #eaf5f2;
+  --color-brand-soft: #e2f5f1;
+  --color-brand-surface: #f5faf8;
+  --color-brand-muted: #7b9093;
+  --color-brand-body: #49636b;
+  --color-brand-accent: #83d6c6;
+  --color-brand-footer-text: #b6ced0;
+  --color-brand-footer-muted: #88a7aa;
+  --color-brand-border: #9bcfc5;
+  --color-brand-border-soft: #e8efed;
+  --color-brand-border-strong: #a9c9c4;
+  --color-status-critical: #b42318;
+  --color-status-critical-bg: #fff1f0;
+  --color-status-warning: #a16207;
+  --color-status-warning-bg: #fff7d6;
+  --color-status-success: #15803d;
+  --color-status-success-bg: #dcfce7;
+  --color-status-info: #087f78;
+  --color-status-info-bg: #e2f5f1;
+  --color-status-neutral: #49636b;
+  --color-status-neutral-bg: #f1f5f4;
+  --radius-brand-sm: 9px;
+  --radius-brand-button: 13px;
+  --radius-brand-card: 17px;
+  --radius-brand-hero: 34px;
+  --shadow-brand-button: 0 12px 28px rgba(16, 47, 61, 0.18);
+  --shadow-brand-hero: 0 24px 70px rgba(28, 74, 75, 0.16);
+
+  /* Compatibility for existing modules using the former sky brand palette. */
+  --color-sky-50: #f5faf8;
+  --color-sky-100: #e2f5f1;
+  --color-sky-200: #9bcfc5;
+  --color-sky-300: #83d6c6;
+  --color-sky-400: #1fa39a;
+  --color-sky-500: #087f78;
+  --color-sky-600: #087f78;
+  --color-sky-700: #174858;
+  --color-sky-800: #174858;
+  --color-sky-900: #102f3d;
+  --color-sky-950: #102f3d;
+
+  /* Shared neutral surfaces. Existing slate/zinc/gray utilities now follow brand UI. */
+  --color-slate-50: #f5faf8;
+  --color-slate-100: #eef6f3;
+  --color-slate-200: #dbe9e5;
+  --color-slate-300: #c2d7d2;
+  --color-slate-400: #88a7aa;
+  --color-slate-500: #7b9093;
+  --color-slate-600: #49636b;
+  --color-slate-700: #174858;
+  --color-slate-800: #102f3d;
+  --color-slate-900: #102f3d;
+  --color-slate-950: #102f3d;
+  --color-zinc-50: #f5faf8;
+  --color-zinc-100: #eef6f3;
+  --color-zinc-200: #e8efed;
+  --color-zinc-300: #d4e3df;
+  --color-zinc-400: #88a7aa;
+  --color-zinc-500: #7b9093;
+  --color-zinc-600: #49636b;
+  --color-zinc-700: #174858;
+  --color-zinc-800: #102f3d;
+  --color-zinc-900: #102f3d;
+  --color-zinc-950: #102f3d;
+  --color-gray-50: #f5faf8;
+  --color-gray-100: #eef6f3;
+  --color-gray-200: #e8efed;
+  --color-gray-300: #d4e3df;
+  --color-gray-400: #88a7aa;
+  --color-gray-500: #7b9093;
+  --color-gray-600: #49636b;
+  --color-gray-700: #174858;
+  --color-gray-800: #102f3d;
+  --color-gray-900: #102f3d;
+  --color-gray-950: #102f3d;
+
+  /* Blue-family utilities are legacy brand aliases; status colors stay explicit. */
+  --color-blue-50: #eaf5f2;
+  --color-blue-100: #e2f5f1;
+  --color-blue-200: #9bcfc5;
+  --color-blue-300: #83d6c6;
+  --color-blue-400: #1fa39a;
+  --color-blue-500: #1fa39a;
+  --color-blue-600: #087f78;
+  --color-blue-700: #087f78;
+  --color-blue-800: #174858;
+  --color-blue-900: #102f3d;
+  --color-blue-950: #102f3d;
+  --color-teal-50: #eaf5f2;
+  --color-teal-100: #e2f5f1;
+  --color-teal-200: #9bcfc5;
+  --color-teal-300: #83d6c6;
+  --color-teal-400: #1fa39a;
+  --color-teal-500: #1fa39a;
+  --color-teal-600: #087f78;
+  --color-teal-700: #087f78;
+  --color-teal-800: #174858;
+  --color-teal-900: #102f3d;
+  --color-teal-950: #102f3d;
+  --color-cyan-50: #eaf5f2;
+  --color-cyan-100: #e2f5f1;
+  --color-cyan-200: #9bcfc5;
+  --color-cyan-300: #83d6c6;
+  --color-cyan-400: #1fa39a;
+  --color-cyan-500: #1fa39a;
+  --color-cyan-600: #087f78;
+  --color-cyan-700: #087f78;
+  --color-cyan-800: #174858;
+  --color-cyan-900: #102f3d;
+  --color-cyan-950: #102f3d;
+  --color-indigo-50: #eaf5f2;
+  --color-indigo-100: #e2f5f1;
+  --color-indigo-200: #9bcfc5;
+  --color-indigo-300: #83d6c6;
+  --color-indigo-400: #1fa39a;
+  --color-indigo-500: #1fa39a;
+  --color-indigo-600: #087f78;
+  --color-indigo-700: #087f78;
+  --color-indigo-800: #174858;
+  --color-indigo-900: #102f3d;
+  --color-indigo-950: #102f3d;
+  --color-violet-50: #eaf5f2;
+  --color-violet-100: #e2f5f1;
+  --color-violet-200: #9bcfc5;
+  --color-violet-300: #83d6c6;
+  --color-violet-400: #1fa39a;
+  --color-violet-500: #1fa39a;
+  --color-violet-600: #087f78;
+  --color-violet-700: #087f78;
+  --color-violet-800: #174858;
+  --color-violet-900: #102f3d;
+  --color-violet-950: #102f3d;
 }
 
 body {
@@ -60,20 +200,20 @@ body {
 
 /* Frosted glass */
 .frosted-glass {
-  background-color: rgba(248, 250, 251, 0.85);
+  background-color: rgba(234, 245, 242, 0.85);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
 
 .frosted-glass-dark {
-  background-color: rgba(10, 37, 64, 0.85);
+  background-color: rgba(16, 47, 61, 0.85);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
 
 /* Gradient text utility */
 .gradient-text-sky {
-  background-image: linear-gradient(90deg, #38bdf8, #a5f3fc);
+  background-image: linear-gradient(90deg, var(--primary-accent), #a5f3fc);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -98,14 +238,14 @@ body {
 
 /* Hero primary button */
 .clinic-btn-primary {
-  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
-  color: #0a2540;
-  box-shadow: 0 4px 24px rgba(56,189,248,0.40);
+  background: linear-gradient(135deg, var(--primary-accent) 0%, var(--primary) 100%);
+  color: var(--primary-dark);
+  box-shadow: 0 4px 24px rgba(16,47,61,0.18);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .clinic-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(56,189,248,0.55);
+  box-shadow: 0 8px 32px rgba(16,47,61,0.24);
 }
 .clinic-btn-primary:active {
   transform: translateY(0) scale(0.97);
@@ -138,12 +278,12 @@ body {
 
 /* Settings theme tokens */
 :root {
-  --settings-page-bg: #f8fafc;
-  --settings-page-text: #0a2540;
+  --settings-page-bg: var(--background);
+  --settings-page-text: var(--primary-dark);
   --settings-card: #ffffff;
   --settings-option: #ffffff;
-  --settings-border: #e2e8f0;
-  --settings-muted: #64748b;
+  --settings-border: var(--border-soft);
+  --settings-muted: var(--text-muted);
 }
 
 html[data-theme="dark"] {
