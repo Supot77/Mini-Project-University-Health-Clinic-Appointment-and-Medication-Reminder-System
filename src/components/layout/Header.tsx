@@ -6,6 +6,7 @@ import { useState, type ComponentType } from "react";
 import { Bell, CalendarDays, ClipboardClock, Hospital, LayoutDashboard, LogIn, Menu, Package, Stethoscope, UserRound, UserSearch, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import type { UserRole } from "@/types/database";
+import ProfileAccountDrawer from "@/components/profile/ProfileAccountDrawer";
 
 type NavigationRole = UserRole;
 
@@ -33,6 +34,7 @@ export default function Header() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, signOut, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -42,6 +44,7 @@ export default function Header() {
       console.error("ออกจากระบบไม่สำเร็จ", error);
     } finally {
       setMobileMenuOpen(false);
+      setAccountMenuOpen(false);
     }
   };
 
@@ -88,7 +91,7 @@ export default function Header() {
                 <UserRound className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden max-w-28 truncate xl:inline">{user?.full_name ?? "บัญชี"}</span>
               </Link>
-              <button type="button" onClick={() => void handleSignOut()} className="min-h-10 rounded-brand-sm px-3 text-[13px] text-brand-footer-muted transition-colors hover:bg-rose-400/10 hover:text-rose-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300">ออกจากระบบ</button>
+              <button type="button" onClick={() => setAccountMenuOpen(true)} className="flex size-10 items-center justify-center rounded-brand-sm border border-white/10 text-brand-footer-text transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent" aria-label="เปิดเมนูบัญชี" aria-expanded={accountMenuOpen}><Menu className="size-5" aria-hidden="true" /></button>
             </div>
           ) : (
             <Link href="/login" className="hidden min-h-10 items-center gap-2 rounded-full bg-brand-accent px-4 text-[13px] font-bold text-brand-ink transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent sm:flex">
@@ -132,6 +135,7 @@ export default function Header() {
           </div>
         </nav>
       )}
+      <ProfileAccountDrawer open={accountMenuOpen} onClose={() => setAccountMenuOpen(false)} onSignOut={() => void handleSignOut()} />
     </header>
   );
 }
