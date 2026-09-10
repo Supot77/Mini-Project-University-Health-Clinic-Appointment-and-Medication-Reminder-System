@@ -24,8 +24,9 @@ const navigationItems: NavigationItem[] = [
   { href: "/notifications", label: "แจ้งเตือน", icon: Bell, roles: ["patient", "medical", "staff_admin"] },
   { href: "/reminders", label: "เตือนยา", icon: Bell, roles: ["patient", "staff_admin"] },
   { href: "/pharmacy", label: "คลังยา", icon: Package, roles: ["medical", "staff_admin"] },
-  { href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["staff_admin", "medical"] },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["patient", "medical", "staff_admin"] },
+{ href: "/patients/search", label: "ค้นหาผู้ป่วย", icon: UserSearch, roles: ["medical"] },
+{ href: "/staff/accounts", label: "จัดการข้อมูลผู้ใช้งาน", icon: UserSearch, roles: ["staff_admin"] },  
+{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["patient", "medical", "staff_admin"] },
 ];
 
 export default function Header() {
