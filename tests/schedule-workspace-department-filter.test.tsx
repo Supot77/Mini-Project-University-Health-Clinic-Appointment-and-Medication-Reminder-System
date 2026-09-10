@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ScheduleWorkspace, { getNextAvailableTimeSlot } from '@/components/schedules/ScheduleWorkspace';
 import type { ScheduleDepartment, ScheduleDoctor, ScheduleService, ScheduleSlot } from '@/types/schedule';
 
@@ -108,11 +108,17 @@ vi.mock('@/features/shop/context/ShopProvider', () => ({
 
 describe('ScheduleWorkspace Service Filter', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-08T12:00:00Z'));
     shopState.departments = [...mockDepartments];
     shopState.services = [...mockServices];
     shopState.doctors = [...mockDoctors];
     shopState.slots = [...mockSlots];
     shopState.isLoading = false;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('only shows service options for active services that have open slots', () => {

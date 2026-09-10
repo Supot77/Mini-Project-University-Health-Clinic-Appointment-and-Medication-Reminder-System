@@ -32,10 +32,12 @@ const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.�
 
 import { getBangkokToday } from '@/features/shop/domain/rules';
 
-const TODAY_DATE = getBangkokToday();
+function getTodayDate(): string {
+  return getBangkokToday();
+}
 
 function getCurrentWeekMonday(refDateStr?: string): string {
-  const dateStr = refDateStr ?? TODAY_DATE;
+  const dateStr = refDateStr ?? getTodayDate();
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
   const day = date.getUTCDay();
@@ -58,7 +60,9 @@ interface SlotDraft {
 const emptySlotDraft: SlotDraft = {
   doctorId: '',
   serviceId: '',
-  slotDate: TODAY_DATE,
+  get slotDate() {
+    return getTodayDate();
+  },
   startTime: '08:30',
   endTime: '09:00',
   maxCapacity: 1,
@@ -243,7 +247,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
       setFormError('คุณไม่มีสิทธิ์แก้ไขรอบตรวจของแพทย์ท่านอื่น');
       return;
     }
-    if (!slot && suggestedDate && suggestedDate < TODAY_DATE) {
+    if (!slot && suggestedDate && suggestedDate < getTodayDate()) {
       setNotice('');
       setFormError('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้');
       return;
@@ -252,7 +256,8 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     setNotice('');
     setEditingSlotId(slot?.id ?? null);
     const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : (doctorFilter !== 'all' ? doctorFilter : '');
-    const initialDate = suggestedDate && suggestedDate >= TODAY_DATE ? suggestedDate : (weekDays[0] >= TODAY_DATE ? weekDays[0] : TODAY_DATE);
+    const today = getTodayDate();
+    const initialDate = suggestedDate && suggestedDate >= today ? suggestedDate : (weekDays[0] >= today ? weekDays[0] : today);
     const initialTimes = !slot && defaultDoctorId && initialDate
       ? getNextAvailableTimeSlot(slots, defaultDoctorId, initialDate)
       : { startTime: '08:30', endTime: '09:00' };
@@ -289,7 +294,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
 
   const saveSlot = async () => {
     if (role === 'patient') return;
-    if (!editingSlotId && draft.slotDate < TODAY_DATE) {
+    if (!editingSlotId && draft.slotDate < getTodayDate()) {
       setFormError('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้');
       return;
     }
@@ -531,7 +536,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 <span className="text-sm font-medium text-slate-700">วันที่</span>
                 <input
                   type="date"
-                  min={editingSlotId ? undefined : TODAY_DATE}
+                  min={editingSlotId ? undefined : getTodayDate()}
                   value={draft.slotDate}
                   onChange={(event) => {
                     const newDate = event.target.value;
@@ -819,7 +824,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
               <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
                 {weekDays.map((date) => {
                   const parsed = parseClinicDate(date);
-                  const isToday = date === TODAY_DATE;
+                  const isToday = date === getTodayDate();
                   return (
                     <button
                       type="button"
@@ -848,7 +853,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                     <div
                       key={date}
                       onDoubleClick={() => handleDrillDownDay(date)}
-                      className={`min-w-0 cursor-pointer select-none space-y-3 p-3 ${date === TODAY_DATE ? 'bg-sky-50/30' : ''}`}
+                      className={`min-w-0 cursor-pointer select-none space-y-3 p-3 ${date === getTodayDate() ? 'bg-sky-50/30' : ''}`}
                       title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
                     >
                       {daySlots.map((slot) => (
@@ -864,7 +869,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                         />
                       ))}
                       {daySlots.length === 0 && (
-                        role === 'patient' || date < TODAY_DATE ? (
+                        role === 'patient' || date < getTodayDate() ? (
                           <div className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
                             ไม่มีรอบตรวจ
                           </div>
@@ -896,7 +901,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                         <div className="text-xs font-semibold text-sky-700">{dayNames[parsed.getUTCDay()]}</div>
                         <h2 className="font-bold text-slate-950">{formatShortDate(date)}</h2>
                       </div>
-                      {role !== 'patient' && date >= TODAY_DATE && (
+                      {role !== 'patient' && date >= getTodayDate() && (
                         <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-sky-700 hover:bg-sky-50">
                           <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบ
                         </button>
@@ -1043,7 +1048,7 @@ function CalendarBoard({
                   onToggleClosed={() => onToggle(slot)}
                 />
               </div>
-              {canBook && slot.status === 'available' && slot.bookedCount < slot.maxCapacity && slot.slotDate > TODAY_DATE && (
+              {canBook && slot.status === 'available' && slot.bookedCount < slot.maxCapacity && slot.slotDate > getTodayDate() && (
                 <Link
                   href={{ pathname: '/appointments', query: { slotId: slot.id } }}
                   className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-brand-ink px-4 text-sm font-semibold text-white shadow-xs hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-sky-600"
@@ -1055,13 +1060,13 @@ function CalendarBoard({
             </div>
           ))}
           {slots.filter((slot) => slot.slotDate === date).length === 0 && (
-            canCreate && date >= TODAY_DATE ? (
+            canCreate && date >= getTodayDate() ? (
               <button type="button" onClick={() => onCreate(undefined, date)} className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจวันนี้
               </button>
             ) : (
               <div className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-                {date >= TODAY_DATE ? 'ไม่มีรอบตรวจวันนี้' : 'ไม่มีรอบตรวจ'}
+                {date >= getTodayDate() ? 'ไม่มีรอบตรวจวันนี้' : 'ไม่มีรอบตรวจ'}
               </div>
             )
           )}
@@ -1078,7 +1083,7 @@ function CalendarBoard({
             return (
               <div key={date} className="px-2 py-3 text-center">
                 <div className="text-[11px] font-semibold text-slate-500">{dayNames[parsed.getUTCDay()]}</div>
-                <div className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${date === TODAY_DATE ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
+                <div className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${date === getTodayDate() ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
               </div>
             );
           })}
@@ -1086,7 +1091,7 @@ function CalendarBoard({
         <div className="grid grid-cols-7 divide-x divide-y divide-slate-200">
           {days.map((date) => {
             const daySlots = slots.filter((slot) => slot.slotDate === date);
-            const isToday = date === TODAY_DATE;
+            const isToday = date === getTodayDate();
             return (
               <div
                 key={date}
@@ -1133,7 +1138,7 @@ function CalendarBoard({
                     </div>
                   ))}
                 </div>
-                {canCreate && date >= TODAY_DATE && (
+                {canCreate && date >= getTodayDate() && (
                   <button
                     type="button"
                     onClick={(e) => {
