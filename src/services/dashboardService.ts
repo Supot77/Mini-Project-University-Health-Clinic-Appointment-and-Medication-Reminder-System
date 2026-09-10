@@ -513,3 +513,24 @@ export async function getDashboardStats() {
     lowStockMedications: lowStockMeds?.length ?? 0,
   };
 }
+export interface StaffProfileUpdate {
+  fullName: string;
+  phone: string | null;
+  role: UserRole;
+  isActive: boolean;
+}
+
+export async function updateStaffProfile(
+  profileId: string,
+  update: StaffProfileUpdate,
+): Promise<void> {
+  const { error } = await supabase.rpc('staff_admin_update_profile', {
+    p_profile_id: profileId,
+    p_full_name: update.fullName,
+    p_phone: update.phone,
+    p_role: update.role,
+    p_is_active: update.isActive,
+  });
+
+  if (error) throw new Error(error.message);
+}

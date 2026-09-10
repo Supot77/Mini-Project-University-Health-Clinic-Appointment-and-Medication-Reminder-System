@@ -1,20 +1,48 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { Search, Phone, AlertCircle, HeartPulse, Loader2, X, ChevronDown, UserRound } from 'lucide-react';
-import { searchPatients } from '@/services/authService';
-import type { Profile } from '@/types/database';
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Search,
+  Phone,
+  AlertCircle,
+  HeartPulse,
+  Loader2,
+  X,
+  ChevronDown,
+  UserRound,
+  Pencil,
+} from "lucide-react";
+import {
+  searchProfilesByGroup,
+  type AccountGroup,
+} from "@/services/authService";
+import { useAuth } from "@/hooks/useAuth";
+import type { Profile } from "@/types/database";
 
 const healthStatusLabel: Record<string, { text: string; className: string }> = {
-  yes: { text: 'มี', className: 'bg-status-critical-bg text-status-critical border-red-200' },
-  no: { text: 'ไม่มี', className: 'bg-status-success-bg text-status-success border-emerald-200' },
-  unknown: { text: 'ไม่ทราบ', className: 'bg-status-neutral-bg text-status-neutral border-brand-border-soft' },
+  yes: {
+    text: "มี",
+    className: "bg-status-critical-bg text-status-critical border-red-200",
+  },
+  no: {
+    text: "ไม่มี",
+    className: "bg-status-success-bg text-status-success border-emerald-200",
+  },
+  unknown: {
+    text: "ไม่ทราบ",
+    className:
+      "bg-status-neutral-bg text-status-neutral border-brand-border-soft",
+  },
 };
 
 function HealthBadge({ status }: { status: string | null }) {
-  const info = healthStatusLabel[status ?? 'unknown'] ?? healthStatusLabel.unknown;
+  const info =
+    healthStatusLabel[status ?? "unknown"] ?? healthStatusLabel.unknown;
   return (
-    <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${info.className}`}>
+    <span
+      className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${info.className}`}
+    >
       {info.text}
     </span>
   );
@@ -23,8 +51,10 @@ function HealthBadge({ status }: { status: string | null }) {
 const PAGE_SIZE = 10;
 
 export default function PatientSearchContent() {
-  const [query, setQuery] = useState('');
-  const [activeQuery, setActiveQuery] = useState('');
+  const { role } = useAuth();
+  const [accountGroup, setAccountGroup] = useState<AccountGroup>("patient");
+  const [query, setQuery] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -33,44 +63,64 @@ export default function PatientSearchContent() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPatients = useCallback(async (searchQuery: string, pageNumber: number, append: boolean = false) => {
-    if (pageNumber === 0) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-    setError(null);
-
-    try {
-      const { patients, hasMore: moreAvailable, totalCount: total } = await searchPatients(
-        searchQuery,
-        pageNumber,
-        PAGE_SIZE
-      );
-
-      if (append) {
-        setResults((prev) => [...prev, ...patients]);
+  const fetchProfiles = useCallback(
+    async (
+      selectedGroup: AccountGroup,
+      searchQuery: string,
+      pageNumber: number,
+      append: boolean = false,
+    ) => {
+      if (pageNumber === 0) {
+        setIsLoading(true);
       } else {
-        setResults(patients);
+        setIsLoadingMore(true);
       }
-      setHasMore(moreAvailable);
-      setTotalCount(total);
-      setPage(pageNumber);
-      setActiveQuery(searchQuery);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการดึงข้อมูลผู้ป่วย');
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, []);
 
-  // Initial load
+      setError(null);
+
+      try {
+        const {
+          profiles,
+          hasMore: moreAvailable,
+          totalCount: total,
+        } = await searchProfilesByGroup(
+          selectedGroup,
+          searchQuery,
+          pageNumber,
+          PAGE_SIZE,
+        );
+
+        if (append) {
+          setResults((current) => [...current, ...profiles]);
+        } else {
+          setResults(profiles);
+        }
+
+        setHasMore(moreAvailable);
+        setTotalCount(total);
+        setPage(pageNumber);
+        setActiveQuery(searchQuery);
+      } catch (fetchError) {
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้งาน",
+        );
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [],
+  );
+
+  // โหลดข้อมูลเมื่อเปิดหน้าและเมื่อเปลี่ยนแท็บ
   useEffect(() => {
     let active = true;
+
     const timer = window.setTimeout(() => {
       if (active) {
-        void fetchPatients('', 0, false);
+        void fetchProfiles(accountGroup, "", 0, false);
       }
     }, 0);
 
@@ -78,38 +128,61 @@ export default function PatientSearchContent() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [fetchPatients]);
+  }, [accountGroup, fetchProfiles]);
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    await fetchPatients(query, 0, false);
+  async function handleSearch(event: React.FormEvent) {
+    event.preventDefault();
+
+    await fetchProfiles(accountGroup, query, 0, false);
   }
 
   async function handleClearSearch() {
-    setQuery('');
-    await fetchPatients('', 0, false);
+    setQuery("");
+
+    await fetchProfiles(accountGroup, "", 0, false);
   }
 
   async function handleLoadMore() {
     if (isLoadingMore || !hasMore) return;
-    await fetchPatients(activeQuery, page + 1, true);
+
+    await fetchProfiles(accountGroup, activeQuery, page + 1, true);
+  }
+
+  function handleGroupChange(nextGroup: AccountGroup) {
+    if (nextGroup === accountGroup) return;
+
+    setQuery("");
+    setActiveQuery("");
+    setResults([]);
+    setPage(0);
+    setHasMore(false);
+    setTotalCount(0);
+    setAccountGroup(nextGroup);
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">ค้นหาผู้ป่วย</h1>
-          <p className="text-sm text-zinc-500 mt-1">ค้นหาด้วยชื่อ-นามสกุล, รหัสนักศึกษา หรือเบอร์โทรศัพท์</p>
+          <h1 className="text-2xl font-bold text-zinc-900">
+            ค้นหาข้อมูลผู้ป่วย
+          </h1>
+
+          <p className="mt-1 text-sm text-zinc-500">
+            ค้นหา ดู และข้อมูลผู้ป่วย
+          </p>
         </div>
+
         {!isLoading && totalCount > 0 && (
           <span className="inline-flex items-center gap-1.5 self-start sm:self-auto px-3 py-1 bg-sky-50 text-sky-700 text-xs font-semibold rounded-full border border-sky-100">
             <UserRound className="size-3.5" />
-            ผู้ป่วยทั้งหมด {totalCount} คน
+            {accountGroup === "patient" ? "ผู้ป่วย" : "บุคลากร"}
+            ทั้งหมด {totalCount} คน
           </span>
         )}
       </div>
 
+      
       <form onSubmit={handleSearch} className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
@@ -135,7 +208,11 @@ export default function PatientSearchContent() {
           disabled={isLoading}
           className="inline-flex items-center gap-2 bg-sky-500 text-white font-medium px-5 py-2.5 rounded-xl hover:bg-sky-600 transition disabled:opacity-60 text-sm shadow-sm"
         >
-          {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+          {isLoading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Search className="size-4" />
+          )}
           ค้นหา
         </button>
       </form>
@@ -151,7 +228,9 @@ export default function PatientSearchContent() {
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-400">
           <Loader2 className="size-7 animate-spin text-sky-500" />
-          <p className="text-sm font-medium text-zinc-500">กำลังโหลดรายชื่อผู้ป่วย...</p>
+          <p className="text-sm font-medium text-zinc-500">
+            กำลังโหลดรายชื่อผู้ป่วย...
+          </p>
         </div>
       )}
 
@@ -161,10 +240,14 @@ export default function PatientSearchContent() {
           <UserRound className="size-10 text-zinc-300 mx-auto" />
           <div>
             <p className="text-base font-semibold text-zinc-800">
-              {activeQuery ? 'ไม่พบข้อมูลผู้ป่วยที่ตรงกับคำค้นหา' : 'ยังไม่มีข้อมูลผู้ป่วยในระบบ'}
+              {activeQuery
+                ? "ไม่พบข้อมูลผู้ป่วยที่ตรงกับคำค้นหา"
+                : "ยังไม่มีข้อมูลผู้ป่วยในระบบ"}
             </p>
             <p className="text-xs text-zinc-500 mt-1">
-              {activeQuery ? 'ลองตรวจสอบการสะกดคำ หรือค้นหาด้วยรหัสนักศึกษา/เบอร์โทรศัพท์' : 'เมื่อมีผู้ลงทะเบียนเป็นผู้ป่วย รายชื่อจะแสดงขึ้นที่นี่'}
+              {activeQuery
+                ? "ลองตรวจสอบการสะกดคำ หรือค้นหาด้วยรหัสนักศึกษา/เบอร์โทรศัพท์"
+                : "เมื่อมีผู้ลงทะเบียนเป็นผู้ป่วย รายชื่อจะแสดงขึ้นที่นี่"}
             </p>
           </div>
           {activeQuery && (
@@ -184,7 +267,13 @@ export default function PatientSearchContent() {
         <div className="space-y-3">
           {activeQuery && (
             <div className="flex items-center justify-between px-1 text-xs text-zinc-500">
-              <span>ผลการค้นหาสำหรับ &ldquo;<span className="font-semibold text-zinc-700">{activeQuery}</span>&rdquo; ({totalCount} รายการ)</span>
+              <span>
+                ผลการค้นหาสำหรับ &ldquo;
+                <span className="font-semibold text-zinc-700">
+                  {activeQuery}
+                </span>
+                &rdquo; ({totalCount} รายการ)
+              </span>
               <button
                 type="button"
                 onClick={handleClearSearch}
@@ -196,64 +285,111 @@ export default function PatientSearchContent() {
           )}
 
           {results.map((patient) => (
-            <div key={patient.id} className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-5 transition hover:border-zinc-200">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h2 className="font-semibold text-zinc-900 text-base">{patient.full_name}</h2>
-                  <p className="text-sm text-zinc-500">รหัสนักศึกษา: {patient.student_id || '-'}</p>
+            <div
+              key={patient.id}
+              className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-5 transition hover:border-zinc-200"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-semibold text-zinc-900">
+                    {patient.full_name}
+                  </h2>
+
+                  <p className="text-sm text-zinc-500">
+                    {patient.patient_type === "employee"
+                      ? "รหัสบุคลากร"
+                      : "รหัสนักศึกษา"}
+                    :{" "}
+                    {patient.patient_type === "employee"
+                      ? patient.employee_id || "-"
+                      : patient.student_id || "-"}
+                  </p>
                 </div>
+
+                {role === "staff_admin" && (
+                  <Link
+                    href={`/patients/${patient.id}/edit`}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                    แก้ไขข้อมูล
+                  </Link>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-700 mb-3">
                 <div className="flex items-center gap-1.5">
                   <Phone className="size-4 text-zinc-400" />
-                  <span>{patient.phone || 'ไม่มีเบอร์โทร'}</span>
+                  <span>{patient.phone || "ไม่มีเบอร์โทร"}</span>
                 </div>
                 {patient.emergency_phone && (
                   <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-                    <span className="font-medium text-zinc-600">เบอร์ฉุกเฉิน:</span>
+                    <span className="font-medium text-zinc-600">
+                      เบอร์ฉุกเฉิน:
+                    </span>
                     <span>{patient.emergency_phone}</span>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                className={
+                  accountGroup === "patient"
+                    ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+                    : "hidden"
+                }
+              >
+                {" "}
                 <div className="rounded-xl bg-amber-50/70 border border-amber-100 p-3">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5">
-                      <AlertCircle className="size-3.5 text-amber-600" /> ประวัติแพ้ยา
+                      <AlertCircle className="size-3.5 text-amber-600" />{" "}
+                      ประวัติแพ้ยา
                     </p>
                     <HealthBadge
                       status={
                         patient.allergies?.trim()
-                          ? 'yes'
-                          : patient.allergy_status ?? null
+                          ? "yes"
+                          : (patient.allergy_status ?? null)
                       }
                     />
                   </div>
-                  {patient.allergies?.trim() || patient.allergy_status === 'yes' ? (
-                    <p className="text-xs text-zinc-700 mt-1 font-medium">{patient.allergies || 'มีประวัติแพ้ยา (ไม่ระบุรายละเอียด)'}</p>
+                  {patient.allergies?.trim() ||
+                  patient.allergy_status === "yes" ? (
+                    <p className="text-xs text-zinc-700 mt-1 font-medium">
+                      {patient.allergies ||
+                        "มีประวัติแพ้ยา (ไม่ระบุรายละเอียด)"}
+                    </p>
                   ) : (
-                    <p className="text-xs text-zinc-400 mt-1">ไม่มีประวัติแพ้ยา</p>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      ไม่มีประวัติแพ้ยา
+                    </p>
                   )}
                 </div>
                 <div className="rounded-xl bg-rose-50/70 border border-rose-100 p-3">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-xs font-medium text-rose-800 flex items-center gap-1.5">
-                      <HeartPulse className="size-3.5 text-rose-600" /> โรคประจำตัว
+                      <HeartPulse className="size-3.5 text-rose-600" />{" "}
+                      โรคประจำตัว
                     </p>
                     <HealthBadge
                       status={
                         patient.chronic_diseases?.trim()
-                          ? 'yes'
-                          : patient.chronic_disease_status ?? null
+                          ? "yes"
+                          : (patient.chronic_disease_status ?? null)
                       }
                     />
                   </div>
-                  {patient.chronic_diseases?.trim() || patient.chronic_disease_status === 'yes' ? (
-                    <p className="text-xs text-zinc-700 mt-1 font-medium">{patient.chronic_diseases || 'มีโรคประจำตัว (ไม่ระบุรายละเอียด)'}</p>
+                  {patient.chronic_diseases?.trim() ||
+                  patient.chronic_disease_status === "yes" ? (
+                    <p className="text-xs text-zinc-700 mt-1 font-medium">
+                      {patient.chronic_diseases ||
+                        "มีโรคประจำตัว (ไม่ระบุรายละเอียด)"}
+                    </p>
                   ) : (
-                    <p className="text-xs text-zinc-400 mt-1">ไม่มีโรคประจำตัว</p>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      ไม่มีโรคประจำตัว
+                    </p>
                   )}
                 </div>
               </div>
@@ -277,7 +413,10 @@ export default function PatientSearchContent() {
                 ) : (
                   <>
                     <ChevronDown className="size-4 text-zinc-500" />
-                    <span>แสดงรายชื่อเพิ่มเติม (เหลืออีก {totalCount - results.length} คน)</span>
+                    <span>
+                      แสดงรายชื่อเพิ่มเติม (เหลืออีก{" "}
+                      {totalCount - results.length} คน)
+                    </span>
                   </>
                 )}
               </button>
@@ -285,7 +424,9 @@ export default function PatientSearchContent() {
           )}
 
           {!hasMore && results.length > 0 && totalCount > PAGE_SIZE && (
-            <p className="text-center text-xs text-zinc-400 pt-4">แสดงครบทั้งหมด {totalCount} รายการแล้ว</p>
+            <p className="text-center text-xs text-zinc-400 pt-4">
+              แสดงครบทั้งหมด {totalCount} รายการแล้ว
+            </p>
           )}
         </div>
       )}
