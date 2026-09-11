@@ -28,6 +28,9 @@ export function createPaiDatabaseRepository(client: SupabaseClient, expectedRole
       const current = await actor(['patient', 'medical', 'staff_admin']);
       const parsed = snapshotSchema.safeParse(await rpc('pai_workspace'));
       if (!parsed.success || parsed.data.actor.id !== current.id || parsed.data.actor.role !== current.role) throw new Error('ข้อมูลไม่ตรงกับบัญชีปัจจุบัน กรุณาโหลดใหม่');
+      const departments = await client.from('departments').select('name').eq('is_active', true).order('name');
+      if (departments.error) throw new Error('ไม่สามารถโหลดรายการบริการได้ กรุณาลองใหม่อีกครั้ง');
+      parsed.data.departments = z.array(z.object({ name: z.string().trim().min(1) })).parse(departments.data).map((item) => item.name);
       if (current.role !== 'patient' && parsed.data.appointments.length) {
         const patientIds = [...new Set(parsed.data.appointments.map((a) => a.user_id))];
         const profiles = await client.from('profiles').select('id, phone').in('id', patientIds);

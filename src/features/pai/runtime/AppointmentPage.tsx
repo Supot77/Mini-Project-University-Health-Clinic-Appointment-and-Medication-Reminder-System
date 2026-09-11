@@ -8,6 +8,7 @@ import { statusLabels, formatAppointmentDate } from '../appointments/repository'
 import { inputClass, primaryButtonClass, secondaryButtonClass } from '../components/PaiPageHeader';
 import PaiPageLoading from '../components/PaiPageLoading';
 import PaiDatePicker from '../components/PaiDatePicker';
+import PaiSelect from '../components/PaiSelect';
 import WorkspaceShell, { type WorkspaceHeaderStat } from './WorkspaceShell';
 import { usePaiWorkspace } from './usePaiWorkspace';
 
@@ -129,10 +130,8 @@ function BookingForm({ data, busy, book, initialSlotId }: { data: PaiSnapshot; b
     <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span><div><h2 className="font-semibold text-slate-950">จองนัดใหม่</h2><p className="mt-1 text-xs text-slate-500">เลือกรอบบริการที่สะดวก แล้วส่งคำขอให้เจ้าหน้าที่อนุมัติ</p></div></div>
     <fieldset disabled={busy} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
       <div className="space-y-1.5 text-sm font-medium text-slate-700"><label htmlFor="appointment-date">วันที่ตรวจ</label><AppointmentDatePicker value={date} minDate={bangkokDate()} onChange={(value) => { setDate(value); setSlotId(''); }} /></div>
-      <label className="space-y-1.5 text-sm font-medium text-slate-700">บริการ<select value={department} onChange={(e) => { setDepartment(e.target.value); setSlotId(''); }} className={inputClass}><option value="">ทุกบริการ</option>{[...new Set(data.slots.map((s) => s.department))].sort().map((d) => <option key={d}>{d}</option>)}</select></label>
-      <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">รอบตรวจ<select required value={selected?.id ?? ''} onChange={(e) => setSlotId(e.target.value)} className={inputClass}>
-        <option value="">เลือกรอบตรวจ</option>{slots.map((s) => <option key={s.id} value={s.id}>{s.start_time.slice(0,5)}–{s.end_time.slice(0,5)} · {s.doctor} · ว่าง {s.max_capacity - s.booked_count} ที่</option>)}
-      </select></label>
+      <label className="space-y-1.5 text-sm font-medium text-slate-700">บริการ<PaiSelect value={department} onChange={(value) => { setDepartment(value); setSlotId(''); }} placeholder="ทุกบริการ" ariaLabel="บริการ" options={(data.departments ?? [...new Set(data.slots.map((s) => s.department))].sort()).map((name) => ({ value: name, label: name }))} /></label>
+      <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">รอบตรวจ<PaiSelect value={selected?.id ?? ''} onChange={setSlotId} placeholder="เลือกรอบตรวจ" ariaLabel="รอบตรวจ" options={slots.map((s) => ({ value: s.id, label: `${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)} · ${s.doctor} · ว่าง ${s.max_capacity - s.booked_count} ที่` }))} /></label>
       {slots.length === 0 && <p className="text-sm text-slate-500 sm:col-span-2">ไม่มีรอบว่างในวันที่และบริการนี้ ลองเลือกวันอื่น</p>}
       <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">อาการหรือเหตุผลที่มาพบแพทย์<textarea required maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} rows={3} placeholder="เช่น ปวดศีรษะ มีไข้ หรือมาติดตามผล" /></label>
       <div className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-2"><Clock3 className="h-4 w-4 text-sky-500" aria-hidden="true" />คำขอจะอยู่ในสถานะรออนุมัติจนกว่าเจ้าหน้าที่จะตรวจสอบ</div>
@@ -198,7 +197,7 @@ export default function AppointmentPage({ role, repository, initialSlotId }: { r
         <div className="grid gap-3 border-b border-slate-100 bg-slate-50/70 p-4 sm:grid-cols-3 sm:p-5">
           <label className="relative text-sm"><span className="sr-only">ค้นหาชื่อ แพทย์ หรือคิว</span><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" /><input placeholder="ค้นหาชื่อ แพทย์ หรือคิว" className={`${inputClass} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} /></label>
           <PaiDatePicker label="กรองวันที่" value={date} onChange={setDate} markedDates={data.appointments.flatMap((a) => data.slots.filter((s) => s.id === a.slot_id).map((s) => s.slot_date))} />
-          <label className="text-sm"><span className="sr-only">สถานะ</span><select aria-label="สถานะ" className={inputClass} value={status} onChange={(e) => setStatus(e.target.value)}><option value="">ทุกสถานะ</option>{role === 'medical' && <option value="pending_confirmed">รออนุมัติและรอตรวจ</option>}{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+          <label className="text-sm"><span className="sr-only">สถานะ</span><PaiSelect value={status} onChange={setStatus} placeholder="ทุกสถานะ" ariaLabel="สถานะ" options={[...(role === 'medical' ? [{ value: 'pending_confirmed', label: 'รออนุมัติและรอตรวจ' }] : []), ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} /></label>
         </div>
         {rows.length === 0 && <p className="rounded-xl bg-white p-6 text-slate-500">ไม่พบนัดหมายตามเงื่อนไขนี้</p>}
         <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-2">{rows.map((a) => {

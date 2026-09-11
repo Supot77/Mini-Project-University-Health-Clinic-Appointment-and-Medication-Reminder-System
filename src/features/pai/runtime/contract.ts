@@ -15,6 +15,7 @@ export const recordInputSchema = z.object({
 export type RecordInput = z.infer<typeof recordInputSchema>;
 export const snapshotSchema = z.object({
   actor: z.object({ id: z.string().uuid(), role: roleSchema }),
+  departments: z.array(z.string()).optional(),
   slots: z.array(z.object({
     id: z.string().uuid(), doctor_id: z.string().uuid(), doctor: z.string(), department: z.string(),
     slot_date: z.string(), start_time: z.string(), end_time: z.string(), max_capacity: z.number(),
@@ -43,11 +44,30 @@ export interface PaiRepository {
   saveRecord(input: RecordInput): Promise<void>;
 }
 
-export function allowedActions(role: PaiRole, appointment: PaiAppointment): PaiAction[] {
+export function allowedActions(
+  role: PaiRole,
+  appointment: PaiAppointment,
+  slot?: { slot_date: string; start_time: string },
+  currentDate?: string,
+  currentTime?: string,
+): PaiAction[] {
   if (role === 'patient') return ['pending', 'confirmed'].includes(appointment.status) && !appointment.cancel_requested_at ? ['request_cancel'] : [];
-  if (role === 'medical') return appointment.status === 'confirmed' ? ['in_progress'] : appointment.status === 'in_progress' && appointment.has_record ? ['completed'] : [];
+  if (role === 'medical') {
+    if (appointment.status === 'confirmed') {
+      if (slot && !isSlotArrived(slot.slot_date, slot.start_time, currentDate, currentTime)) {
+        return [];
+      }
+      return ['in_progress'];
+    }
+    return appointment.status === 'in_progress' && appointment.has_record ? ['completed'] : [];
+  }
   if (appointment.status === 'pending') return ['confirmed', 'rejected', 'cancelled'];
-  if (appointment.status === 'confirmed') return ['in_progress', 'cancelled'];
+  if (appointment.status === 'confirmed') {
+    if (slot && !isSlotArrived(slot.slot_date, slot.start_time, currentDate, currentTime)) {
+      return ['cancelled'];
+    }
+    return ['in_progress', 'cancelled'];
+  }
   if (appointment.status === 'in_progress' && appointment.has_record) return ['completed'];
   return [];
 }
@@ -58,4 +78,24 @@ export const actionLabels: Record<PaiAction, string> = {
 };
 export function bangkokDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}
+export function bangkokTime(now = new Date()) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now);
+}
+export function isSlotArrived(
+  slotDate: string,
+  startTime: string,
+  currentDate?: string,
+  currentTime?: string,
+): boolean {
+  const effectiveDate = currentDate ?? bangkokDate();
+  if (slotDate < effectiveDate) return true;
+  if (slotDate > effectiveDate) return false;
+  const effectiveTime = currentTime ?? bangkokTime();
+  return effectiveTime >= startTime.slice(0, 5);
 }
