@@ -3,14 +3,35 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search, Stethoscope, TicketCheck, UsersRound } from 'lucide-react';
-import { actionLabels, allowedActions, bangkokDate, bangkokTime, isSlotArrived, type PaiRepository, type PaiRole, type PaiSnapshot } from './contract';
-import { statusLabels, formatAppointmentDate } from '../appointments/repository';
-import { inputClass, primaryButtonClass, secondaryButtonClass } from '../components/PaiPageHeader';
-import PaiPageLoading from '../components/PaiPageLoading';
-import PaiDatePicker from '../components/PaiDatePicker';
-import PaiSelect from '../components/PaiSelect';
-import WorkspaceShell, { type WorkspaceHeaderStat } from './WorkspaceShell';
-import { usePaiWorkspace } from './usePaiWorkspace';
+import {
+  actionLabels,
+  allowedActions,
+  bangkokDate,
+  bangkokTime,
+  ClinicDatePicker,
+  ClinicPageLoading,
+  ClinicSelect,
+  ClinicWorkspaceShell,
+  inputClass,
+  isSlotArrived,
+  primaryButtonClass,
+  secondaryButtonClass,
+  type ClinicRepository,
+  type ClinicRole,
+  type ClinicSnapshot,
+  useClinicWorkspace,
+  type WorkspaceHeaderStat,
+} from '@/features/clinic-care';
+
+export type AppointmentStatus = ClinicSnapshot['appointments'][number]['status'];
+export const statusLabels: Record<AppointmentStatus, string> = {
+  pending: 'รออนุมัติ', confirmed: 'ยืนยันแล้ว', in_progress: 'กำลังตรวจ', completed: 'ตรวจเสร็จ',
+  cancelled: 'ยกเลิกแล้ว', no_show: 'ไม่มาตามนัด', rejected: 'ไม่อนุมัติ',
+};
+
+export function formatAppointmentDate(date: string) {
+  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(new Date(`${date}T12:00:00+07:00`));
+}
 
 const statusStyles: Record<string, string> = {
   pending: 'bg-status-warning-bg text-status-warning ring-amber-200', confirmed: 'bg-status-info-bg text-status-info ring-brand-border',
@@ -115,7 +136,7 @@ function MetricCard({ icon: Icon, label, value, tone }: { icon: typeof CalendarD
   return <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><div className="min-w-0"><p className="text-xl font-bold tracking-tight text-slate-950">{value}</p><p className="truncate text-xs text-slate-500">{label}</p></div></div>;
 }
 
-function BookingForm({ data, busy, book, initialSlotId }: { data: PaiSnapshot; busy: boolean; book: (id: string, reason: string) => Promise<boolean>; initialSlotId?: string }) {
+function BookingForm({ data, busy, book, initialSlotId }: { data: ClinicSnapshot; busy: boolean; book: (id: string, reason: string) => Promise<boolean>; initialSlotId?: string }) {
   const initialSlot = initialSlotId ? data.slots.find((slot) => slot.id === initialSlotId && slot.bookable && slot.status === 'available' && slot.booked_count < slot.max_capacity) : undefined;
   const [date, setDate] = useState(initialSlot?.slot_date ?? bangkokDate);
   const [department, setDepartment] = useState(initialSlot?.department ?? '');
@@ -130,8 +151,8 @@ function BookingForm({ data, busy, book, initialSlotId }: { data: PaiSnapshot; b
     <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span><div><h2 className="font-semibold text-slate-950">จองนัดใหม่</h2><p className="mt-1 text-xs text-slate-500">เลือกรอบบริการที่สะดวก แล้วส่งคำขอให้เจ้าหน้าที่อนุมัติ</p></div></div>
     <fieldset disabled={busy} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
       <div className="space-y-1.5 text-sm font-medium text-slate-700"><label htmlFor="appointment-date">วันที่ตรวจ</label><AppointmentDatePicker value={date} minDate={bangkokDate()} onChange={(value) => { setDate(value); setSlotId(''); }} /></div>
-      <label className="space-y-1.5 text-sm font-medium text-slate-700">บริการ<PaiSelect value={department} onChange={(value) => { setDepartment(value); setSlotId(''); }} placeholder="ทุกบริการ" ariaLabel="บริการ" options={(data.departments ?? [...new Set(data.slots.map((s) => s.department))].sort()).map((name) => ({ value: name, label: name }))} /></label>
-      <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">รอบตรวจ<PaiSelect value={selected?.id ?? ''} onChange={setSlotId} placeholder="เลือกรอบตรวจ" ariaLabel="รอบตรวจ" options={slots.map((s) => ({ value: s.id, label: `${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)} · ${s.doctor} · ว่าง ${s.max_capacity - s.booked_count} ที่` }))} /></label>
+      <label className="space-y-1.5 text-sm font-medium text-slate-700">บริการ<ClinicSelect value={department} onChange={(value) => { setDepartment(value); setSlotId(''); }} placeholder="ทุกบริการ" ariaLabel="บริการ" options={(data.departments ?? [...new Set(data.slots.map((s) => s.department))].sort()).map((name) => ({ value: name, label: name }))} /></label>
+      <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">รอบตรวจ<ClinicSelect value={selected?.id ?? ''} onChange={setSlotId} placeholder="เลือกรอบตรวจ" ariaLabel="รอบตรวจ" options={slots.map((s) => ({ value: s.id, label: `${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)} · ${s.doctor} · ว่าง ${s.max_capacity - s.booked_count} ที่` }))} /></label>
       {slots.length === 0 && <p className="text-sm text-slate-500 sm:col-span-2">ไม่มีรอบว่างในวันที่และบริการนี้ ลองเลือกวันอื่น</p>}
       <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">อาการหรือเหตุผลที่มาพบแพทย์<textarea required maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} rows={3} placeholder="เช่น ปวดศีรษะ มีไข้ หรือมาติดตามผล" /></label>
       <div className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-2"><Clock3 className="h-4 w-4 text-sky-500" aria-hidden="true" />คำขอจะอยู่ในสถานะรออนุมัติจนกว่าเจ้าหน้าที่จะตรวจสอบ</div>
@@ -140,8 +161,8 @@ function BookingForm({ data, busy, book, initialSlotId }: { data: PaiSnapshot; b
   </form>;
 }
 
-export default function AppointmentPage({ role, repository, initialSlotId }: { role: PaiRole; repository?: PaiRepository; initialSlotId?: string }) {
-  const state = usePaiWorkspace(role, repository);
+export default function AppointmentPage({ role, repository, initialSlotId }: { role: ClinicRole; repository?: ClinicRepository; initialSlotId?: string }) {
+  const state = useClinicWorkspace(role, repository);
   const [query, setQuery] = useState('');
   const [date, setDate] = useState('');
   const [status, setStatus] = useState<string>(() => {
@@ -188,16 +209,16 @@ export default function AppointmentPage({ role, repository, initialSlotId }: { r
     { label: 'ยืนยันแล้ว', value: stats.confirmed, tone: 'info' },
     { label: 'จบตรวจแล้ว', value: stats.completed, tone: 'success' },
   ] : [];
-  return <WorkspaceShell {...state} role={role} section="appointments" stats={headerStats}>
-    {state.loading ? <PaiPageLoading /> : data && <>
+  return <ClinicWorkspaceShell {...state} role={role} section="appointments" stats={headerStats}>
+    {state.loading ? <ClinicPageLoading /> : data && <>
       {stats && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><MetricCard icon={CalendarDays} label={role === 'patient' ? 'นัดหมายของฉัน' : 'นัดหมายทั้งหมด'} value={stats.total} tone="bg-sky-50 text-sky-600" /><MetricCard icon={Clock3} label="รออนุมัติ" value={stats.pending} tone="bg-amber-50 text-amber-600" /><MetricCard icon={UsersRound} label="ยืนยันแล้ว" value={stats.confirmed} tone="bg-violet-50 text-violet-600" /><MetricCard icon={CheckCircle2} label="ตรวจเสร็จแล้ว" value={stats.completed} tone="bg-emerald-50 text-emerald-600" /></div>}
       {role === 'patient' && <BookingForm data={data} busy={state.busy} initialSlotId={initialSlotId} book={(id, reason) => state.run((r) => r.book(id, reason), 'จองนัดสำเร็จ รอเจ้าหน้าที่อนุมัติ')} />}
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-950">{role === 'medical' ? 'คิวที่รับผิดชอบ' : role === 'staff_admin' ? 'รายการนัดทั้งหมด' : 'นัดหมายของฉัน'}</h2><p className="mt-1 text-xs text-slate-500">ข้อมูลล่าสุดจากระบบ · ใช้ตัวกรองเพื่อค้นหารายการ</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{rows.length} รายการ</span></div></div>
         <div className="grid gap-3 border-b border-slate-100 bg-slate-50/70 p-4 sm:grid-cols-3 sm:p-5">
           <label className="relative text-sm"><span className="sr-only">ค้นหาชื่อ แพทย์ หรือคิว</span><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" /><input placeholder="ค้นหาชื่อ แพทย์ หรือคิว" className={`${inputClass} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-          <PaiDatePicker label="กรองวันที่" value={date} onChange={setDate} markedDates={data.appointments.flatMap((a) => data.slots.filter((s) => s.id === a.slot_id).map((s) => s.slot_date))} />
-          <label className="text-sm"><span className="sr-only">สถานะ</span><PaiSelect value={status} onChange={setStatus} placeholder="ทุกสถานะ" ariaLabel="สถานะ" options={[...(role === 'medical' ? [{ value: 'pending_confirmed', label: 'รออนุมัติและรอตรวจ' }] : []), ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} /></label>
+          <ClinicDatePicker label="กรองวันที่" value={date} onChange={setDate} markedDates={data.appointments.flatMap((a) => data.slots.filter((s) => s.id === a.slot_id).map((s) => s.slot_date))} />
+          <label className="text-sm"><span className="sr-only">สถานะ</span><ClinicSelect value={status} onChange={setStatus} placeholder="ทุกสถานะ" ariaLabel="สถานะ" options={[...(role === 'medical' ? [{ value: 'pending_confirmed', label: 'รออนุมัติและรอตรวจ' }] : []), ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} /></label>
         </div>
         {rows.length === 0 && <p className="rounded-xl bg-white p-6 text-slate-500">ไม่พบนัดหมายตามเงื่อนไขนี้</p>}
         <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-2">{rows.map((a) => {
@@ -232,5 +253,17 @@ export default function AppointmentPage({ role, repository, initialSlotId }: { r
         })}</div>
       </section>
     </>}
-  </WorkspaceShell>;
+  </ClinicWorkspaceShell>;
+}
+
+export function PatientAppointmentWorkspace({ initialSlotId }: { initialSlotId?: string }) {
+  return <AppointmentPage role="patient" initialSlotId={initialSlotId} />;
+}
+
+export function MedicalAppointmentWorkspace() {
+  return <AppointmentPage role="medical" />;
+}
+
+export function StaffAppointmentWorkspace() {
+  return <AppointmentPage role="staff_admin" />;
 }

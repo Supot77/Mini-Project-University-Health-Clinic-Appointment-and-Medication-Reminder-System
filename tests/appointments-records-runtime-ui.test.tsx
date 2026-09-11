@@ -1,34 +1,35 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
-import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
-import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
-import type { PaiRepository } from '@/features/pai/runtime/contract';
-import { fixture, medicationId, slotId, withAppointment } from './pai-runtime-fixtures';
+import AppointmentPage from '@/features/appointments';
+import { MedicalRecordsPage, PatientRecordsPage } from '@/features/medical-records';
+import { createClinicMockRepository, type ClinicRepository } from '@/features/clinic-care';
+import { fixture, slotId, withAppointment } from './clinic-care-fixtures';
 
-describe('Pai database-backed role containers with injected offline repository', () => {
+describe('Clinic database-backed role containers with injected offline repository', () => {
   afterEach(() => vi.useRealTimers());
   it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
     const seed = withAppointment(role);
     seed.appointments[0].patient_phone = '0800000000';
     seed.appointments[0].status = role === 'staff_admin' ? 'pending' : 'confirmed';
-    render(<AppointmentPage role={role} repository={createPaiMockRepository(seed)} />);
+    render(<AppointmentPage role={role} repository={createClinicMockRepository(seed)} />);
     expect(await screen.findByText('เบอร์โทรผู้ป่วย: 0800000000')).toBeInTheDocument();
   });
   it('labels a missing phone without inventing a contact', async () => {
     const seed = withAppointment('medical');
     seed.appointments[0].status = 'confirmed';
-    render(<AppointmentPage role="medical" repository={createPaiMockRepository(seed)} />);
+    render(<AppointmentPage role="medical" repository={createClinicMockRepository(seed)} />);
     expect(await screen.findByText('เบอร์โทรผู้ป่วย: ไม่ได้ระบุ')).toBeInTheDocument();
   });
   it('saves and displays the prescribed dose, meal, times and duration', async () => {
-    const repo = createPaiMockRepository(withAppointment());
+    const repo = createClinicMockRepository(withAppointment());
     render(<MedicalRecordsPage repository={repo} />);
     fireEvent.change(await screen.findByLabelText('ผลวินิจฉัย'), { target: { value: 'ผลทดสอบ' } });
     fireEvent.click(screen.getByRole('button', { name: 'เพิ่มรายการยา' }));
-    fireEvent.change(screen.getByLabelText('ยา', { exact: true }), { target: { value: medicationId } });
+    fireEvent.click(screen.getByRole('button', { name: 'ยารายการที่ 1' }));
+    fireEvent.click(screen.getByRole('option', { name: 'ยาทดสอบ · เม็ด' }));
     fireEvent.change(screen.getByLabelText('ขนาดยาต่อครั้ง (ระบุหน่วย)'), { target: { value: '2 เม็ด' } });
-    fireEvent.change(screen.getByLabelText('การใช้ยากับอาหาร'), { target: { value: 'หลังอาหาร' } });
+    fireEvent.click(screen.getByRole('button', { name: 'การใช้ยากับอาหาร' }));
+    fireEvent.click(screen.getByRole('option', { name: 'หลังอาหาร' }));
     fireEvent.change(screen.getByLabelText('ช่วงเวลาและความถี่ในการใช้ยา'), { target: { value: 'เช้า เที่ยง เย็น' } });
     fireEvent.change(screen.getByLabelText('ระยะเวลา (วัน)'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('จำนวนที่สั่ง'), { target: { value: '18' } });
@@ -39,24 +40,24 @@ describe('Pai database-backed role containers with injected offline repository',
     expect((await repo.load()).records[0].prescribed_medications?.[0]).toMatchObject({ dosage: '2 เม็ด', frequency: 'หลังอาหาร · เช้า เที่ยง เย็น', duration_days: 3, quantity: 18 });
   });
   it('shows loading, then empty state without a role switcher', async () => {
-    render(<AppointmentPage role="patient" repository={createPaiMockRepository(fixture())} />);
+    render(<AppointmentPage role="patient" repository={createClinicMockRepository(fixture())} />);
     expect(screen.getByRole('status', { name: 'กำลังโหลดหน้าบริการ' })).toBeInTheDocument();
     expect(await screen.findByText('ไม่พบนัดหมายตามเงื่อนไขนี้')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /มุมมอง/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'อนุมัตินัด' })).not.toBeInTheDocument();
   });
   it('hydrates booking form from a slot deep link', async () => {
-    render(<AppointmentPage role="patient" initialSlotId={slotId} repository={createPaiMockRepository(fixture())} />);
+    render(<AppointmentPage role="patient" initialSlotId={slotId} repository={createClinicMockRepository(fixture())} />);
 
     expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
     expect(screen.getByLabelText('วันที่ตรวจ')).toHaveValue('2026-09-09');
-    expect(screen.getByLabelText('บริการ')).toHaveValue('ทั่วไป');
-    expect(screen.getByLabelText('รอบตรวจ')).toHaveValue(slotId);
+    expect(screen.getByRole('button', { name: 'บริการ' })).toHaveTextContent('ทั่วไป');
+    expect(screen.getByRole('button', { name: 'รอบตรวจ' })).toHaveTextContent('09:00–09:30 · แพทย์ทดสอบ');
   });
   it('uses a compact Thai calendar for booking date while keeping the list filter separate', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-08T12:00:00+07:00'));
-    render(<AppointmentPage role="patient" repository={createPaiMockRepository(fixture())} />);
+    render(<AppointmentPage role="patient" repository={createClinicMockRepository(fixture())} />);
     expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
     const trigger = screen.getByRole('button', { name: /เปิดปฏิทินเลือกวันที่ตรวจ/ });
     expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
@@ -83,7 +84,7 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
   });
   it('shows database error and supports retry instead of rendering demo data', async () => {
-    const repo = createPaiMockRepository(fixture());
+    const repo = createClinicMockRepository(fixture());
     const load = vi.fn().mockRejectedValueOnce(new Error('ฐานข้อมูลไม่พร้อม')).mockImplementation(() => repo.load());
     render(<AppointmentPage role="patient" repository={{ ...repo, load }} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('ฐานข้อมูลไม่พร้อม');
@@ -92,7 +93,7 @@ describe('Pai database-backed role containers with injected offline repository',
   });
   it('staff sees approval/cancellation but no record link or booking form', async () => {
     const seed = withAppointment('staff_admin'); seed.appointments[0].status = 'pending';
-    render(<AppointmentPage role="staff_admin" repository={createPaiMockRepository(seed)} />);
+    render(<AppointmentPage role="staff_admin" repository={createClinicMockRepository(seed)} />);
     expect(await screen.findByRole('button', { name: 'อนุมัตินัด' })).toBeInTheDocument();
     expect(screen.getByText('LIVE DATABASE')).toBeInTheDocument();
     expect(screen.getByText('ASIA/BANGKOK')).toBeInTheDocument();
@@ -102,7 +103,7 @@ describe('Pai database-backed role containers with injected offline repository',
   });
   it('opens the whole date filter block and requires a rejection reason for staff', async () => {
     const seed = withAppointment('staff_admin'); seed.appointments[0].status = 'pending';
-    render(<AppointmentPage role="staff_admin" repository={createPaiMockRepository(seed)} />);
+    render(<AppointmentPage role="staff_admin" repository={createClinicMockRepository(seed)} />);
     const dateFilter = await screen.findByRole('button', { name: 'กรองวันที่' });
     fireEvent.click(dateFilter);
     expect(screen.getByRole('dialog', { name: 'กรองวันที่' })).toBeInTheDocument();
@@ -116,13 +117,14 @@ describe('Pai database-backed role containers with injected offline repository',
     fireEvent.change(reason, { target: { value: 'รอบบริการถูกยกเลิก' } });
     fireEvent.submit(reason.closest('form')!);
     expect(await screen.findByText('ปฏิเสธนัดแล้วและบันทึกเหตุผล')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'สถานะ' }), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'สถานะ' }));
+    fireEvent.click(screen.getByRole('option', { name: 'ไม่อนุมัติ' }));
     expect(await screen.findByText('เหตุผลการปฏิเสธ:')).toBeInTheDocument();
     expect(screen.getByText('รอบบริการถูกยกเลิก')).toBeInTheDocument();
   });
   it('prevents duplicate clicks while a transition is pending and keeps the old state after failure', async () => {
     const seed = withAppointment('staff_admin'); seed.appointments[0].status = 'pending';
-    const repo = createPaiMockRepository(seed);
+    const repo = createClinicMockRepository(seed);
     let reject: (error: Error) => void = () => {};
     const transition = vi.fn(() => new Promise<void>((_, r) => { reject = r; }));
     render(<AppointmentPage role="staff_admin" repository={{ ...repo, transition }} />);
@@ -132,15 +134,15 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(button).toBeDisabled();
     reject(new Error('สถานะเปลี่ยนแล้ว'));
     expect(await screen.findByRole('alert')).toHaveTextContent('สถานะเปลี่ยนแล้ว');
-    expect(screen.getByText('รออนุมัติ', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getAllByText('รออนุมัติ', { selector: 'span' })).not.toHaveLength(0);
   });
   it('does not render a snapshot for a different role', async () => {
-    render(<PatientRecordsPage repository={createPaiMockRepository(fixture('staff_admin'))} />);
+    render(<PatientRecordsPage repository={createClinicMockRepository(fixture('staff_admin'))} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('ไม่มีสิทธิ์');
     expect(screen.queryByRole('heading', { name: 'บันทึกผลตรวจและรายการยา' })).not.toBeInTheDocument();
   });
   it('medical saves a result and the completed record appears after reload', async () => {
-    render(<MedicalRecordsPage repository={createPaiMockRepository(withAppointment())} />);
+    render(<MedicalRecordsPage repository={createClinicMockRepository(withAppointment())} />);
     const diagnosis = await screen.findByRole('textbox', { name: 'ผลวินิจฉัย' });
     fireEvent.change(diagnosis, { target: { value: 'ผลทดสอบ' } });
     fireEvent.click(screen.getByRole('button', { name: 'ยืนยันบันทึกผลและจบตรวจ' }));
@@ -149,7 +151,7 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(screen.queryByRole('button', { name: 'ยืนยันบันทึกผลและจบตรวจ' })).not.toBeInTheDocument();
   });
   it('failed record save retains the entered diagnosis for correction', async () => {
-    const repo: PaiRepository = { ...createPaiMockRepository(withAppointment()), saveRecord: vi.fn().mockRejectedValue(new Error('ไม่พบยา')) };
+    const repo: ClinicRepository = { ...createClinicMockRepository(withAppointment()), saveRecord: vi.fn().mockRejectedValue(new Error('ไม่พบยา')) };
     render(<MedicalRecordsPage repository={repo} />);
     const diagnosis = await screen.findByRole('textbox', { name: 'ผลวินิจฉัย' });
     fireEvent.change(diagnosis, { target: { value: 'ผลทดสอบ' } });
@@ -159,19 +161,19 @@ describe('Pai database-backed role containers with injected offline repository',
   });
   it('defaults filter to pending for staff and pending_confirmed for medical', async () => {
     const seed = fixture('staff_admin');
-    const { unmount } = render(<AppointmentPage role="staff_admin" repository={createPaiMockRepository(seed)} />);
-    expect(await screen.findByRole('combobox', { name: 'สถานะ' })).toHaveValue('pending');
+    const { unmount } = render(<AppointmentPage role="staff_admin" repository={createClinicMockRepository(seed)} />);
+    expect(await screen.findByRole('button', { name: 'สถานะ' })).toHaveTextContent('รออนุมัติ');
     unmount();
 
-    render(<AppointmentPage role="medical" repository={createPaiMockRepository(fixture('medical'))} />);
-    expect(await screen.findByRole('combobox', { name: 'สถานะ' })).toHaveValue('pending_confirmed');
+    render(<AppointmentPage role="medical" repository={createClinicMockRepository(fixture('medical'))} />);
+    expect(await screen.findByRole('button', { name: 'สถานะ' })).toHaveTextContent('รออนุมัติและรอตรวจ');
   });
   it('hides start exam button and displays slot arrival badge before slot time for medical', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-08T09:00:00+07:00'));
     const seed = withAppointment('medical');
     seed.appointments[0].status = 'confirmed';
-    render(<AppointmentPage role="medical" repository={createPaiMockRepository(seed)} />);
+    render(<AppointmentPage role="medical" repository={createClinicMockRepository(seed)} />);
     expect(await screen.findByText('ยังไม่ถึงเวลารอบตรวจ')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'เริ่มตรวจ' })).not.toBeInTheDocument();
   });
@@ -180,14 +182,14 @@ describe('Pai database-backed role containers with injected offline repository',
     vi.setSystemTime(new Date('2026-09-09T09:00:00+07:00'));
     const seed = withAppointment('medical');
     seed.appointments[0].status = 'confirmed';
-    render(<AppointmentPage role="medical" repository={createPaiMockRepository(seed)} />);
+    render(<AppointmentPage role="medical" repository={createClinicMockRepository(seed)} />);
     expect(await screen.findByRole('button', { name: 'เริ่มตรวจ' })).toBeInTheDocument();
     expect(screen.queryByText('ยังไม่ถึงเวลารอบตรวจ')).not.toBeInTheDocument();
   });
   it('throws error when doctor attempts to start exam before slot arrival in mock repository', async () => {
     const seed = withAppointment('medical');
     seed.appointments[0].status = 'confirmed';
-    const repo = createPaiMockRepository(seed, new Date('2026-09-08T08:00:00+07:00'));
+    const repo = createClinicMockRepository(seed, new Date('2026-09-08T08:00:00+07:00'));
     await expect(repo.transition(seed.appointments[0].id, 'in_progress')).rejects.toThrow('ยังไม่ถึงเวลารอบตรวจ');
   });
 });

@@ -2,7 +2,7 @@ import {
   MedicalAppointmentWorkspace,
   PatientAppointmentWorkspace,
   StaffAppointmentWorkspace,
-} from '@/features/pai/appointments/RoleAppointmentWorkspaces';
+} from '@/features/appointments';
 import { requireRole } from '@/lib/requireRole';
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {

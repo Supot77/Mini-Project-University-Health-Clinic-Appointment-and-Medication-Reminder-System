@@ -1,5 +1,5 @@
 // Isolated PostgreSQL integration. No network, credentials or .env files.
-// node supabase/tests/pai-local-integration.mjs <absolute path to @electric-sql/pglite/dist/index.js>
+// node supabase/tests/appointments-records-local-integration.mjs <absolute path to @electric-sql/pglite/dist/index.js>
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';

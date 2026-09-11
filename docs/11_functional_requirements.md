@@ -28,8 +28,8 @@ FR ที่มีคำว่า “ระบบ” หมายถึง valid
 | --- | --- | --- |
 | `FR-AUTH-*` | `authService`, auth pages, `profiles`, route guards บางหน้า | มี flow Supabase; guard ไม่สม่ำเสมอทุกหน้า ต้องตรวจ session/RLS จริง |
 | `FR-SCH-*` | `ScheduleWorkspace` → `ShopProvider` → `DatabaseShopRepository` หรือ `MockShopRepository`; `services`, `daily_service_offerings`, `appointment_slots` | มี service/daily offering และ validation; factory กับ weekly schedule ยังมี mock path |
-| `FR-APT-*` | `RoleAppointmentWorkspaces` → `AppointmentPage` → `PaiDatabaseRepository` → `pai_*` RPC และ `pai_appointments` | active appointment route; ไม่มี reschedule ในเส้นทางนี้; old preview แยกต่างหาก |
-| `FR-MED-*` | `RecordsPage` → `PaiDatabaseRepository` → `pai_medical_records` | active record route; บันทึกผลตรวจ/รายการยาก่อนจบตรวจ; ไม่ใช่ตาราง `medical_records` เดิม |
+| `FR-APT-*` | `appointments.tsx` → `clinic-care.tsx` → `pai_*` RPC และ `pai_appointments` | active appointment route; ไม่มี reschedule ในเส้นทางนี้; ไม่มี preview แยกใน runtime |
+| `FR-MED-*` | `medical-records.tsx` → `clinic-care.tsx` → `pai_medical_records` | active record route; บันทึกผลตรวจ/รายการยาก่อนจบตรวจ; ไม่ใช่ตาราง `medical_records` เดิม |
 | `FR-PHA-*` | `/pharmacy`, `medicationService`, old `medications`/`inventory_logs`, mock/local storage | มี UI/service แยก แต่ยังไม่พบการเชื่อม dispense กับ PAI appointment แบบ end-to-end |
 | `FR-REM-*` | `/reminders`, `reminderService`, `medication_reminders`/`medication_logs` | มี CRUD, log และ pause/resume; มี mock fallback และไม่ตรง target D22 บางข้อ |
 | `FR-NOT-*` | `dashboardService`/notifications RPC, BroadcastPanel, mock dashboard repository | Broadcast/notifications ใช้ Supabase service แต่ metric dashboard บางส่วนมาจาก mock |
