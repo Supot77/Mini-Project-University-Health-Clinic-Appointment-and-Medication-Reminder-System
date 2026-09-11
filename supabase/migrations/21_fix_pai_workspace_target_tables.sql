@@ -290,3 +290,4 @@ GRANT EXECUTE ON FUNCTION public.pai_actor_role(),
   public.pai_workspace() TO authenticated;
 
 COMMIT;
+
