@@ -37,7 +37,7 @@ export function appointmentSnapshotFromSharedMock(tables: ClinicMockTables): App
     const doctor = doctors.get(slot.doctor_id);
     return { id: slot.id, date: slot.slot_date, start: slot.start_time.slice(0, 5), end: slot.end_time.slice(0, 5), doctorId: slot.doctor_id, doctor: profiles.get(slot.doctor_id)?.full_name ?? 'ไม่ระบุแพทย์', department: departments.get(doctor?.department_id ?? '')?.name ?? 'ไม่ระบุแผนก', capacity: slot.max_capacity, reservedByOthers: slot.booked_count, closed: slot.status === 'closed' };
   });
-  return { slots, appointments: tables.appointments.map((item) => ({ id: item.id, patientId: item.user_id, patient: profiles.get(item.user_id)?.full_name ?? 'ไม่ระบุผู้ป่วย', slotId: item.slot_id, queue: item.queue_number ? `Q${String(item.queue_number).padStart(3, '0')}` : '-', reason: item.reason ?? '', status: item.status })) };
+  return { slots, appointments: tables.appointments.map((item) => { const pid = item.patient_id || item.user_id || ''; return { id: item.id, patientId: pid, patient: profiles.get(pid)?.full_name ?? 'ไม่ระบุผู้ป่วย', slotId: item.slot_id, queue: item.queue_number ? `Q${String(item.queue_number).padStart(3, '0')}` : '-', reason: item.reason ?? '', status: item.status }; }) };
 }
 
 export function createAppointmentPreviewRepository(seed?: AppointmentSnapshot): AppointmentPreviewRepository {

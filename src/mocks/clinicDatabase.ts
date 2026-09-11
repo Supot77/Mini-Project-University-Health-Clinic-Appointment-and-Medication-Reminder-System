@@ -355,6 +355,7 @@ export const clinicMockTables: ClinicMockTables = {
   appointments: [
     {
       id: 'appointment-history-7d',
+      patient_id: 'profile-peter-parker',
       user_id: 'profile-peter-parker',
       slot_id: 'slot-history-7d',
       queue_number: 1,
@@ -365,6 +366,7 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'appointment-history-30d',
+      patient_id: 'profile-wednesday',
       user_id: 'profile-wednesday',
       slot_id: 'slot-history-30d',
       queue_number: 1,
@@ -375,6 +377,7 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'appointment-peter',
+      patient_id: 'profile-peter-parker',
       user_id: 'profile-peter-parker',
       slot_id: 'slot-001',
       queue_number: 1,
@@ -385,6 +388,7 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'appointment-wednesday',
+      patient_id: 'profile-wednesday',
       user_id: 'profile-wednesday',
       slot_id: 'slot-003',
       queue_number: 1,
@@ -395,6 +399,7 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'appointment-sherlock',
+      patient_id: 'profile-sherlock',
       user_id: 'profile-sherlock',
       slot_id: 'slot-004',
       queue_number: 1,
@@ -405,6 +410,7 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'appointment-katniss',
+      patient_id: 'profile-katniss',
       user_id: 'profile-katniss',
       slot_id: 'slot-004',
       queue_number: 2,
@@ -415,6 +421,7 @@ export const clinicMockTables: ClinicMockTables = {
     },
     {
       id: 'appointment-eleven',
+      patient_id: 'profile-eleven',
       user_id: 'profile-eleven',
       slot_id: 'slot-004',
       queue_number: 3,
