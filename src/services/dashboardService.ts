@@ -69,6 +69,7 @@ export interface MedicationDashboardData {
 }
 
 export interface StaffProfileDirectoryItem {
+  createdAt: string;
   id: string;
   fullName: string;
   email: string | null;
@@ -179,6 +180,7 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: string | null;
     role: UserRole;
     is_active: boolean | null;
+    created_at: string;
   }>).map((profile) => ({
     id: profile.id,
     fullName: profile.full_name,
@@ -186,6 +188,7 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: profile.phone,
     role: profile.role,
     isActive: profile.is_active !== false,
+    createdAt: profile.created_at,
   }));
 }
 
