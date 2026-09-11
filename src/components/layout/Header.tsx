@@ -129,6 +129,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isLoading, signOut, role } = useAuth();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -238,8 +239,12 @@ export default function Header() {
           )}
 
           {isAuthenticated && role === "patient" && (
-            <Link href="/appointments" className="hidden min-h-10 items-center gap-2 rounded-full bg-brand-accent px-4 text-[13px] font-bold text-brand-ink transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent sm:flex">
-              <Stethoscope className="h-4 w-4" aria-hidden="true" />จองคิว
+            <Link
+              href="/appointments"
+              className="hidden min-h-10 items-center gap-2 rounded-full bg-brand-accent px-4 text-[13px] font-bold text-brand-ink transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent sm:flex"
+            >
+              <Stethoscope className="h-4 w-4" aria-hidden="true" />
+              จองคิว
             </Link>
           )}
 
