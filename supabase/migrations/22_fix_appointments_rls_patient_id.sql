@@ -55,3 +55,4 @@ DROP INDEX IF EXISTS public.idx_appointments_user;
 CREATE INDEX IF NOT EXISTS idx_appointments_patient_id ON public.appointments (patient_id);
 
 COMMIT;
+
