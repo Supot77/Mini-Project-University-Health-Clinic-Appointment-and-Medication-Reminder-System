@@ -12,6 +12,7 @@ const contractFieldsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migr
 const patientSearchRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/08_allow_medical_patient_search.sql'), 'utf8');
 const doctorProfilesRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/10_allow_view_doctor_profiles.sql'), 'utf8');
 const departmentsRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/11_allow_public_view_departments.sql'), 'utf8');
+const staffDirectoryUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/12_staff_profile_directory.sql'), 'utf8');
 const serviceOfferingMigration = readFileSync(resolve(process.cwd(), 'supabase/migrations/13_services_and_daily_offerings.sql'), 'utf8');
 const publicServicesSlotsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/17_allow_public_view_services_and_slots.sql'), 'utf8');
 
@@ -92,6 +93,15 @@ describe('normalized transaction migration', () => {
     expect(departmentsRlsUpgrade).toContain('CREATE POLICY "Anyone can view departments"');
     expect(departmentsRlsUpgrade).toContain('USING (true)');
     expect(departmentsRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
+  });
+
+  it('exposes the account directory only through an active staff_admin RPC', () => {
+    expect(staffDirectoryUpgrade).toContain('CREATE OR REPLACE FUNCTION public.get_staff_profile_directory()');
+    expect(staffDirectoryUpgrade).toContain("actor.role = 'staff_admin'");
+    expect(staffDirectoryUpgrade).toContain('actor.is_active IS DISTINCT FROM false');
+    expect(staffDirectoryUpgrade).toContain('JOIN auth.users AS account');
+    expect(staffDirectoryUpgrade).toContain('GRANT EXECUTE ON FUNCTION public.get_staff_profile_directory() TO authenticated');
+    expect(staffDirectoryUpgrade).not.toMatch(/^\s*(DROP|TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
   });
 
   it('creates every approved transaction table and enables default-deny RLS', () => {
