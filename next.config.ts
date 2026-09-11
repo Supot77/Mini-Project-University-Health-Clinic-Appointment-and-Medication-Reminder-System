@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     '*.wu.ac.th',
     '*.trycloudflare.com',
     '*.loca.lt',
+    '*.lhr.life',
     'localhost',
     '127.0.0.1',
   ],
