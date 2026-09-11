@@ -1,4 +1,4 @@
-import { allowedActions, recordInputSchema, type PaiRepository, type PaiSnapshot, type PaiRole } from './contract';
+import { allowedActions, bangkokDate, bangkokTime, isSlotArrived, recordInputSchema, type PaiRepository, type PaiSnapshot, type PaiRole } from './contract';
 
 /** Explicit test/offline adapter; never imported by the production composition point. */
 export function createPaiMockRepository(seed: PaiSnapshot, now = new Date('2026-09-08T08:00:00+07:00')): PaiRepository {
@@ -32,7 +32,11 @@ export function createPaiMockRepository(seed: PaiSnapshot, now = new Date('2026-
     },
     async transition(appointmentId, action, reason) {
       const a = state.appointments.find((v) => v.id === appointmentId);
-      if (!a || !ownAppointment(a) || !allowedActions(state.actor.role, a).includes(action)) throw new Error('ไม่มีสิทธิ์หรือสถานะไม่อนุญาต');
+      const slot = a ? state.slots.find((s) => s.id === a.slot_id) : undefined;
+      if (action === 'in_progress' && slot && !isSlotArrived(slot.slot_date, slot.start_time, bangkokDate(now), bangkokTime(now))) {
+        throw new Error('ยังไม่ถึงเวลารอบตรวจ');
+      }
+      if (!a || !ownAppointment(a) || !allowedActions(state.actor.role, a, slot, bangkokDate(now), bangkokTime(now)).includes(action)) throw new Error('ไม่มีสิทธิ์หรือสถานะไม่อนุญาต');
       if (action === 'rejected' && !reason?.trim()) throw new Error('กรุณาระบุเหตุผลการปฏิเสธ');
       if (action === 'request_cancel') a.cancel_requested_at = now.toISOString();
       else {

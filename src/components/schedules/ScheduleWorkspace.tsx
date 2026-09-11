@@ -30,7 +30,12 @@ const inputClass =
 const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-import { getBangkokToday } from '@/features/shop/domain/rules';
+import {
+  deriveSlotStatus,
+  getBangkokCurrentTime,
+  getBangkokToday,
+  isSlotExpired,
+} from '@/features/shop/domain/rules';
 
 function getTodayDate(): string {
   return getBangkokToday();
@@ -166,7 +171,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     }
     return 'all';
   });
-  const [statusFilter, setStatusFilter] = useState<'all' | ScheduleSlotStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | ScheduleSlotStatus>('available');
   const [formOpen, setFormOpen] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [draft, setDraft] = useState<SlotDraft>(emptySlotDraft);
@@ -176,6 +181,34 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', description: '' });
   const [serviceFormError, setServiceFormError] = useState('');
+
+  const [bangkokNow, setBangkokNow] = useState(() => ({
+    date: getBangkokToday(),
+    time: getBangkokCurrentTime(),
+  }));
+
+  useEffect(() => {
+    const updateTime = () => {
+      setBangkokNow({
+        date: getBangkokToday(),
+        time: getBangkokCurrentTime(),
+      });
+    };
+    const timer = setInterval(updateTime, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const resolvedSlots = useMemo(() => {
+    return slots.map((slot) => {
+      const status = deriveSlotStatus(slot.bookedCount, slot.maxCapacity, slot.status, {
+        slotDate: slot.slotDate,
+        startTime: slot.startTime,
+        currentDate: bangkokNow.date,
+        currentTime: bangkokNow.time,
+      });
+      return status !== slot.status ? { ...slot, status } : slot;
+    });
+  }, [slots, bangkokNow]);
 
   const activeServices = useMemo(() => services.filter((service) => service.isActive), [services]);
   const openServices = useMemo(
@@ -213,13 +246,13 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   }, [calendarView, weekDays, weekStart]);
 
   const filteredDoctors = useMemo(
-    () => doctors.filter((doctor) => effectiveServiceFilter === 'all' || slots.some((slot) => slot.doctorId === doctor.id && slot.serviceId === effectiveServiceFilter)),
-    [doctors, effectiveServiceFilter, slots],
+    () => doctors.filter((doctor) => effectiveServiceFilter === 'all' || resolvedSlots.some((slot) => slot.doctorId === doctor.id && slot.serviceId === effectiveServiceFilter)),
+    [doctors, effectiveServiceFilter, resolvedSlots],
   );
 
   const visibleSlots = useMemo(
     () =>
-      slots
+      resolvedSlots
         .filter((slot) => displayDays.includes(slot.slotDate))
         .filter((slot) => {
           const matchesService = effectiveServiceFilter === 'all' || slot.serviceId === effectiveServiceFilter;
@@ -228,23 +261,28 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
           return matchesService && matchesDoctor && matchesStatus;
         })
         .sort((a, b) => `${a.slotDate}${a.startTime}`.localeCompare(`${b.slotDate}${b.startTime}`)),
-    [effectiveServiceFilter, doctorFilter, displayDays, slots, statusFilter],
+    [effectiveServiceFilter, doctorFilter, displayDays, resolvedSlots, statusFilter],
   );
 
   const weekSummary = useMemo(() => {
-    const weekSlots = slots.filter((slot) => displayDays.includes(slot.slotDate));
+    const weekSlots = resolvedSlots.filter((slot) => displayDays.includes(slot.slotDate));
     return {
       total: weekSlots.length,
       available: weekSlots.filter((slot) => slot.status === 'available').length,
       booked: weekSlots.reduce((sum, slot) => sum + slot.bookedCount, 0),
       closed: weekSlots.filter((slot) => slot.status === 'closed').length,
     };
-  }, [displayDays, slots]);
+  }, [displayDays, resolvedSlots]);
 
   const openSlotForm = (slot?: ScheduleSlot, suggestedDate?: string) => {
     if (role === 'patient') return;
     if (slot && !canModifySlot(slot)) {
       setFormError('คุณไม่มีสิทธิ์แก้ไขรอบตรวจของแพทย์ท่านอื่น');
+      return;
+    }
+    if (slot && isSlotExpired(slot.slotDate, slot.startTime, bangkokNow.date, bangkokNow.time)) {
+      setNotice('');
+      setFormError('ไม่สามารถแก้ไขรอบตรวจที่เลยเวลาเริ่มแล้ว');
       return;
     }
     if (!slot && suggestedDate && suggestedDate < getTodayDate()) {
@@ -342,6 +380,16 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     if (role === 'patient' || !canModifySlot(slot)) {
       setFormError('คุณไม่มีสิทธิ์แก้ไขหรือปิดรอบตรวจ');
       return;
+    }
+    if (slot.status === 'closed') {
+      if (isSlotExpired(slot.slotDate, slot.startTime, bangkokNow.date, bangkokNow.time)) {
+        setFormError('ไม่สามารถเปิดรอบตรวจที่เลยเวลาเริ่มแล้ว');
+        return;
+      }
+      if (slot.bookedCount >= slot.maxCapacity) {
+        setFormError('ไม่สามารถเปิดรอบตรวจที่คนเต็มแล้ว');
+        return;
+      }
     }
     if (!window.confirm(slot.status === 'closed' ? 'เปิดรอบตรวจนี้อีกครั้ง?' : `ปิดรอบตรวจนี้? นัดเดิม ${slot.bookedCount} รายการจะยังคงอยู่`)) return;
     try {

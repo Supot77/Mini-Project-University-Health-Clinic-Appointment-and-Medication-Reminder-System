@@ -98,6 +98,8 @@ describe("Header", () => {
   it("opens an accessible mobile menu", () => {
     render(<Header />);
     const toggle = screen.getByRole("button", { name: "เปิดเมนู" });
+    const brandLink = screen.getByRole("link", { name: /WU Clinic/ });
+    expect(toggle.compareDocumentPosition(brandLink)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
     fireEvent.click(toggle);
 
@@ -150,5 +152,31 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: "ประวัติการรักษา" })).toHaveAttribute("href", "/records");
     expect(screen.getByRole("link", { name: "เตือนยา" })).toHaveAttribute("href", "/reminders");
     expect(screen.queryByRole("link", { name: "ผลการตรวจ" })).not.toBeInTheDocument();
+  });
+
+  it("renders a unified profile menu trigger button without a duplicate hamburger on the right", () => {
+    authState.user = { full_name: "Doctor Demo" };
+    authState.isAuthenticated = true;
+    authState.role = "medical";
+
+    render(<Header />);
+
+    const accountButton = screen.getByRole("button", { name: "เปิดเมนูบัญชี" });
+    expect(accountButton).toBeInTheDocument();
+    expect(within(accountButton).getByText("Doctor Demo")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Doctor Demo/ })).not.toBeInTheDocument();
+  });
+
+  it("navigates to dashboard when authenticated and to home when guest on logo click", () => {
+    const { unmount } = render(<Header />);
+    expect(screen.getByRole("link", { name: /WU Clinic/ })).toHaveAttribute("href", "/");
+    unmount();
+
+    authState.user = { full_name: "Patient Demo" };
+    authState.isAuthenticated = true;
+    authState.role = "patient";
+
+    render(<Header />);
+    expect(screen.getByRole("link", { name: /WU Clinic/ })).toHaveAttribute("href", "/dashboard");
   });
 });

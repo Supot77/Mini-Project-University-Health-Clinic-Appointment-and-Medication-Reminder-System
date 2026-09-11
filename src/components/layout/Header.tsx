@@ -175,8 +175,19 @@ export default function Header() {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenGroup(null);
       }}
     >
-      <nav aria-label="เมนูหลัก" className="mx-auto flex min-h-16 w-full max-w-[1440px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
-        <Link href="/" onClick={closeMobileMenu} className="flex shrink-0 items-center gap-2 rounded-brand-sm font-bold tracking-tight transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent">
+      <nav aria-label="เมนูหลัก" className="mx-auto flex min-h-16 w-full max-w-[1440px] items-center gap-2 px-4 sm:gap-4 sm:px-6">
+        <button
+          type="button"
+          onClick={() => { setMobileMenuOpen((open) => !open); setOpenGroup(null); }}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-brand-sm text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent lg:hidden"
+          aria-label={mobileMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-navigation"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+        </button>
+
+        <Link href={isAuthenticated ? "/dashboard" : "/"} onClick={closeMobileMenu} className="flex shrink-0 items-center gap-2 rounded-brand-sm font-bold tracking-tight transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent">
           <span className="flex h-8 w-8 items-center justify-center rounded-brand-sm bg-brand-accent text-brand-ink" aria-hidden="true"><Hospital className="h-[18px] w-[18px]" /></span>
           <span className="text-[15px] sm:text-base">WU Clinic</span>
         </Link>
@@ -233,22 +244,22 @@ export default function Header() {
           )}
 
           {!isLoading && (isAuthenticated ? (
-            <div className="hidden items-center gap-1 sm:flex">
-              <Link href="/profile" title={user?.full_name ?? "บัญชีผู้ใช้"} className="flex min-h-10 items-center gap-2 rounded-brand-sm px-3 text-[13px] font-medium text-brand-footer-text transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent">
-                <UserRound className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden max-w-28 truncate xl:inline">{user?.full_name ?? "บัญชี"}</span>
-              </Link>
-              <button type="button" onClick={() => setAccountMenuOpen(true)} className="flex size-10 items-center justify-center rounded-brand-sm border border-white/10 text-brand-footer-text transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent" aria-label="เปิดเมนูบัญชี" aria-expanded={accountMenuOpen}><Menu className="size-5" aria-hidden="true" /></button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen(true)}
+              className="flex min-h-10 items-center gap-1.5 rounded-brand-sm border border-white/10 px-2.5 sm:px-3 text-[13px] font-medium text-brand-footer-text transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent"
+              aria-label="เปิดเมนูบัญชี"
+              aria-expanded={accountMenuOpen}
+            >
+              <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="hidden max-w-28 truncate sm:inline">{user?.full_name ?? "บัญชี"}</span>
+              <ChevronDown className={`h-3.5 w-3.5 shrink-0 opacity-70 transition-transform duration-150 ${accountMenuOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+            </button>
           ) : (
             <Link href="/login" className="flex min-h-10 items-center gap-2 rounded-full bg-brand-accent px-3 text-[13px] font-bold text-brand-ink transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent sm:px-4">
               <LogIn className="h-4 w-4" aria-hidden="true" />เข้าสู่ระบบ
             </Link>
           ))}
-
-          <button type="button" onClick={() => { setMobileMenuOpen((open) => !open); setOpenGroup(null); }} className="flex h-11 w-11 items-center justify-center rounded-brand-sm text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent lg:hidden" aria-label={mobileMenuOpen ? "ปิดเมนู" : "เปิดเมนู"} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation">
-            {mobileMenuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
-          </button>
         </div>
       </nav>
 
@@ -318,20 +329,13 @@ export default function Header() {
               </Link>
             )}
 
-            <div className="mt-2 border-t border-white/10 pt-3">
-              {isAuthenticated ? (
-                <div className="flex items-center justify-between gap-3">
-                  <Link href="/profile" onClick={closeMobileMenu} className="flex min-h-11 min-w-0 items-center gap-3 rounded-brand-button px-3 text-[15px] text-brand-footer-text hover:bg-white/10">
-                    <UserRound className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span className="truncate">{user?.full_name ?? "บัญชีผู้ใช้"}</span>
-                  </Link>
-                  <button type="button" onClick={() => void handleSignOut()} className="min-h-11 shrink-0 rounded-brand-button px-3 text-[13px] text-rose-200 hover:bg-rose-400/10">ออกจากระบบ</button>
-                </div>
-              ) : (
+            {!isAuthenticated && (
+              <div className="mt-2 border-t border-white/10 pt-3">
                 <Link href="/login" onClick={closeMobileMenu} className="flex min-h-11 items-center justify-center gap-2 rounded-brand-button bg-brand-accent px-4 text-[15px] font-bold text-brand-ink">
                   <LogIn className="h-4 w-4" aria-hidden="true" />เข้าสู่ระบบ
                 </Link>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </nav>
       )}

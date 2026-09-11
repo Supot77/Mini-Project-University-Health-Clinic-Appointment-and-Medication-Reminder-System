@@ -294,4 +294,22 @@ describe('ScheduleWorkspace Service Filter', () => {
     expect(screen.getByLabelText('ปฏิทินรายวัน')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'จอง' })).not.toBeInTheDocument();
   });
+
+  it('displays "ปิดรอบ" badge on timetable when slot is full or past start time', () => {
+    shopState.slots = [
+      { ...mockSlots[0], id: 'slot-past', slotDate: '2026-09-08', startTime: '09:00', bookedCount: 0, status: 'available' },
+      { ...mockSlots[0], id: 'slot-full', slotDate: '2026-09-10', startTime: '10:00', bookedCount: 5, maxCapacity: 5, status: 'available' },
+    ];
+
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+
+    const closedBadges = screen.getAllByText('ปิดรอบ');
+    expect(closedBadges.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('defaults status filter to available (เปิดรับ)', () => {
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+    const statusSelect = screen.getByLabelText('กรองสถานะ');
+    expect(statusSelect).toHaveValue('available');
+  });
 });

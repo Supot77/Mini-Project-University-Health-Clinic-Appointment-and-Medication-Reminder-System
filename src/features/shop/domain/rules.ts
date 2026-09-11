@@ -40,13 +40,47 @@ function isValidClinicTime(value: string) {
   return hour <= 23 && minute <= 59;
 }
 
+export function getBangkokCurrentTime(): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date());
+}
+
+export function isSlotExpired(
+  slotDate: string,
+  startTime: string,
+  currentDate?: string,
+  currentTime?: string,
+): boolean {
+  const effectiveDate = currentDate ?? getBangkokToday();
+  if (slotDate < effectiveDate) return true;
+  if (slotDate > effectiveDate) return false;
+  const effectiveTime = currentTime ?? getBangkokCurrentTime();
+  return effectiveTime >= startTime;
+}
+
+export interface SlotTimingContext {
+  slotDate: string;
+  startTime: string;
+  currentDate?: string;
+  currentTime?: string;
+}
+
 export function deriveSlotStatus(
   bookedCount: number,
   maxCapacity: number,
   currentStatus?: ScheduleSlotStatus,
+  timing?: SlotTimingContext,
 ): ScheduleSlotStatus {
   if (currentStatus === 'closed') return 'closed';
-  return bookedCount >= maxCapacity ? 'full' : 'available';
+  if (bookedCount >= maxCapacity) return 'closed';
+  if (timing && isSlotExpired(timing.slotDate, timing.startTime, timing.currentDate, timing.currentTime)) {
+    return 'closed';
+  }
+  return 'available';
 }
 
 export function getBangkokToday(): string {

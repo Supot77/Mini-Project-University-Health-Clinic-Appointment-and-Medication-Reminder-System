@@ -49,7 +49,7 @@ export default function ProfileAccountDrawer({ open, onClose, onSignOut, role }:
   return (
     <div className={`fixed inset-0 z-[60] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!open}>
       <button type="button" onClick={onClose} aria-label="ปิดเมนูบัญชี" className={`absolute inset-0 bg-slate-950/55 backdrop-blur-[1px] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`} />
-      <aside className={`absolute bottom-0 left-0 top-0 flex w-[332px] max-w-[88vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`} aria-label="เมนูบัญชี">
+      <aside className={`absolute bottom-0 right-0 top-0 flex w-[332px] max-w-[88vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`} aria-label="เมนูบัญชี">
         <div className="flex h-20 items-center justify-between border-b border-slate-100 px-7">
           <h2 className="text-2xl font-bold text-slate-950">Profile</h2>
           <button type="button" onClick={onClose} className="flex size-10 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100" aria-label="ปิด"><X className="size-6" aria-hidden="true" /></button>

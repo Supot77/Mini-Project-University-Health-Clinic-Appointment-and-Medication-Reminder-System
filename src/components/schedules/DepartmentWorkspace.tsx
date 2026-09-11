@@ -11,7 +11,6 @@ import {
   Plus,
   Power,
   Search,
-  ShieldCheck,
   Stethoscope,
   UserPlus,
   Users,
@@ -751,17 +750,6 @@ export default function DepartmentWorkspace() {
           )}
         </section>
       )}
-
-      {/* Security Info Card */}
-      <aside className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <div className="text-xs text-slate-600 leading-relaxed">
-          <strong className="text-slate-900 block font-semibold">การรักษาความปลอดภัยและนโยบาย RLS</strong>
-          การแก้ไขโครงสร้างแผนกและจับคู่แพทย์จะบันทึกตรงไปยังตาราง <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-800">departments</code>, <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-800">doctors</code> และ <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-800">profiles</code> ใน Supabase ภายใต้สิทธิ์ของ <span className="font-semibold text-teal-800">staff_admin</span>
-        </div>
-      </aside>
 
       {/* Slide-over Drawer: Department */}
       {departmentDrawerOpen && (
