@@ -264,7 +264,7 @@ export default function DashboardScreen({
 
         <div className="min-w-0 space-y-5">
           <section aria-label="ข้อมูลสรุป" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {view.metrics.map((item) => { const Icon = metricIcons[item.id] ?? Activity; return <Link key={item.id} href={item.href} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-colors hover:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-600"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium text-slate-600">{item.label}</p><p className="mt-3 text-3xl font-bold tracking-tight text-slate-950">{item.value}</p></div><span className={`rounded-xl p-3 ring-1 ${toneClasses[item.tone]}`}><Icon className="size-6" aria-hidden="true" /></span></div><p className="mt-4 text-sm leading-6 text-slate-500">{item.description}</p></Link>; })}
+            {view.metrics.map((item) => { const Icon = metricIcons[item.id] ?? Activity; return <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-medium text-slate-600">{item.label}</p><p className="mt-3 text-3xl font-bold tracking-tight text-slate-950">{item.value}</p></div><span className={`rounded-xl p-3 ring-1 ${toneClasses[item.tone]}`}><Icon className="size-6" aria-hidden="true" /></span></div><p className="mt-4 text-sm leading-6 text-slate-500">{item.description}</p></div>; })}
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs" aria-label="ตัวกรองแดชบอร์ด">

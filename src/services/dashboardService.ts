@@ -69,13 +69,13 @@ export interface MedicationDashboardData {
 }
 
 export interface StaffProfileDirectoryItem {
-  createdAt: string;
   id: string;
   fullName: string;
   email: string | null;
   phone: string | null;
   role: UserRole;
   isActive: boolean;
+  createdAt: string;
 }
 
 // --- Notifications ---
@@ -180,7 +180,7 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: string | null;
     role: UserRole;
     is_active: boolean | null;
-    created_at: string;
+    created_at?: string | null;
   }>).map((profile) => ({
     id: profile.id,
     fullName: profile.full_name,
@@ -188,7 +188,7 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: profile.phone,
     role: profile.role,
     isActive: profile.is_active !== false,
-    createdAt: profile.created_at,
+    createdAt: profile.created_at ?? '',
   }));
 }
 
@@ -536,6 +536,14 @@ export async function updateStaffProfile(
     p_phone: update.phone,
     p_role: update.role,
     p_is_active: update.isActive,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteStaffProfile(profileId: string): Promise<void> {
+  const { error } = await supabase.rpc("staff_admin_delete_profile", {
+    p_profile_id: profileId,
   });
 
   if (error) throw new Error(error.message);

@@ -3,16 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Header from "@/components/layout/Header";
 
 const authState = vi.hoisted(() => ({
-  user: null as null | { full_name: string },
+  user: null as null | { id?: string; full_name: string },
   isAuthenticated: false,
   isLoading: false,
   role: null as string | null,
   signOut: vi.fn(async () => undefined),
 }));
 const routerState = vi.hoisted(() => ({ replace: vi.fn() }));
+const dashboardState = vi.hoisted(() => ({
+  getUnreadCount: vi.fn(async () => 0),
+}));
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/schedules", useRouter: () => routerState }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => authState }));
+vi.mock("@/services/dashboardService", () => ({
+  getUnreadCount: (...args: unknown[]) => dashboardState.getUnreadCount(...args),
+}));
 
 describe("Header", () => {
   beforeEach(() => {
@@ -22,6 +28,8 @@ describe("Header", () => {
     authState.role = null;
     authState.signOut.mockClear();
     routerState.replace.mockClear();
+    dashboardState.getUnreadCount.mockReset();
+    dashboardState.getUnreadCount.mockResolvedValue(0);
   });
 
   it("uses one primary header and avoids duplicate desktop navigation", () => {
@@ -178,5 +186,32 @@ describe("Header", () => {
 
     render(<Header />);
     expect(screen.getByRole("link", { name: /WU Clinic/ })).toHaveAttribute("href", "/dashboard");
+  });
+
+  it("renders an unread count badge with exact number when unread notifications exist", async () => {
+    authState.user = { id: "user-123", full_name: "Patient Demo" };
+    authState.isAuthenticated = true;
+    authState.role = "patient";
+    dashboardState.getUnreadCount.mockResolvedValue(5);
+
+    render(<Header />);
+
+    const badge = await screen.findByTestId("notification-badge-count");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("5");
+    expect(screen.queryByTestId("notification-badge-dot")).not.toBeInTheDocument();
+  });
+
+  it("renders a green dot indicator when all notifications have been read", async () => {
+    authState.user = { id: "user-123", full_name: "Patient Demo" };
+    authState.isAuthenticated = true;
+    authState.role = "patient";
+    dashboardState.getUnreadCount.mockResolvedValue(0);
+
+    render(<Header />);
+
+    const greenDot = await screen.findByTestId("notification-badge-dot");
+    expect(greenDot).toBeInTheDocument();
+    expect(screen.queryByTestId("notification-badge-count")).not.toBeInTheDocument();
   });
 });
