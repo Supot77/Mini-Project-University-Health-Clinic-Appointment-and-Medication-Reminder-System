@@ -15,7 +15,7 @@ export const MOCK_WEEK_START = '2026-09-07';
 const departmentPresentation: Record<string, { code: string; room: string; tone: DepartmentTone }> = {
   'dept-general': { code: 'GEN', room: 'อาคารสุขภาพ · ห้อง 101', tone: 'sky' },
   'dept-mental': { code: 'MHC', room: 'อาคารสุขภาพ · ห้อง 204', tone: 'violet' },
-  'dept-vaccine': { code: 'VAC', room: 'อาคารสุขภาพ · ห้อง 112', tone: 'amber' },
+  'dept-internal': { code: 'MED', room: 'อาคารสุขภาพ · ห้อง 112', tone: 'amber' },
   'dept-physio': { code: 'PT', room: 'อาคารกีฬา · ห้อง PT-2', tone: 'teal' },
 };
 

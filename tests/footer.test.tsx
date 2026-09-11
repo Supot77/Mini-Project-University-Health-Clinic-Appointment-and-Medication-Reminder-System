@@ -100,5 +100,18 @@ describe("Footer", () => {
     expect(screen.queryByText("เมนูสำหรับแพทย์")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "สมัครสมาชิก" })).not.toBeInTheDocument();
   });
+
+  it("navigates logo to dashboard when authenticated and to home when guest", () => {
+    const { unmount } = render(<Footer />);
+    expect(screen.getByRole("link", { name: /WU Clinic/ })).toHaveAttribute("href", "/");
+    unmount();
+
+    authState.isAuthenticated = true;
+    authState.role = "patient";
+    authState.user = { full_name: "สมหญิง ผู้ป่วย" };
+
+    render(<Footer />);
+    expect(screen.getByRole("link", { name: /WU Clinic/ })).toHaveAttribute("href", "/dashboard");
+  });
 });
 

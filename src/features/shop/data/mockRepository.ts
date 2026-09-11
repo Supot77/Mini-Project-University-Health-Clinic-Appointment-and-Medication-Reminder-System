@@ -18,6 +18,7 @@ import type {
 import type { UserRole } from '@/types/database';
 import {
   deriveSlotStatus,
+  isSlotExpired,
   validateDepartmentName,
   validateSlot,
   type ShopResult,
@@ -152,8 +153,26 @@ export class MockShopRepository implements ShopRepository {
     };
     if (!existingOffering) this.state.dailyServiceOfferings = [...this.state.dailyServiceOfferings, offering];
     const slot: ScheduleSlot = existing
-      ? { ...existing, ...input, serviceOfferingId: offering.id, status: deriveSlotStatus(bookedCount, input.maxCapacity, existing.status) }
-      : { ...input, id: crypto.randomUUID(), serviceOfferingId: offering.id, bookedCount: 0, status: 'available', hasHistory: false };
+      ? {
+          ...existing,
+          ...input,
+          serviceOfferingId: offering.id,
+          status: deriveSlotStatus(bookedCount, input.maxCapacity, existing.status, {
+            slotDate: input.slotDate,
+            startTime: input.startTime,
+          }),
+        }
+      : {
+          ...input,
+          id: crypto.randomUUID(),
+          serviceOfferingId: offering.id,
+          bookedCount: 0,
+          status: deriveSlotStatus(0, input.maxCapacity, undefined, {
+            slotDate: input.slotDate,
+            startTime: input.startTime,
+          }),
+          hasHistory: false,
+        };
     this.state.slots = existing
       ? this.state.slots.map((item) => item.id === id ? slot : item)
       : [...this.state.slots, slot];
@@ -172,8 +191,23 @@ export class MockShopRepository implements ShopRepository {
     }
 
     if (slot.status === 'closed' && slot.closedReason === 'doctor_leave') return { ok: false, error: 'รอบนี้ปิดอัตโนมัติจากวันลา ต้องจัดการที่คำขอวันลา' };
+    if (slot.status === 'closed') {
+      if (isSlotExpired(slot.slotDate, slot.startTime)) {
+        return { ok: false, error: 'ไม่สามารถเปิดรอบตรวจที่เลยเวลาเริ่มแล้ว' };
+      }
+      if (slot.bookedCount >= slot.maxCapacity) {
+        return { ok: false, error: 'ไม่สามารถเปิดรอบตรวจที่คนเต็มแล้ว' };
+      }
+    }
     const next = slot.status === 'closed'
-      ? { ...slot, status: deriveSlotStatus(slot.bookedCount, slot.maxCapacity), closedReason: undefined }
+      ? {
+          ...slot,
+          status: deriveSlotStatus(slot.bookedCount, slot.maxCapacity, undefined, {
+            slotDate: slot.slotDate,
+            startTime: slot.startTime,
+          }),
+          closedReason: undefined,
+        }
       : { ...slot, status: 'closed' as const, closedReason: 'manual' as const };
     this.state.slots = this.state.slots.map((item) => item.id === id ? next : item);
     return { ok: true, value: next };

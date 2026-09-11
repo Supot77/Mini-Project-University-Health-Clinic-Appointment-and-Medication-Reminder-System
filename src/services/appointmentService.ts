@@ -2,9 +2,9 @@
 // ระบบนัดหมายและประวัติการรักษา
 
 import { supabase } from '@/lib/supabase';
-import type { Appointment, AppointmentWithDetails, MedicalRecord, AppointmentStatus } from '@/types/database';
+import type { AppointmentWithDetails, MedicalRecord, AppointmentStatus } from '@/types/database';
 
-export async function getAppointments(userId: string): Promise<AppointmentWithDetails[]> {
+export async function getAppointments(patientId: string): Promise<AppointmentWithDetails[]> {
   const { data, error } = await supabase
     .from('appointments')
     .select(`
@@ -18,7 +18,7 @@ export async function getAppointments(userId: string): Promise<AppointmentWithDe
         )
       )
     `)
-    .eq('user_id', userId)
+    .eq('patient_id', patientId)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -31,7 +31,7 @@ export async function getTodaysQueue(doctorId?: string): Promise<AppointmentWith
     .select(`
       *,
       slot:appointment_slots!inner(*),
-      patient:profiles!appointments_user_id_fkey(full_name, phone, student_id)
+      patient:profiles!appointments_patient_id_fkey(full_name, phone, student_id)
     `)
     .eq('slot.slot_date', today)
     .order('queue_number');
@@ -45,13 +45,25 @@ export async function getTodaysQueue(doctorId?: string): Promise<AppointmentWith
   return (data ?? []) as unknown as AppointmentWithDetails[];
 }
 
-export async function createAppointment(userId: string, slotId: string, reason?: string) {
+export async function createAppointment(patientId: string, slotId: string, reason?: string, queueNumber?: number) {
+  let assignedQueue = queueNumber;
+  if (!assignedQueue) {
+    const { count } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('slot_id', slotId);
+    assignedQueue = (count ?? 0) + 1;
+  }
+
+  const trimmedReason = reason?.trim() || 'ตรวจสุขภาพทั่วไป';
+
   const { data, error } = await supabase
     .from('appointments')
     .insert({
-      user_id: userId,
+      patient_id: patientId,
       slot_id: slotId,
-      reason: reason || null,
+      queue_number: assignedQueue,
+      reason: trimmedReason,
       status: 'pending',
     })
     .select()
@@ -76,10 +88,24 @@ export async function cancelAppointment(id: string) {
 }
 
 // --- Medical Records ---
-export async function createMedicalRecord(record: Omit<MedicalRecord, 'id' | 'created_at' | 'updated_at'>) {
+export async function createMedicalRecord(record: {
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  diagnosis: string;
+  treatment_notes?: string;
+  prescribed_medications?: MedicalRecord['prescribed_medications'];
+}) {
   const { data, error } = await supabase
     .from('medical_records')
-    .insert(record)
+    .insert({
+      appointment_id: record.appointment_id,
+      patient_id: record.patient_id,
+      doctor_id: record.doctor_id,
+      diagnosis: record.diagnosis.trim() || 'ตรวจร่างกายทั่วไป ไม่พบความผิดปกติสำคัญ',
+      treatment_notes: record.treatment_notes ?? '',
+      prescribed_medications: record.prescribed_medications ?? [],
+    })
     .select()
     .single();
   if (error) throw error;

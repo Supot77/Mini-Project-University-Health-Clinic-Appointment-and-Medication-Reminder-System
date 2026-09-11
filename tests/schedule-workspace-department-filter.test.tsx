@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ScheduleWorkspace, { getNextAvailableTimeSlot } from '@/components/schedules/ScheduleWorkspace';
 import type { ScheduleDepartment, ScheduleDoctor, ScheduleService, ScheduleSlot } from '@/types/schedule';
@@ -117,48 +117,52 @@ describe('ScheduleWorkspace Service Filter', () => {
     shopState.isLoading = false;
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('only shows service options for active services that have open slots', () => {
+  it('only shows department options for active departments that have open slots', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
-    expect(serviceSelect).toBeInTheDocument();
+    // Department select dropdown must be present
+    const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
+    expect(deptSelect).toBeInTheDocument();
 
-    expect(screen.getByRole('option', { name: 'ทุกบริการ' })).toBeInTheDocument();
+    // "ทุกแผนก" option must be visible
+    expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
 
-    expect(screen.getByRole('option', { name: 'ตรวจโรคทั่วไป' })).toBeInTheDocument();
+    // "เวชปฏิบัติทั่วไป" (active + has open slot) MUST be displayed in options
+    expect(screen.getByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).toBeInTheDocument();
 
-    expect(screen.queryByRole('option', { name: 'ตรวจสุขภาพช่องปาก' })).not.toBeInTheDocument();
+    // "ทันตกรรม" (isActive is FALSE) MUST NOT be in options even though it has an open slot
+    expect(screen.queryByRole('option', { name: 'ทันตกรรม' })).not.toBeInTheDocument();
 
-    expect(screen.queryByRole('option', { name: 'ประเมินสุขภาพจิต' })).not.toBeInTheDocument();
+    // "จิตเวช" (all slots are closed) MUST NOT be in options
+    expect(screen.queryByRole('option', { name: 'จิตเวช' })).not.toBeInTheDocument();
 
     expect(screen.queryByRole('option', { name: 'ให้คำปรึกษาการใช้ยา' })).not.toBeInTheDocument();
   });
 
-  it('filters doctor select options when a service is selected', () => {
+  it('filters doctor select options when a department is selected', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
-    fireEvent.change(serviceSelect, { target: { value: 'service-general' } });
+    // Initially "แพทย์ทุกคน" is selected and all doctors are listed
+    expect(screen.getByRole('combobox', { name: 'กรองแพทย์' })).toBeInTheDocument();
+    // Select "เวชปฏิบัติทั่วไป"
+    const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
+    fireEvent.change(deptSelect, { target: { value: 'dept-general' } });
 
     // After filtering by "เวชปฏิบัติทั่วไป", only doc-1 is available under doctor options
     expect(screen.getByRole('option', { name: 'นพ. สมชาย ใจดี' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'พญ. สมใจ สายชิล' })).not.toBeInTheDocument();
   });
 
-  it('only displays "ทุกบริการ" when no service has open slots', () => {
+  it('only displays "ทุกแผนก" when no department has open slots', () => {
     // Set all slots to closed
     shopState.slots = mockSlots.map((s) => ({ ...s, status: 'closed' as const }));
 
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
-    const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
-    expect(serviceSelect).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'ทุกบริการ' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'ตรวจโรคทั่วไป' })).not.toBeInTheDocument();
+    const deptSelect = screen.getByRole('combobox', { name: 'กรองแผนก' });
+    expect(deptSelect).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'ทุกแผนก' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'เวชปฏิบัติทั่วไป' })).not.toBeInTheDocument();
   });
 
   it('displays ScheduleSkeleton when shop data is loading', () => {
@@ -293,5 +297,71 @@ describe('ScheduleWorkspace Service Filter', () => {
 
     expect(screen.getByLabelText('ปฏิทินรายวัน')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'จอง' })).not.toBeInTheDocument();
+  });
+
+  it('displays "ปิดรอบ" badge on timetable when slot is full or past start time', () => {
+    shopState.slots = [
+      { ...mockSlots[0], id: 'slot-past', slotDate: '2026-09-08', startTime: '09:00', bookedCount: 0, status: 'available' },
+      { ...mockSlots[0], id: 'slot-full', slotDate: '2026-09-10', startTime: '10:00', bookedCount: 5, maxCapacity: 5, status: 'available' },
+    ];
+
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+
+    fireEvent.change(screen.getByLabelText('กรองสถานะ'), { target: { value: 'closed' } });
+    const entries = screen.getAllByRole('article').filter((entry) => entry.querySelector('h3'));
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    entries.forEach((entry) => expect(within(entry).getByText('ปิดรอบ')).toBeInTheDocument());
+  });
+
+  it('defaults status filter to available (เปิดรับ)', () => {
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+    const statusSelect = screen.getByLabelText('กรองสถานะ');
+    expect(statusSelect).toHaveValue('available');
+  });
+
+  it('opens day view from the visible day action and preserves patient booking', () => {
+    shopState.slots = [{ ...mockSlots[0], slotDate: '2026-09-10' }];
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+
+    expect(screen.queryByRole('button', { name: 'เพิ่มรอบตรวจ' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'ดูรายวัน 10 ก.ย.' })[0]);
+
+    expect(screen.getByLabelText('มุมมองปฏิทิน')).toHaveValue('day');
+    expect(screen.getByRole('link', { name: 'จอง' })).toHaveAttribute('href', '/appointments?slotId=slot-1');
+  });
+
+  it('opens day view using the date header keyboard action', () => {
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'เปิดตารางตรวจวันที่ 10 ก.ย.' }), { key: 'Enter' });
+    expect(screen.getByLabelText('ปฏิทินรายวัน')).toBeInTheDocument();
+    expect(screen.getByText('ไม่พบรอบตรวจตามตัวกรอง ลองเปลี่ยนวันหรือสถานะ')).toBeInTheDocument();
+  });
+
+  it('retains the doctor scope and excludes edit actions for another doctor', () => {
+    shopState.slots = [
+      { ...mockSlots[0], slotDate: '2026-09-10' },
+      { ...mockSlots[0], id: 'other-slot', doctorId: 'doc-3', slotDate: '2026-09-10', startTime: '13:00', endTime: '14:00' },
+    ];
+    render(<ScheduleWorkspace role="medical" actorId="prof-1" />);
+    expect(screen.getByRole('button', { name: 'ตารางของฉัน' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'ภาพรวมคลินิก' }));
+    expect(screen.getByRole('button', { name: 'ภาพรวมคลินิก' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('button', { name: 'แก้ไขรอบ 09:00' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'แก้ไขรอบ 13:00' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the creation form and draft visible when saving fails', async () => {
+    shopState.slots = [];
+    shopState.saveSlot.mockResolvedValueOnce({ ok: false, error: 'เวลารอบตรวจทับกัน' });
+    render(<ScheduleWorkspace role="staff_admin" actorId="admin-1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มรอบตรวจ' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'แพทย์' }), { target: { value: 'doc-1' } });
+    fireEvent.change(screen.getByLabelText('วันที่'), { target: { value: '2026-09-10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกรอบตรวจ' }));
+
+    expect(await screen.findByText('เวลารอบตรวจทับกัน')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('วันที่')).toHaveValue('2026-09-10');
+    expect(shopState.slots).toEqual([]);
   });
 });

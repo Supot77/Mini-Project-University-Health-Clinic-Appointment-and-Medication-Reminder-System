@@ -89,7 +89,7 @@ export default function Footer() {
         <div className="grid gap-12 border-b border-white/10 pb-12 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr]">
           <div className="max-w-sm">
             <Link
-              href="/"
+              href={isAuthenticated ? "/dashboard" : "/"}
               className="inline-flex items-center gap-3 rounded-brand-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-accent"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-brand-button bg-brand-accent text-brand-ink">
