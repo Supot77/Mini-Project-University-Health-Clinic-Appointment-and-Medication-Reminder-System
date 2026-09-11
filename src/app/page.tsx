@@ -5,6 +5,7 @@ import {
   Check,
   Clock3,
   HeartPulse,
+  LogIn,
   MapPin,
   Pill,
   ShieldCheck,
@@ -92,10 +93,15 @@ export default function Home() {
               >
                 ดูตารางแพทย์
               </Link>
+              <Link
+                href="/login"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-brand-button border border-brand-strong bg-white/65 px-6 text-[15px] font-semibold text-brand-strong transition hover:-translate-y-0.5 hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+              >
+                <LogIn className="h-4 w-4" aria-hidden="true" />
+                เข้าสู่ระบบ
+              </Link>
             </div>
-            <p className="mt-5 text-[13px] text-brand-body">
-              สำหรับเจ้าหน้าที่และบุคลากรคลินิก <Link href="/login" className="font-semibold text-brand-strong underline decoration-brand-border underline-offset-4 hover:text-brand-hover">เข้าสู่ระบบจัดการ</Link>
-            </p>
+            <p className="mt-5 text-[13px] text-brand-body">สำหรับเจ้าหน้าที่และบุคลากรคลินิก ใช้บัญชี WU เพื่อเข้าสู่ระบบจัดการ</p>
           </div>
 
           <div className="relative mx-auto w-full max-w-[35rem] lg:mr-0">

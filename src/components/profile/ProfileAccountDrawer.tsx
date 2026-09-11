@@ -3,22 +3,37 @@
 import Link from 'next/link';
 import { FileClock, LogOut, Settings, ShieldCheck, Stethoscope, UserRound, X } from 'lucide-react';
 import { useEffect } from 'react';
+import type { UserRole } from '@/types/database';
 
 interface ProfileAccountDrawerProps {
   open: boolean;
   onClose: () => void;
   onSignOut: () => void;
+  role: UserRole | null;
 }
 
-const menuItems = [
-  { href: '/profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, active: true },
-  { href: '/appointments', label: 'ประวัติการรักษา', icon: FileClock },
-  { href: '/results', label: 'ผลการตรวจ', icon: Stethoscope },
-  { href: '/profile#security', label: 'ความปลอดภัยและรหัสผ่าน', icon: ShieldCheck },
-  { href: '/settings', label: 'ตั้งค่า', icon: Settings },
-];
+type AccountMenuItem = { href: string; label: string; icon: typeof UserRound; active?: boolean };
 
-export default function ProfileAccountDrawer({ open, onClose, onSignOut }: ProfileAccountDrawerProps) {
+const accountItemsByRole: Record<UserRole, AccountMenuItem[]> = {
+  patient: [
+    { href: '/records', label: 'ประวัติการรักษา', icon: FileClock },
+    { href: '/reminders', label: 'เตือนยา', icon: Stethoscope },
+  ],
+  medical: [
+    { href: '/records', label: 'บันทึกการรักษา', icon: Stethoscope },
+    { href: '/appointments', label: 'นัดหมายผู้ป่วย', icon: FileClock },
+  ],
+  staff_admin: [{ href: '/appointments', label: 'นัดหมาย', icon: FileClock }],
+};
+
+export default function ProfileAccountDrawer({ open, onClose, onSignOut, role }: ProfileAccountDrawerProps) {
+  const menuItems: AccountMenuItem[] = [
+    { href: '/profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, active: true },
+    ...(role ? accountItemsByRole[role] : []),
+    { href: '/profile#security', label: 'ความปลอดภัยและรหัสผ่าน', icon: ShieldCheck },
+    { href: '/settings', label: 'ตั้งค่า', icon: Settings },
+  ];
+
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
@@ -42,7 +57,8 @@ export default function ProfileAccountDrawer({ open, onClose, onSignOut }: Profi
         <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-6" aria-label="รายการเมนูบัญชี">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            return <Link key={item.href} href={item.href} onClick={onClose} className={`flex min-h-14 items-center gap-4 rounded-xl px-5 text-base transition ${item.active ? 'bg-gradient-to-r from-teal-50 to-cyan-50 font-semibold text-teal-800' : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-teal-800'}`}><Icon className={`size-6 shrink-0 ${item.active ? 'text-teal-700' : 'text-slate-500'}`} aria-hidden="true" /><span>{item.label}</span></Link>;
+            const active = item.active ?? false;
+            return <Link key={item.href} href={item.href} onClick={onClose} className={`flex min-h-14 items-center gap-4 rounded-xl px-5 text-base transition ${active ? 'bg-gradient-to-r from-teal-50 to-cyan-50 font-semibold text-teal-800' : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-teal-800'}`}><Icon className={`size-6 shrink-0 ${active ? 'text-teal-700' : 'text-slate-500'}`} aria-hidden="true" /><span>{item.label}</span></Link>;
           })}
           <div className="mx-2 my-5 border-t border-slate-200" />
           <button type="button" onClick={onSignOut} className="flex min-h-14 w-full items-center gap-4 rounded-xl px-5 text-left text-base font-semibold text-rose-600 transition hover:bg-rose-50"><LogOut className="size-6 shrink-0" aria-hidden="true" /><span>ออกจากระบบ</span></button>
