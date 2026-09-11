@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
 import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
 import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
@@ -7,6 +7,14 @@ import type { PaiRepository } from '@/features/pai/runtime/contract';
 import { fixture, medicationId, slotId, withAppointment } from './pai-runtime-fixtures';
 
 describe('Pai database-backed role containers with injected offline repository', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-09T08:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
     const seed = withAppointment(role);
     seed.appointments[0].patient_phone = '0800000000';

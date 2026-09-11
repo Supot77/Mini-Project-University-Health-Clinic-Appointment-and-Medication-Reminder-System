@@ -144,8 +144,8 @@ export default function StaffProfileDirectory() {
       })
       .sort((a, b) => {
         if (sortBy === 'registered-asc' || sortBy === 'registered-desc') {
-          const aTime = Date.parse(a.createdAt);
-          const bTime = Date.parse(b.createdAt);
+          const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
+          const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
           const registrationOrder = sortBy === 'registered-asc' ? aTime - bTime : bTime - aTime;
           if (registrationOrder !== 0) return registrationOrder;
         } else {

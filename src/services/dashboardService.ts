@@ -75,6 +75,7 @@ export interface StaffProfileDirectoryItem {
   phone: string | null;
   role: UserRole;
   isActive: boolean;
+  createdAt?: string;
 }
 
 // --- Notifications ---
@@ -179,14 +180,21 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: string | null;
     role: UserRole;
     is_active: boolean | null;
-  }>).map((profile) => ({
-    id: profile.id,
-    fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
-    role: profile.role,
-    isActive: profile.is_active !== false,
-  }));
+    created_at?: string;
+  }>).map((profile) => {
+    const item: StaffProfileDirectoryItem = {
+      id: profile.id,
+      fullName: profile.full_name,
+      email: profile.email,
+      phone: profile.phone,
+      role: profile.role,
+      isActive: profile.is_active !== false,
+    };
+    if (profile.created_at) {
+      item.createdAt = profile.created_at;
+    }
+    return item;
+  });
 }
 
 type DashboardProfile = Pick<Profile, 'id' | 'full_name' | 'role' | 'is_active'>;
