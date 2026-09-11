@@ -1,19 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Building2,
   Check,
-  Filter,
   Loader2,
   Pencil,
   Plus,
   Power,
   Search,
-  Stethoscope,
-  UserPlus,
-  Users,
   X,
 } from 'lucide-react';
 import { useShop } from '@/features/shop/context/ShopProvider';
@@ -24,7 +19,8 @@ import type {
 } from '@/types/schedule';
 
 const inputClass =
-  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-xs outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-50';
+  'h-11 w-full min-w-0 rounded-lg border border-brand-border-strong bg-transparent px-3.5 text-sm text-brand-ink placeholder:text-brand-body focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
+const textActionClass = 'inline-flex min-h-11 items-center gap-1.5 text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50';
 
 type WorkspaceTab = 'departments' | 'doctors';
 
@@ -87,17 +83,36 @@ export default function DepartmentWorkspace() {
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerTriggerRef = useRef<HTMLElement | null>(null);
 
-  // Keyboard escape listener to close drawers
   useEffect(() => {
+    if (!departmentDrawerOpen && !doctorDrawerOpen) return;
+    const drawer = drawerRef.current;
+    drawer?.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea')?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (departmentDrawerOpen) setDepartmentDrawerOpen(false);
         if (doctorDrawerOpen) setDoctorDrawerOpen(false);
       }
+      if (e.key === 'Tab' && drawer) {
+        const controls = drawer.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)');
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      drawerTriggerRef.current?.focus();
+    };
   }, [departmentDrawerOpen, doctorDrawerOpen]);
 
   const normalizedSearch = search.trim().toLocaleLowerCase('th');
@@ -127,6 +142,7 @@ export default function DepartmentWorkspace() {
   );
 
   const openDepartmentForm = (department?: ScheduleDepartment) => {
+    drawerTriggerRef.current = document.activeElement as HTMLElement;
     setFormError('');
     setNotice('');
     setEditingDepartmentId(department?.id ?? null);
@@ -199,6 +215,7 @@ export default function DepartmentWorkspace() {
   };
 
   const openDoctorForm = (doctor?: ScheduleDoctor) => {
+    drawerTriggerRef.current = document.activeElement as HTMLElement;
     setFormError('');
     setNotice('');
     setEditingDoctorId(doctor?.id ?? null);
@@ -264,155 +281,83 @@ export default function DepartmentWorkspace() {
     setNotice(result.value === 'deleted' ? 'ลบแพทย์แล้ว' : doctor.availability === 'inactive' ? 'เปิดใช้งานแพทย์แล้ว' : 'ปิดใช้งานแพทย์แล้ว');
   };
 
-  const activeDoctors = doctors.filter((doctor) => doctor.availability === 'active').length;
-  const activeDepartments = departments.filter((department) => department.isActive).length;
+  const changeTab = (tab: WorkspaceTab) => {
+    setActiveTab(tab);
+    setSearch('');
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Clinical Command Header */}
-      <header className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50/70 px-3 py-1 text-xs font-semibold text-teal-800">
-              <span className="h-2 w-2 rounded-full bg-teal-600 animate-pulse" aria-hidden="true" />
-              <span>ระบบจัดการคลินิก · สถาบันสุขภาพ ม.วลัยลักษณ์</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-              โครงสร้างบริการและบุคลากรทางการแพทย์
-            </h1>
-            <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
-              จัดการแผนกตรวจรักษาและจับคู่บัญชีแพทย์ ข้อมูลซิงค์กับฐานข้อมูล Supabase แบบเรียลไทม์
-            </p>
-          </div>
-
-          {/* Quick Metrics Chips */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-center transition-colors hover:bg-slate-100/70">
-              <div className="text-2xl font-bold tabular-nums text-slate-900">{activeDepartments}</div>
-              <div className="mt-1 text-xs font-medium text-slate-500">แผนกเปิดบริการ</div>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 text-center transition-colors hover:bg-slate-100/70">
-              <div className="text-2xl font-bold tabular-nums text-slate-900">{doctors.length}</div>
-              <div className="mt-1 text-xs font-medium text-slate-500">แพทย์ทั้งหมด</div>
-            </div>
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 text-center transition-colors hover:bg-emerald-50">
-              <div className="text-2xl font-bold tabular-nums text-emerald-700">{activeDoctors}</div>
-              <div className="mt-1 text-xs font-medium text-emerald-800">พร้อมออกตรวจ</div>
-            </div>
-          </div>
-        </div>
+    <div className="min-w-0 space-y-6 sm:space-y-8">
+      <header className="flex flex-wrap items-center justify-between gap-5">
+        <h1 className="text-3xl font-bold tracking-tight text-brand-ink sm:text-4xl">แผนกและแพทย์</h1>
+        <button
+          type="button"
+          disabled={isLoading}
+          onClick={() => (activeTab === 'departments' ? openDepartmentForm() : openDoctorForm())}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {activeTab === 'departments' ? 'เพิ่มแผนก' : 'เพิ่มแพทย์'}
+        </button>
       </header>
 
-      {/* Control Bar: Tabs, Search, Filters & Action Button */}
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          {/* Segmented Control */}
-          <div className="flex rounded-xl bg-slate-100/90 p-1" role="tablist" aria-label="เลือกมุมมองการจัดการ">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'departments'}
-              onClick={() => {
-                setActiveTab('departments');
-                setSearch('');
-              }}
-              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-all focus-visible:ring-2 focus-visible:ring-teal-600 sm:flex-none ${
-                activeTab === 'departments'
-                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/50'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Building2 className="h-4 w-4 text-teal-700" aria-hidden="true" />
-              <span>แผนกการรักษา</span>
-              <span className="ml-1 rounded-full bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700">
-                {departments.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'doctors'}
-              onClick={() => {
-                setActiveTab('doctors');
-                setSearch('');
-              }}
-              className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-all focus-visible:ring-2 focus-visible:ring-teal-600 sm:flex-none ${
-                activeTab === 'doctors'
-                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/50'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Stethoscope className="h-4 w-4 text-teal-700" aria-hidden="true" />
-              <span>แพทย์และผู้ตรวจ</span>
-              <span className="ml-1 rounded-full bg-slate-200/80 px-2 py-0.5 text-xs text-slate-700">
-                {doctors.length}
-              </span>
-            </button>
-          </div>
+      <div className="flex gap-6 border-b border-brand-border-soft" role="tablist" aria-label="เลือกมุมมองการจัดการ">
+        {([
+          ['departments', 'แผนก', departments.length],
+          ['doctors', 'แพทย์', doctors.length],
+        ] as const).map(([tab, label, count]) => (
+          <button
+            key={tab}
+            id={`${tab}-tab`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            aria-controls={`${tab}-panel`}
+            tabIndex={activeTab === tab ? 0 : -1}
+            onClick={() => changeTab(tab)}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const nextTab = event.key === 'Home' ? 'departments' : event.key === 'End' ? 'doctors' : tab === 'departments' ? 'doctors' : 'departments';
+              changeTab(nextTab);
+              document.getElementById(`${nextTab}-tab`)?.focus();
+            }}
+            className={`flex min-h-11 items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong ${activeTab === tab ? 'border-brand-strong text-brand-strong' : 'border-transparent text-brand-body hover:text-brand-strong'}`}
+          >
+            {label}<span className="text-xs font-normal tabular-nums">{count}</span>
+          </button>
+        ))}
+      </div>
 
-          {/* Search, Filter, and Add Button */}
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-            <div className="relative min-w-64 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={activeTab === 'departments' ? 'ค้นหาชื่อแผนกหรือรายละเอียด...' : 'ค้นหาชื่อแพทย์หรือความเชี่ยวชาญ...'}
-                className={`${inputClass} pl-9`}
-              />
-            </div>
-
-            {activeTab === 'doctors' && (
-              <div className="relative">
-                <Filter className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
-                <select
-                  value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className={`${inputClass} min-w-44 pl-9 text-slate-700`}
-                >
-                  <option value="all">ทุกแผนก</option>
-                  {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-xs font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-              />
-              <span>แสดงที่ปิดใช้</span>
-            </label>
-
-            <button
-              type="button"
-              onClick={() => (activeTab === 'departments' ? openDepartmentForm() : openDoctorForm())}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-xs transition-all hover:bg-teal-800 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-            >
-              {activeTab === 'departments' ? (
-                <>
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  <span>เพิ่มแผนก</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-4 w-4" aria-hidden="true" />
-                  <span>เพิ่มแพทย์</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+      <section aria-label="ค้นหาและกรองรายการ" className="flex flex-wrap items-end gap-4">
+        <label className="grid w-full gap-2 text-sm text-brand-body sm:w-80">
+          <span>{activeTab === 'departments' ? 'ค้นหาแผนก' : 'ค้นหาแพทย์'}</span>
+          <span className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-brand-body" aria-hidden="true" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={activeTab === 'departments' ? 'ชื่อแผนกหรือรายละเอียด' : 'ชื่อ ความเชี่ยวชาญ หรืออีเมล'}
+              className={`${inputClass} pl-9`}
+            />
+          </span>
+        </label>
+        {activeTab === 'doctors' && (
+          <label className="grid w-full gap-2 text-sm text-brand-body sm:w-60">
+            <span>แผนก</span>
+            <select value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className={inputClass}>
+              <option value="all">ทุกแผนก</option>
+              {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            </select>
+          </label>
+        )}
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-brand-body">
+          <input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} className="h-4 w-4 accent-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong" />
+          แสดงที่ปิดใช้
+        </label>
       </section>
-
       {/* Notifications Banner */}
-      <div aria-live="polite" className="space-y-3">
+      <div aria-live="polite" className="space-y-3 empty:hidden">
         {notice && (
           <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
             <span className="flex items-center gap-2">
@@ -447,153 +392,59 @@ export default function DepartmentWorkspace() {
           </div>
         )}
 
-        {isLoading && (
-          <div className="flex items-center justify-center gap-3 rounded-xl border border-teal-100 bg-teal-50/50 p-4 text-sm font-medium text-teal-800">
-            <Loader2 className="h-4 w-4 animate-spin text-teal-600" aria-hidden="true" />
-            <span>กำลังโหลดข้อมูลจากฐานข้อมูล...</span>
-          </div>
-        )}
       </div>
 
-      {/* Departments Grid View */}
       {activeTab === 'departments' && (
-        <section aria-labelledby="departments-list-title">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 id="departments-list-title" className="text-base font-bold text-slate-900">
-              แผนกการรักษาทั้งหมด
-            </h2>
-            <span className="text-xs font-semibold text-slate-500">
-              {visibleDepartments.length} รายการ
-            </span>
+        <section id="departments-panel" role="tabpanel" aria-labelledby="departments-tab" aria-busy={isLoading}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-brand-ink">รายชื่อแผนก</h2>
+            <span className="text-sm tabular-nums text-brand-body">{visibleDepartments.length} รายการ</span>
           </div>
-
           {isLoading ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2" aria-label="กำลังโหลดรายการแผนก">
-              {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="h-5 w-32 animate-pulse rounded bg-slate-200" />
-                    <div className="h-5 w-16 animate-pulse rounded-full bg-slate-100" />
-                  </div>
-                  <div className="h-3.5 w-48 animate-pulse rounded bg-slate-100" />
-                  <div className="h-16 animate-pulse rounded-xl bg-slate-50" />
-                </div>
-              ))}
-            </div>
+            <ListLoading label="กำลังโหลดรายการแผนก" />
           ) : visibleDepartments.length === 0 ? (
-            <EmptyPanel
-              title="ไม่พบแผนกที่ค้นหา"
-              detail="ลองเปลี่ยนคำค้นหา หรือเลือกตัวเลือก 'แสดงที่ปิดใช้' เพื่อดูแผนกทั้งหมด"
-            />
+            <EmptyPanel title="ไม่พบแผนก" detail="ลองเปลี่ยนคำค้นหา หรือเลือก “แสดงที่ปิดใช้”" />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+            <div className="divide-y divide-brand-border-soft border-y border-brand-border-soft">
               {visibleDepartments.map((department) => {
                 const affiliatedDoctors = doctors.filter((doctor) => doctor.departmentId === department.id);
-
                 return (
-                  <article
-                    key={department.id}
-                    className={`group relative flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-xs transition-all hover:shadow-md ${
-                      department.isActive
-                        ? 'border-slate-200/90 hover:border-teal-300/80'
-                        : 'border-slate-200 bg-slate-50/50 opacity-75'
-                    }`}
-                  >
-                    <div>
-                      {/* Top Meta & Actions */}
-                      <div className="flex items-start justify-between gap-3">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            department.isActive
-                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70'
-                              : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
-                          }`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              department.isActive ? 'bg-emerald-500' : 'bg-slate-400'
-                            }`}
-                            aria-hidden="true"
-                          />
-                          {department.isActive ? 'เปิดให้บริการ' : 'ปิดใช้งาน'}
-                        </span>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openDepartmentForm(department)}
-                            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-teal-600"
-                            aria-label={`แก้ไข ${department.name}`}
-                          >
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isSaving}
-                            onClick={() => toggleDepartment(department)}
-                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                              department.isActive
-                                ? 'text-rose-600 hover:bg-rose-50'
-                                : 'text-emerald-700 hover:bg-emerald-50'
-                            }`}
-                            title={department.isActive ? 'ปิดการให้บริการ' : 'เปิดการให้บริการ'}
-                          >
-                            <Power className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span>{department.isActive ? 'ปิดใช้' : 'เปิดใช้'}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Title & Description */}
-                      <h3 className="mt-3 text-lg font-bold tracking-tight text-slate-900">
-                        {department.name}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-                        {department.description || 'ยังไม่มีคำอธิบายรายละเอียดบริการ'}
+                  <article key={department.id} className="grid gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:gap-8">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-lg font-semibold text-brand-ink">{department.name}</h3>
+                      {department.description && <p className="mt-2 text-sm leading-6 text-brand-body">{department.description}</p>}
+                      <p className={`mt-3 flex items-center gap-2 text-sm ${department.isActive ? 'text-status-success' : 'text-status-neutral'}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${department.isActive ? 'bg-status-success' : 'bg-status-neutral'}`} aria-hidden="true" />
+                        {department.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
                       </p>
                     </div>
-
-                    {/* Signature Element: Department Doctor Roster */}
-                    <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                      <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-                        <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-                          <Users className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
-                          <span>แพทย์ประจำแผนก ({affiliatedDoctors.length})</span>
-                        </span>
-                      </div>
-
+                    <div className="min-w-0">
+                      <p className="mb-2 text-sm font-medium text-brand-body">แพทย์ประจำแผนก <span className="tabular-nums">({affiliatedDoctors.length})</span></p>
                       {affiliatedDoctors.length === 0 ? (
-                        <div className="flex items-center justify-between text-xs text-slate-400 py-1">
-                          <span>ยังไม่มีแพทย์สังกัดแผนกนี้</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              openDoctorForm();
-                              setDoctorDraft((current) => ({ ...current, departmentId: department.id }));
-                            }}
-                            className="font-medium text-teal-700 hover:text-teal-900 hover:underline"
-                          >
-                            + ผูกแพทย์
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <span className="text-sm text-brand-body">ยังไม่มีแพทย์</span>
+                          <button type="button" onClick={() => { openDoctorForm(); setDoctorDraft((current) => ({ ...current, departmentId: department.id })); }} className={`${textActionClass} text-brand-strong`}>
+                            <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มแพทย์ในแผนก
                           </button>
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {affiliatedDoctors.map((doc) => (
-                            <span
-                              key={doc.id}
-                              className={`inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs ${
-                                doc.availability === 'active'
-                                  ? 'border-slate-200'
-                                  : 'border-slate-200/60 opacity-60'
-                              }`}
-                              title={`${doc.fullName} (${doc.specialty || 'แพทย์'})`}
-                            >
-                              <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden="true" />
-                              <span className="truncate max-w-44">{doc.fullName}</span>
-                            </span>
+                        <ul className="space-y-2 text-sm leading-6 text-brand-ink">
+                          {affiliatedDoctors.map((doctor) => (
+                            <li key={doctor.id} className="break-words">
+                              {doctor.fullName}
+                              {doctor.availability !== 'active' && <span className={`ml-2 text-xs ${doctor.availability === 'on_leave' ? 'text-status-warning' : 'text-status-neutral'}`}>{doctor.availability === 'on_leave' ? 'ลาตรวจ' : 'ปิดใช้งาน'}</span>}
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       )}
+                    </div>
+                    <div className="flex flex-wrap items-start gap-x-4 lg:justify-end">
+                      <button type="button" onClick={() => openDepartmentForm(department)} className={`${textActionClass} text-brand-strong`} aria-label={`แก้ไข ${department.name}`}>
+                        <Pencil className="h-4 w-4" aria-hidden="true" />แก้ไข
+                      </button>
+                      <button type="button" disabled={isSaving} onClick={() => toggleDepartment(department)} className={`${textActionClass} ${department.isActive ? 'text-status-critical' : 'text-status-success'}`} aria-label={`${department.isActive ? 'ปิดใช้' : 'เปิดใช้'} ${department.name}`}>
+                        <Power className="h-4 w-4" aria-hidden="true" />{department.isActive ? 'ปิดใช้' : 'เปิดใช้'}
+                      </button>
                     </div>
                   </article>
                 );
@@ -603,143 +454,50 @@ export default function DepartmentWorkspace() {
         </section>
       )}
 
-      {/* Doctors Table View */}
       {activeTab === 'doctors' && (
-        <section aria-labelledby="doctors-list-title">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 id="doctors-list-title" className="text-base font-bold text-slate-900">
-              ทะเบียนแพทย์และผู้ตรวจ
-            </h2>
-            <span className="text-xs font-semibold text-slate-500">
-              {visibleDoctors.length} คน
-            </span>
+        <section id="doctors-panel" role="tabpanel" aria-labelledby="doctors-tab" aria-busy={isLoading}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-brand-ink">รายชื่อแพทย์</h2>
+            <span className="text-sm tabular-nums text-brand-body">{visibleDoctors.length} คน</span>
           </div>
-
           {isLoading ? (
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs" aria-label="กำลังโหลดรายชื่อแพทย์">
-              {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100" />
-                    <div className="space-y-1.5">
-                      <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
-                      <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
-                    </div>
-                  </div>
-                  <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
-                </div>
-              ))}
-            </div>
+            <ListLoading label="กำลังโหลดรายชื่อแพทย์" />
           ) : visibleDoctors.length === 0 ? (
-            <EmptyPanel
-              title="ไม่พบแพทย์ที่ค้นหา"
-              detail="ลองเปลี่ยนคำค้นหา เลือกแผนกอื่น หรือเปิด 'แสดงที่ปิดใช้'"
-            />
+            <EmptyPanel title="ไม่พบแพทย์" detail="ลองเปลี่ยนคำค้นหา แผนก หรือเลือก “แสดงที่ปิดใช้”" />
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-              <div className="hidden grid-cols-[minmax(260px,1.5fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_110px] gap-4 border-b border-slate-200 bg-slate-50/80 px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:grid">
-                <span>แพทย์ / บัญชี</span>
-                <span>แผนกสังกัด</span>
-                <span>ความเชี่ยวชาญ</span>
-                <span>สถานะ</span>
-                <span className="text-right">จัดการ</span>
+            <div className="border-y border-brand-border-soft">
+              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_140px] gap-6 border-b border-brand-border-soft py-4 text-sm text-brand-body lg:grid">
+                <span>แพทย์ / บัญชี</span><span>แผนก / ความเชี่ยวชาญ</span><span>สถานะ</span><span className="text-right">จัดการ</span>
               </div>
-
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-brand-border-soft">
                 {visibleDoctors.map((doctor) => {
                   const department = departments.find((item) => item.id === doctor.departmentId);
-                  const statusConfig: Record<DoctorAvailability, { label: string; badge: string; dot: string }> = {
-                    active: {
-                      label: 'พร้อมออกตรวจ',
-                      badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70',
-                      dot: 'bg-emerald-500',
-                    },
-                    on_leave: {
-                      label: 'ลาตรวจ',
-                      badge: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/70',
-                      dot: 'bg-amber-500',
-                    },
-                    inactive: {
-                      label: 'ปิดใช้งาน',
-                      badge: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
-                      dot: 'bg-slate-400',
-                    },
+                  const statusConfig: Record<DoctorAvailability, { label: string; text: string; dot: string }> = {
+                    active: { label: 'พร้อมออกตรวจ', text: 'text-status-success', dot: 'bg-status-success' },
+                    on_leave: { label: 'ลาตรวจ', text: 'text-status-warning', dot: 'bg-status-warning' },
+                    inactive: { label: 'ปิดใช้งาน', text: 'text-status-neutral', dot: 'bg-status-neutral' },
                   };
-
                   const currentStatus = statusConfig[doctor.availability] ?? statusConfig.active;
-
+                  const toggleLabel = doctor.availability === 'inactive' ? 'เปิดใช้' : doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id) ? 'ปิดใช้' : 'ลบ';
                   return (
-                    <article
-                      key={doctor.id}
-                      className="grid gap-4 px-6 py-4.5 transition-colors hover:bg-slate-50/60 lg:grid-cols-[minmax(260px,1.5fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_110px] lg:items-center"
-                    >
-                      {/* Doctor Name & Avatar */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-sm font-bold text-white shadow-2xs">
-                          {doctor.initials}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="truncate text-sm font-bold text-slate-900">
-                            {doctor.fullName}
-                          </h3>
-                          <p className="truncate text-xs text-slate-500">
-                            {doctor.email || 'บัญชีแพทย์ในระบบ'}
-                          </p>
-                        </div>
+                    <article key={doctor.id} className="grid gap-4 py-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_140px] lg:items-center lg:gap-6">
+                      <div className="min-w-0">
+                        <h3 className="break-words text-base font-semibold text-brand-ink">{doctor.fullName}</h3>
+                        {doctor.email && <p className="mt-1 break-all text-sm text-brand-body">{doctor.email}</p>}
                       </div>
-
-                      {/* Department */}
-                      <div className="text-sm text-slate-700">
-                        <span className="mr-2 text-xs font-semibold text-slate-400 lg:hidden">แผนก:</span>
-                        {department ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                            <Building2 className="h-3 w-3 text-slate-500" aria-hidden="true" />
-                            {department.name}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">ยังไม่สังกัดแผนก</span>
-                        )}
+                      <div className="min-w-0 text-sm leading-6">
+                        <p className="text-brand-ink"><span className="text-brand-body lg:hidden">แผนก: </span>{department?.name ?? 'ยังไม่สังกัดแผนก'}</p>
+                        {doctor.specialty && <p className="text-brand-body"><span className="lg:hidden">ความเชี่ยวชาญ: </span>{doctor.specialty}</p>}
                       </div>
-
-                      {/* Specialty */}
-                      <div className="text-sm text-slate-600">
-                        <span className="mr-2 text-xs font-semibold text-slate-400 lg:hidden">ความเชี่ยวชาญ:</span>
-                        {doctor.specialty || '-'}
-                      </div>
-
-                      {/* Availability */}
-                      <div>
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${currentStatus.badge}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${currentStatus.dot}`} aria-hidden="true" />
-                          {currentStatus.label}
-                        </span>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openDoctorForm(doctor)}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-teal-600"
-                          aria-label={`แก้ไข ${doctor.fullName}`}
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                      <p className={`flex items-center gap-2 text-sm ${currentStatus.text}`}>
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${currentStatus.dot}`} aria-hidden="true" />{currentStatus.label}
+                      </p>
+                      <div className="flex items-center gap-4 lg:justify-end">
+                        <button type="button" onClick={() => openDoctorForm(doctor)} className={`${textActionClass} text-brand-strong`} aria-label={`แก้ไข ${doctor.fullName}`}>
+                          <Pencil className="h-4 w-4" aria-hidden="true" />แก้ไข
                         </button>
-                        <button
-                          type="button"
-                          disabled={isSaving}
-                          onClick={() => toggleDoctor(doctor)}
-                          className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                            doctor.availability === 'inactive'
-                              ? 'text-emerald-700 hover:bg-emerald-50'
-                              : 'text-rose-600 hover:bg-rose-50'
-                          }`}
-                        >
-                          {doctor.availability === 'inactive'
-                            ? 'เปิดใช้'
-                            : doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id)
-                            ? 'ปิดใช้'
-                            : 'ลบ'}
+                        <button type="button" disabled={isSaving} onClick={() => toggleDoctor(doctor)} className={`${textActionClass} ${doctor.availability === 'inactive' ? 'text-status-success' : 'text-status-critical'}`} aria-label={`${toggleLabel} ${doctor.fullName}`}>
+                          {toggleLabel}
                         </button>
                       </div>
                     </article>
@@ -750,10 +508,9 @@ export default function DepartmentWorkspace() {
           )}
         </section>
       )}
-
       {/* Slide-over Drawer: Department */}
       {departmentDrawerOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="department-drawer-title" role="dialog" aria-modal="true">
+        <div ref={drawerRef} className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="department-drawer-title" role="dialog" aria-modal="true">
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
@@ -761,18 +518,14 @@ export default function DepartmentWorkspace() {
             aria-hidden="true"
           />
 
-          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
-            <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between">
+          <div className="fixed inset-y-0 right-0 flex w-full max-w-md sm:pl-6">
+            <div className="flex h-full min-h-0 w-full flex-col justify-between bg-white shadow-xl">
               {/* Drawer Header */}
               <div className="border-b border-slate-200 px-6 py-5 flex items-start justify-between">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Department Management</span>
                   <h2 id="department-drawer-title" className="text-xl font-bold text-slate-900 mt-1">
                     {editingDepartmentId ? 'แก้ไขแผนก' : 'เพิ่มแผนกใหม่'}
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    บันทึกข้อมูลเข้าตาราง departments ใน Supabase
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -803,13 +556,12 @@ export default function DepartmentWorkspace() {
                     onChange={(e) => setDepartmentDraft((curr) => ({ ...curr, name: e.target.value }))}
                     placeholder="เช่น เวชปฏิบัติทั่วไป, กุมารเวชกรรม"
                     className={inputClass}
-                    autoFocus
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label htmlFor="dept-desc" className="text-sm font-semibold text-slate-800">
-                    รายละเอียดบริการ
+                    รายละเอียดแผนก
                   </label>
                   <textarea
                     id="dept-desc"
@@ -823,7 +575,7 @@ export default function DepartmentWorkspace() {
               </div>
 
               {/* Drawer Footer */}
-              <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+              <div className="flex shrink-0 items-center justify-end gap-3 border-t border-brand-border-soft px-6 py-4">
                 <button
                   type="button"
                   onClick={closeDepartmentDrawer}
@@ -854,7 +606,7 @@ export default function DepartmentWorkspace() {
 
       {/* Slide-over Drawer: Doctor */}
       {doctorDrawerOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="doctor-drawer-title" role="dialog" aria-modal="true">
+        <div ref={drawerRef} className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="doctor-drawer-title" role="dialog" aria-modal="true">
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
@@ -862,17 +614,16 @@ export default function DepartmentWorkspace() {
             aria-hidden="true"
           />
 
-          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
-            <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between">
+          <div className="fixed inset-y-0 right-0 flex w-full max-w-md sm:pl-6">
+            <div className="flex h-full min-h-0 w-full flex-col justify-between bg-white shadow-xl">
               {/* Drawer Header */}
               <div className="border-b border-slate-200 px-6 py-5 flex items-start justify-between">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Doctor Roster</span>
                   <h2 id="doctor-drawer-title" className="text-xl font-bold text-slate-900 mt-1">
-                    {editingDoctorId ? 'แก้ไขข้อมูลแพทย์' : 'ผูกแพทย์กับแผนก'}
+                    {editingDoctorId ? 'แก้ไขข้อมูลแพทย์' : 'เพิ่มแพทย์ในแผนก'}
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    เลือกบัญชีผู้ใช้ที่มี role medical เพื่อผูกเข้ากับแผนกตรวจ
+                    เลือกบัญชีแพทย์ที่มีอยู่ แล้วระบุแผนกสังกัด
                   </p>
                 </div>
                 <button
@@ -905,7 +656,7 @@ export default function DepartmentWorkspace() {
                     onChange={(e) => selectDoctorAccount(e.target.value)}
                     className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}
                   >
-                    <option value="">-- เลือกบัญชีที่มี role medical --</option>
+                    <option value="">เลือกบัญชีแพทย์</option>
                     {editingDoctorId && (
                       <option value={doctorDraft.profileId}>
                         {doctorDraft.fullName} {doctorDraft.email ? `(${doctorDraft.email})` : ''}
@@ -979,7 +730,7 @@ export default function DepartmentWorkspace() {
               </div>
 
               {/* Drawer Footer */}
-              <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+              <div className="flex shrink-0 items-center justify-end gap-3 border-t border-brand-border-soft px-6 py-4">
                 <button
                   type="button"
                   onClick={closeDoctorDrawer}
@@ -1013,12 +764,26 @@ export default function DepartmentWorkspace() {
 
 function EmptyPanel({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
-        <Search className="h-5 w-5" aria-hidden="true" />
-      </div>
-      <h3 className="mt-4 text-base font-bold text-slate-900">{title}</h3>
-      <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto">{detail}</p>
+    <div className="border-t border-brand-border-soft py-12">
+      <h3 className="text-base font-semibold text-brand-ink">{title}</h3>
+      <p className="mt-2 max-w-md text-sm leading-6 text-brand-body">{detail}</p>
+    </div>
+  );
+}
+
+function ListLoading({ label }: { label: string }) {
+  return (
+    <div role="status" aria-label={label} className="divide-y divide-brand-border-soft border-y border-brand-border-soft">
+      {[0, 1, 2].map((row) => (
+        <div key={row} aria-hidden="true" className="grid gap-5 py-6 motion-safe:animate-pulse sm:grid-cols-2">
+          <div className="space-y-3">
+            <div className="h-5 w-36 rounded bg-brand-border-soft" />
+            <div className="h-3 w-52 rounded bg-brand-border-soft" />
+          </div>
+          <div className="h-3 w-28 rounded bg-brand-border-soft" />
+        </div>
+      ))}
+      <span className="sr-only">{label}</span>
     </div>
   );
 }
