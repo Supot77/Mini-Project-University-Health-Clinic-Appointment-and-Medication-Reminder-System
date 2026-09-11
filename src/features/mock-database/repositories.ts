@@ -74,7 +74,7 @@ export function createClinicRepositories(
           .filter(
             (item) =>
               !patientId ||
-              item.user_id === patientId,
+              (item.patient_id || item.user_id) === patientId,
           )
           .map((appointment) => {
             const slot =
@@ -96,7 +96,7 @@ export function createClinicRepositories(
               patient:
                 tables.profiles.find(
                   (item) =>
-                    item.id === appointment.user_id,
+                    item.id === (appointment.patient_id || appointment.user_id),
                 ),
 
               slot: slot && {
@@ -759,7 +759,7 @@ export function createClinicRepositories(
         const isDoctorActor = Boolean(actor && tables.doctors.some((doctor) => doctor.id === actor.id));
         const scopedAppointments = activeAppointments.filter((appointment) => {
           if (!actor) return false;
-          if (role === 'patient') return appointment.user_id === actor.id;
+          if (role === 'patient') return (appointment.patient_id || appointment.user_id) === actor.id;
           if (role === 'medical' && isDoctorActor) return slotsById.get(appointment.slot_id)?.doctor_id === actor.id;
           return true;
         });
@@ -1070,7 +1070,7 @@ export function createClinicRepositories(
                 tables.profiles.find(
                   (profile) =>
                     profile.id ===
-                    appointment.user_id,
+                    (appointment.patient_id || appointment.user_id),
                 );
 
               return {

@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS public.appointment_slots (
 -- ========================================
 CREATE TABLE IF NOT EXISTS public.appointments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
+  patient_id uuid NOT NULL,
   slot_id uuid NOT NULL,
   queue_number integer,
   reason text,
@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS public.appointments (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT appointments_pkey PRIMARY KEY (id),
-  CONSTRAINT appointments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT appointments_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
   CONSTRAINT appointments_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.appointment_slots(id)
 );
 
@@ -220,7 +220,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles (role);
 CREATE INDEX IF NOT EXISTS idx_profiles_student_id ON profiles (student_id);
 CREATE INDEX IF NOT EXISTS idx_appointment_slots_doctor ON appointment_slots (doctor_id);
 CREATE INDEX IF NOT EXISTS idx_appointment_slots_date ON appointment_slots (slot_date);
-CREATE INDEX IF NOT EXISTS idx_appointments_user ON appointments (user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointments (patient_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_slot ON appointments (slot_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments (status);
 CREATE INDEX IF NOT EXISTS idx_medical_records_patient ON medical_records (patient_id);

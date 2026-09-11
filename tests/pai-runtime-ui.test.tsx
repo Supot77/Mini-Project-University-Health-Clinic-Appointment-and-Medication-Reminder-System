@@ -1,25 +1,24 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
 import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
 import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
 import type { PaiRepository } from '@/features/pai/runtime/contract';
-import { fixture, medicationId, withAppointment } from './pai-runtime-fixtures';
-
-beforeAll(() => {
-  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
-  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
-});
+import { fixture, medicationId, slotId, withAppointment } from './pai-runtime-fixtures';
 
 describe('Pai database-backed role containers with injected offline repository', () => {
+  afterEach(() => vi.useRealTimers());
   it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
     const seed = withAppointment(role);
     seed.appointments[0].patient_phone = '0800000000';
+    seed.appointments[0].status = role === 'staff_admin' ? 'pending' : 'confirmed';
     render(<AppointmentPage role={role} repository={createPaiMockRepository(seed)} />);
     expect(await screen.findByText('เบอร์โทรผู้ป่วย: 0800000000')).toBeInTheDocument();
   });
   it('labels a missing phone without inventing a contact', async () => {
-    render(<AppointmentPage role="medical" repository={createPaiMockRepository(withAppointment())} />);
+    const seed = withAppointment('medical');
+    seed.appointments[0].status = 'confirmed';
+    render(<AppointmentPage role="medical" repository={createPaiMockRepository(seed)} />);
     expect(await screen.findByText('เบอร์โทรผู้ป่วย: ไม่ได้ระบุ')).toBeInTheDocument();
   });
   it('saves and displays the prescribed dose, meal, times and duration', async () => {
@@ -45,6 +44,43 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(await screen.findByText('ไม่พบนัดหมายตามเงื่อนไขนี้')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /มุมมอง/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'อนุมัตินัด' })).not.toBeInTheDocument();
+  });
+  it('hydrates booking form from a slot deep link', async () => {
+    render(<AppointmentPage role="patient" initialSlotId={slotId} repository={createPaiMockRepository(fixture())} />);
+
+    expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
+    expect(screen.getByLabelText('วันที่ตรวจ')).toHaveValue('2026-09-09');
+    expect(screen.getByLabelText('บริการ')).toHaveValue('ทั่วไป');
+    expect(screen.getByLabelText('รอบตรวจ')).toHaveValue(slotId);
+  });
+  it('uses a compact Thai calendar for booking date while keeping the list filter separate', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-08T12:00:00+07:00'));
+    render(<AppointmentPage role="patient" repository={createPaiMockRepository(fixture())} />);
+    expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: /เปิดปฏิทินเลือกวันที่ตรวจ/ });
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'เลือกวันที่ตรวจ' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'เลือกวันที่ 7 กันยายน 2569' })).toBeDisabled();
+    expect(within(dialog).getByText('กันยายน 2569')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'เดือนถัดไป' }));
+    expect(within(dialog).getByText('ตุลาคม 2569')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'เดือนก่อนหน้า' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'เลือกวันที่ 10 กันยายน 2569' }));
+    expect(screen.getByLabelText('วันที่ตรวจ')).toHaveValue('2026-09-10');
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
+    const dateFilter = screen.getByRole('button', { name: 'กรองวันที่' });
+    dateFilter.focus();
+    fireEvent.click(dateFilter);
+    expect(document.activeElement).toBe(dateFilter);
+    expect(screen.queryByRole('dialog', { name: 'เลือกวันที่ตรวจ' })).not.toBeInTheDocument();
   });
   it('shows database error and supports retry instead of rendering demo data', async () => {
     const repo = createPaiMockRepository(fixture());
@@ -80,6 +116,7 @@ describe('Pai database-backed role containers with injected offline repository',
     fireEvent.change(reason, { target: { value: 'รอบบริการถูกยกเลิก' } });
     fireEvent.submit(reason.closest('form')!);
     expect(await screen.findByText('ปฏิเสธนัดแล้วและบันทึกเหตุผล')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'สถานะ' }), { target: { value: '' } });
     expect(await screen.findByText('เหตุผลการปฏิเสธ:')).toBeInTheDocument();
     expect(screen.getByText('รอบบริการถูกยกเลิก')).toBeInTheDocument();
   });
@@ -119,5 +156,38 @@ describe('Pai database-backed role containers with injected offline repository',
     fireEvent.click(screen.getByRole('button', { name: 'ยืนยันบันทึกผลและจบตรวจ' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('ไม่พบยา');
     expect(diagnosis).toHaveValue('ผลทดสอบ');
+  });
+  it('defaults filter to pending for staff and pending_confirmed for medical', async () => {
+    const seed = fixture('staff_admin');
+    const { unmount } = render(<AppointmentPage role="staff_admin" repository={createPaiMockRepository(seed)} />);
+    expect(await screen.findByRole('combobox', { name: 'สถานะ' })).toHaveValue('pending');
+    unmount();
+
+    render(<AppointmentPage role="medical" repository={createPaiMockRepository(fixture('medical'))} />);
+    expect(await screen.findByRole('combobox', { name: 'สถานะ' })).toHaveValue('pending_confirmed');
+  });
+  it('hides start exam button and displays slot arrival badge before slot time for medical', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-08T09:00:00+07:00'));
+    const seed = withAppointment('medical');
+    seed.appointments[0].status = 'confirmed';
+    render(<AppointmentPage role="medical" repository={createPaiMockRepository(seed)} />);
+    expect(await screen.findByText('ยังไม่ถึงเวลารอบตรวจ')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'เริ่มตรวจ' })).not.toBeInTheDocument();
+  });
+  it('shows start exam button when slot time has arrived for medical', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-09T09:00:00+07:00'));
+    const seed = withAppointment('medical');
+    seed.appointments[0].status = 'confirmed';
+    render(<AppointmentPage role="medical" repository={createPaiMockRepository(seed)} />);
+    expect(await screen.findByRole('button', { name: 'เริ่มตรวจ' })).toBeInTheDocument();
+    expect(screen.queryByText('ยังไม่ถึงเวลารอบตรวจ')).not.toBeInTheDocument();
+  });
+  it('throws error when doctor attempts to start exam before slot arrival in mock repository', async () => {
+    const seed = withAppointment('medical');
+    seed.appointments[0].status = 'confirmed';
+    const repo = createPaiMockRepository(seed, new Date('2026-09-08T08:00:00+07:00'));
+    await expect(repo.transition(seed.appointments[0].id, 'in_progress')).rejects.toThrow('ยังไม่ถึงเวลารอบตรวจ');
   });
 });

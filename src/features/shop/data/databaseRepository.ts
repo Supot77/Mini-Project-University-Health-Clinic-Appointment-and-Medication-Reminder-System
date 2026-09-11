@@ -13,6 +13,7 @@ import type { UserRole } from '@/types/database';
 import type { ShopResult, SlotInput } from '../domain/rules';
 import {
   deriveSlotStatus,
+  isSlotExpired,
   validateDepartmentName,
   validateSlot,
 } from '../domain/rules';
@@ -478,7 +479,11 @@ export class DatabaseShopRepository {
     const valid = validateSlot(input, existingSlots, doctors, services, id, bookedCount, todayDate);
     if (!valid.ok) return valid;
 
-    const nextStatus = deriveSlotStatus(bookedCount, input.maxCapacity, existing?.status);
+    const nextStatus = deriveSlotStatus(bookedCount, input.maxCapacity, existing?.status, {
+      slotDate: input.slotDate,
+      startTime: input.startTime,
+      currentDate: todayDate,
+    });
 
     const { data: offering, error: offeringError } = await this.client
       .from('daily_service_offerings')
@@ -583,9 +588,21 @@ export class DatabaseShopRepository {
       return { ok: false, error: 'รอบนี้ปิดอัตโนมัติจากวันลา ต้องจัดการที่คำขอวันลา' };
     }
 
+    if (currentSlot.status === 'closed') {
+      if (isSlotExpired(currentSlot.slotDate, currentSlot.startTime)) {
+        return { ok: false, error: 'ไม่สามารถเปิดรอบตรวจที่เลยเวลาเริ่มแล้ว' };
+      }
+      if (currentSlot.bookedCount >= currentSlot.maxCapacity) {
+        return { ok: false, error: 'ไม่สามารถเปิดรอบตรวจที่คนเต็มแล้ว' };
+      }
+    }
+
     const nextStatus: ScheduleSlotStatus =
       currentSlot.status === 'closed'
-        ? deriveSlotStatus(currentSlot.bookedCount, currentSlot.maxCapacity)
+        ? deriveSlotStatus(currentSlot.bookedCount, currentSlot.maxCapacity, undefined, {
+            slotDate: currentSlot.slotDate,
+            startTime: currentSlot.startTime,
+          })
         : 'closed';
 
     const { data, error } = await this.client

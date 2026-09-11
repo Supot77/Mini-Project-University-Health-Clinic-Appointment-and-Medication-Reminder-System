@@ -1,6 +1,6 @@
 # 02. Requirements และ User Stories
 
-ปรับปรุง 7 กันยายน 2569 (2026-09-07) — ฉบับ scope manual ขนาดเล็กตาม D22 ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
+ปรับปรุง 9 กันยายน 2569 (2026-09-09) — scope manual ขนาดเล็กตาม D22 และเพิ่มผล reverse-engineer จาก code path ปัจจุบัน; ยังไม่ใช่หลักฐานว่า migration ถูก deploy หรือระบบผ่านการตรวจรับแล้ว
 
 ## บทบาทที่ใช้ในทุกโมดูล
 
@@ -11,6 +11,17 @@
 แพทย์และเภสัชกรเป็นหน้าที่ภายใต้ `medical` เดียวกัน เจ้าหน้าที่และแอดมินเป็นหน้าที่ภายใต้ `staff_admin` เดียวกัน
 
 ทุก role ต้องเข้าสู่ entry page/dashboard ของตนผ่าน session จริง Flow ที่ข้อมูล คำสั่ง หรือ permission ต่างกันต้องใช้ role-specific page/container/component และไม่มีตัวเลือกสลับ role ใน production UI
+
+## สถานะจากการ reverse-engineer (as-built)
+
+ส่วนนี้บอกสิ่งที่พบในโค้ดปัจจุบัน แยกจาก user story เป้าหมายด้านล่าง:
+
+- นัดหมายที่ route `/appointments` ใช้ PAI runtime และ Supabase RPC (`pai_workspace`, `pai_book_appointment`, `pai_transition_appointment`, `pai_save_record`) เมื่อมี session จริง; ไม่พบการเลื่อนนัดใน route นี้
+- ตาราง schedule รองรับ `service → daily offering → slot` และการกรองตามบริการ/แพทย์/วัน แต่ `ShopProvider` ยังมี mock composition และบางคำสั่ง weekly schedule ใช้ mock จึงยังสรุปว่า database runtime ครบไม่ได้
+- `appointments`/`medical_records` เดิม, `AppointmentWorkspace` และ `RecordsWorkspace` ยังมีโค้ดหรือ test แบบ preview/compatibility แต่ไม่ใช่เส้นทาง PAI หลัก
+- หน้า pharmacy เป็นเส้นทางแยกที่อ่าน Supabase ตรงและมี mock/local-storage fallback; PAI บันทึกเฉพาะรายการยาที่สั่งในผลตรวจ ยังไม่ใช่หลักฐานว่า dispense เชื่อมกับนัดแบบ end-to-end
+- หน้า reminders รองรับ CRUD, pause/resume และ medication log ผ่าน service พร้อม fallback mock บางกรณี ซึ่งเกิน/ไม่ตรงกับ target manual ที่ตัด pause และ automation ออก
+- Dashboard ใช้ mock dashboard repository สำหรับ metric บางส่วน ส่วน notifications/Broadcast ใช้ Supabase service/RPC; ต้องแยกผลตรวจจาก runtime จริงเมื่อทดสอบ deployment
 
 ## ฟีม — สมาชิกและโปรไฟล์
 
@@ -33,14 +44,14 @@
 
 ## กัญจน์ — คลังและการจ่าย
 
-- `medical` ในหน้าที่เภสัชกรเพิ่ม/แก้/ระงับยา รับเข้า/ปรับยอด ดูวันหมดอายุและประวัติคลัง; `medical` ในหน้าที่แพทย์อ่านสต๊อกได้แต่ไม่แก้ยอด
+- `medical` ในหน้าที่เภสัชกรเพิ่ม/แก้/ระงับยา รับเข้า/ปรับยอด ดูวันหมดอายุและประวัติคลัง; `medical` ในหน้าที่แพทย์อ่านสต๊อกได้แต่ไม่แก้ยอด (เป็น target story; เส้นทาง pharmacy ปัจจุบันยังมี mock/local-storage fallback)
 - `medical` ในหน้าที่เภสัชกรดูชื่อ ประวัติแพ้ยา ใบสั่งและประวัติจ่าย โดยไม่เห็นวินิจฉัย
 - `medical` ตรวจ stock และจ่ายเต็มตามจำนวนที่สั่งในครั้งเดียว
 - หากยาไม่พอ `medical` ปฏิเสธการจ่ายและบันทึกเหตุผล ไม่มีแบ่งจ่าย กันยา หรือยาค้าง
 
 ## กลอง — เตือนและประวัติมื้อ
 
-- เจ้าหน้าที่/แอดมินกรอกรายการเตือนจากยาที่จ่ายเต็ม ผู้ป่วยกดบันทึกผลด้วยตนเอง
+- เจ้าหน้าที่/แอดมินกรอกรายการเตือนจากยาที่จ่ายเต็ม ผู้ป่วยกดบันทึกผลด้วยตนเอง (target story; code ปัจจุบันยังมี pause/resume และ fallback ที่ต้องปิดหรือยืนยันตาม D22)
 - ไม่มี email, worker, missed, การเตือนซ้ำ, การพักเตือน หรือเส้นตายย้อนหลัง
 
 ## เฮิร์บ — ข้อความและ Dashboard
@@ -74,3 +85,14 @@
 | ข้อความ/Dashboard | ข้อมูลที่โมดูลอื่นบันทึกแล้ว | เฮิร์บ | Broadcast และข้อมูลสรุปตาม role |
 
 ตารางนี้เป็นการจัดกลุ่มเพื่ออ่าน flow เดียวกัน ไม่ได้เพิ่มตาราง ผู้ใช้ หรือความสามารถนอก scope
+
+## แผนที่ story กับเส้นทางโค้ดที่พบ
+
+| Story | เส้นทางที่พบ | สถานะจากหลักฐานใน repository |
+| --- | --- | --- |
+| สมาชิก/โปรไฟล์ | `authService`, auth pages, `profiles` | มีโค้ด Supabase; ต้องตรวจ session/RLS จริง |
+| แผนก/ตาราง | `ScheduleWorkspace` → `ShopProvider` → mock หรือ `DatabaseShopRepository` | มีทั้งสอง adapter; ยังไม่ยืนยันว่า production ใช้ DB ครบทุกคำสั่ง |
+| นัด/ผลตรวจ | `RoleAppointmentWorkspaces` → PAI runtime → `pai_*` RPC | active route; ไม่มี reschedule ใน route หลัก |
+| คลัง/การจ่าย | `/pharmacy`, `medicationService`, mock/local storage | เส้นทางแยก; ยังไม่เชื่อม dispense กับ PAI appointment แบบครบวงจร |
+| รายการเตือน | `/reminders`, `reminderService`, mock fallback | มี CRUD/log/pause-resume; ไม่ตรง target D22 บางส่วน |
+| ข้อความ/Dashboard | `dashboardService`, `DashboardScreen`, mock dashboard repository | Broadcast/notification แยกจาก metric dashboard; ต้องตรวจฐานจริง |

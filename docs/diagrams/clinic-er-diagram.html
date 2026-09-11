@@ -113,18 +113,120 @@
     <header>
       <p class="eyebrow">WU CLINIC · ER DATA MODEL</p>
       <h1>แบบข้อมูลและความสัมพันธ์</h1>
-      <p class="dek">แบบ ER ปัจจุบันตาม scope manual และ role 3 กลุ่ม แบ่งเป็น 2 มุมมองเพื่อให้เส้นความสัมพันธ์อ่านง่าย</p>
+      <p class="dek">แบบ ER จากการ reverse-engineer: active PAI/schedule path แยกจากตาราง legacy และ compatibility ที่ยังอยู่ใน repository</p>
     </header>
 
     <figure>
       <figcaption>
-        <h2>01 · นัดหมายและผลตรวจ</h2>
-        <p>แกนหลักของบริการ: ผู้ป่วย → slot → นัด → ผลตรวจ</p>
+        <h2>00 · Active runtime: service → slot → PAI</h2>
+        <p>เส้นทางที่ route นัดหมาย/ผลตรวจใช้งาน: `services` → `daily_service_offerings` → `appointment_slots` → `pai_appointments` → `pai_medical_records`</p>
+      </figcaption>
+      <div class="diagram-viewport">
+        <svg viewBox="0 0 1040 500" role="img" aria-labelledby="active-title active-desc">
+          <title id="active-title">ER active runtime ของ PAI และ schedule</title>
+          <desc id="active-desc">บริการเปิดให้แพทย์ในแต่ละวัน สร้าง slot ผู้ป่วยจองผ่าน pai appointments และแพทย์บันทึก pai medical records</desc>
+
+          <g>
+            <path class="relation" d="M240 94 H300" />
+            <path class="relation" d="M500 94 H560" />
+            <path class="relation" d="M780 184 H820" />
+            <path class="relation" d="M920 314 V348" />
+            <path class="relation" d="M140 170 V348 H820" />
+            <path class="relation" d="M400 170 V270 H670 V300" />
+            <path class="relation" d="M400 300 V170" />
+          </g>
+          <g class="cardinality">
+            <text x="252" y="86">1</text><text x="288" y="86">N</text>
+            <text x="512" y="86">1</text><text x="548" y="86">N</text>
+            <text x="792" y="176">1</text><text x="808" y="176">N</text>
+            <text x="930" y="334">1</text><text x="930" y="346">0..1</text>
+            <text x="148" y="166">1</text><text x="796" y="340">N</text>
+          </g>
+
+          <g class="entity">
+            <rect class="entity-box" x="40" y="40" width="200" height="130" rx="6" />
+            <rect class="entity-header" x="40" y="40" width="200" height="40" rx="6" />
+            <line class="entity-divider" x1="40" y1="80" x2="240" y2="80" />
+            <text class="entity-tag" x="52" y="56">ENTITY</text><text class="entity-name" x="52" y="72">services</text>
+            <text class="field" x="52" y="100"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="52" y="120"><tspan>code</tspan><tspan class="field-ref"> : unique text</tspan></text>
+            <text class="field" x="52" y="140"><tspan>name</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="52" y="160"><tspan>is_active</tspan><tspan class="field-ref"> : boolean</tspan></text>
+          </g>
+
+          <g class="entity">
+            <rect class="entity-box" x="300" y="40" width="200" height="130" rx="6" />
+            <rect class="entity-header" x="300" y="40" width="200" height="40" rx="6" />
+            <line class="entity-divider" x1="300" y1="80" x2="500" y2="80" />
+            <text class="entity-tag" x="312" y="56">ENTITY</text><text class="entity-name" x="312" y="72">daily_service_offerings</text>
+            <text class="field" x="312" y="100"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="312" y="120"><tspan class="field-key">→ service_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="312" y="140"><tspan class="field-key">→ doctor_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="312" y="160"><tspan>offering_date</tspan><tspan class="field-ref"> : date</tspan></text>
+          </g>
+
+          <g class="entity">
+            <rect class="entity-box" x="560" y="120" width="220" height="130" rx="6" />
+            <rect class="entity-header" x="560" y="120" width="220" height="40" rx="6" />
+            <line class="entity-divider" x1="560" y1="160" x2="780" y2="160" />
+            <text class="entity-tag" x="572" y="136">ENTITY</text><text class="entity-name" x="572" y="152">appointment_slots</text>
+            <text class="field" x="572" y="180"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="572" y="200"><tspan class="field-key">→ daily_offering_id</tspan><tspan class="field-ref"> : uuid</tspan></text>
+            <text class="field" x="572" y="220"><tspan>slot_date / time</tspan><tspan class="field-ref"> : date/time</tspan></text>
+            <text class="field" x="572" y="240"><tspan>capacity/status</tspan><tspan class="field-ref"> : domain</tspan></text>
+          </g>
+
+          <g class="entity entity-focal">
+            <rect class="entity-box" x="820" y="120" width="200" height="194" rx="6" />
+            <rect class="entity-header" x="820" y="120" width="200" height="40" rx="6" />
+            <line class="entity-divider" x1="820" y1="160" x2="1020" y2="160" />
+            <text class="entity-tag" x="832" y="136">ACTIVE PAI</text><text class="entity-name" x="832" y="152">pai_appointments</text>
+            <text class="field" x="832" y="180"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="832" y="200"><tspan class="field-key">→ patient_id / slot_id</tspan></text>
+            <text class="field" x="832" y="220"><tspan>queue_number</tspan><tspan class="field-ref"> : integer</tspan></text>
+            <text class="field" x="832" y="240"><tspan>reason</tspan><tspan class="field-ref"> : text</tspan></text>
+            <text class="field" x="832" y="260"><tspan>status</tspan><tspan class="field-ref"> : pending → completed</tspan></text>
+            <text class="field" x="832" y="280"><tspan>cancel/rejection</tspan><tspan class="field-ref"> : optional</tspan></text>
+            <text class="field" x="832" y="300"><tspan>active unique</tspan><tspan class="field-ref"> patient + slot</tspan></text>
+          </g>
+
+          <g class="entity entity-focal">
+            <rect class="entity-box" x="820" y="348" width="200" height="112" rx="6" />
+            <rect class="entity-header" x="820" y="348" width="200" height="40" rx="6" />
+            <line class="entity-divider" x1="820" y1="388" x2="1020" y2="388" />
+            <text class="entity-tag" x="832" y="364">ACTIVE PAI</text><text class="entity-name" x="832" y="380">pai_medical_records</text>
+            <text class="field" x="832" y="408"><tspan class="field-key"># id / appointment_id</tspan></text>
+            <text class="field" x="832" y="428"><tspan class="field-key">→ patient_id / doctor_id</tspan></text>
+            <text class="field" x="832" y="448"><tspan>diagnosis / meds</tspan><tspan class="field-ref"> : text/jsonb</tspan></text>
+          </g>
+
+          <g class="entity">
+            <rect class="entity-box" x="40" y="348" width="200" height="112" rx="6" />
+            <rect class="entity-header" x="40" y="348" width="200" height="40" rx="6" />
+            <line class="entity-divider" x1="40" y1="388" x2="240" y2="388" />
+            <text class="entity-tag" x="52" y="364">ENTITY</text><text class="entity-name" x="52" y="380">profiles</text>
+            <text class="field" x="52" y="408"><tspan class="field-key"># id</tspan><tspan> : uuid</tspan></text>
+            <text class="field" x="52" y="428"><tspan>role</tspan><tspan class="field-ref"> : patient | medical | staff_admin</tspan></text>
+            <text class="field" x="52" y="448"><tspan>is_active</tspan><tspan class="field-ref"> : boolean</tspan></text>
+          </g>
+
+          <text class="note" x="300" y="410">doctors / departments เชื่อมกับ daily offering ตาม FK; prescribed_medications เป็น JSONB จึงไม่ใช่ FK ไป medications</text>
+          <line class="legend-rule" x1="40" y1="480" x2="1000" y2="480" />
+          <text class="legend legend-accent" x="40" y="494">accent = active PAI table</text>
+          <text class="note" x="240" y="494">ภาพนี้เป็น repository/migration trace; RLS และการ deploy ต้องตรวจบน target จริง</text>
+        </svg>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>
+        <h2>01 · Legacy/compatibility: นัดหมายและผลตรวจเดิม</h2>
+        <p>ตาราง `appointments` และ `medical_records` ยังอยู่ใน schema/service เก่า แต่ไม่ใช่ active PAI route</p>
       </figcaption>
       <div class="diagram-viewport">
         <svg viewBox="0 0 1040 644" role="img" aria-labelledby="care-title care-desc">
           <title id="care-title">ER นัดหมายและผลตรวจ</title>
-          <desc id="care-desc">โปรไฟล์เชื่อมกับข้อมูลแพทย์และนัดหมาย แผนกเชื่อมแพทย์ แพทย์เชื่อม slot slot เชื่อมนัด และนัดเชื่อมผลตรวจ</desc>
+          <desc id="care-desc">มุมมอง legacy/compatibility ของ profiles, doctors, appointment slots, appointments และ medical records; active PAI path อยู่ในภาพ 00</desc>
 
           <!-- Relationships first -->
           <g>
@@ -242,7 +344,7 @@
       <div class="diagram-viewport">
         <svg viewBox="0 0 1040 632" role="img" aria-labelledby="med-title med-desc">
           <title id="med-title">ER ยา รายการเตือน และข้อความ</title>
-          <desc id="med-desc">โปรไฟล์เชื่อมรายการเตือน ประวัติคลัง และข้อความ ยาเชื่อมประวัติคลังและรายการเตือน รายการเตือนเชื่อมบันทึกแต่ละมื้อ</desc>
+          <desc id="med-desc">โปรไฟล์เชื่อมรายการเตือน ประวัติคลัง และข้อความ ยาเชื่อมประวัติคลังและรายการเตือน รายการเตือนเชื่อมบันทึกแต่ละมื้อ; เป็น supporting/legacy service path</desc>
 
           <!-- Relationships first -->
           <g>
