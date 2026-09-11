@@ -166,6 +166,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const [weekStart, setWeekStart] = useState(() => getCurrentWeekMonday());
   const [isSaving, setIsSaving] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [doctorFilter, setDoctorFilter] = useState<string>(() => {
     if (role === 'medical') {
@@ -213,6 +214,29 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     });
   }, [slots, bangkokNow]);
 
+  const openDepartments = useMemo(() => {
+    return departments
+      .filter((dept) => dept.isActive)
+      .map((dept) => {
+        const deptDoctorIds = new Set(
+          doctors.filter((d) => d.departmentId === dept.id).map((d) => d.id),
+        );
+        const openSlotsCount = slots.filter(
+          (s) => deptDoctorIds.has(s.doctorId) && s.status !== 'closed',
+        ).length;
+        return {
+          ...dept,
+          openSlotsCount,
+        };
+      })
+      .filter((dept) => dept.openSlotsCount > 0);
+  }, [departments, doctors, slots]);
+
+  const effectiveDepartmentFilter = useMemo(() => {
+    if (departmentFilter === 'all') return 'all';
+    return openDepartments.some((d) => d.id === departmentFilter) ? departmentFilter : 'all';
+  }, [departmentFilter, openDepartments]);
+
   const activeServices = useMemo(() => services.filter((service) => service.isActive), [services]);
   const openServices = useMemo(
     () => activeServices.filter((service) => slots.some((slot) => slot.serviceId === service.id && slot.status !== 'closed')),
@@ -249,8 +273,13 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   }, [calendarView, weekDays, weekStart]);
 
   const filteredDoctors = useMemo(
-    () => doctors.filter((doctor) => effectiveServiceFilter === 'all' || resolvedSlots.some((slot) => slot.doctorId === doctor.id && slot.serviceId === effectiveServiceFilter)),
-    [doctors, effectiveServiceFilter, resolvedSlots],
+    () =>
+      doctors.filter(
+        (doctor) =>
+          (effectiveDepartmentFilter === 'all' || doctor.departmentId === effectiveDepartmentFilter) &&
+          (effectiveServiceFilter === 'all' || resolvedSlots.some((slot) => slot.doctorId === doctor.id && slot.serviceId === effectiveServiceFilter)),
+      ),
+    [doctors, effectiveDepartmentFilter, effectiveServiceFilter, resolvedSlots],
   );
 
   const visibleSlots = useMemo(
@@ -258,13 +287,15 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
       resolvedSlots
         .filter((slot) => displayDays.includes(slot.slotDate))
         .filter((slot) => {
+          const doctor = doctors.find((item) => item.id === slot.doctorId);
+          const matchesDepartment = effectiveDepartmentFilter === 'all' || doctor?.departmentId === effectiveDepartmentFilter;
           const matchesService = effectiveServiceFilter === 'all' || slot.serviceId === effectiveServiceFilter;
           const matchesDoctor = doctorFilter === 'all' || slot.doctorId === doctorFilter;
           const matchesStatus = statusFilter === 'all' || slot.status === statusFilter;
-          return matchesService && matchesDoctor && matchesStatus;
+          return matchesDepartment && matchesService && matchesDoctor && matchesStatus;
         })
         .sort((a, b) => `${a.slotDate}${a.startTime}`.localeCompare(`${b.slotDate}${b.startTime}`)),
-    [effectiveServiceFilter, doctorFilter, displayDays, resolvedSlots, statusFilter],
+    [effectiveDepartmentFilter, effectiveServiceFilter, doctorFilter, displayDays, doctors, resolvedSlots, statusFilter],
   );
 
   const openSlotForm = (slot?: ScheduleSlot, suggestedDate?: string) => {
@@ -718,7 +749,14 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 </label>
               </div>
               <div className="flex flex-wrap items-end justify-between gap-5">
-                <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:grid-cols-3">
+                <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:grid-cols-4">
+                  <label className="col-span-2 grid gap-2 text-sm text-brand-body sm:col-span-1">
+                    <span>แผนก</span>
+                    <select aria-label="กรองแผนก" value={effectiveDepartmentFilter} onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }} className={filterClass}>
+                      <option value="all">ทุกแผนก</option>
+                      {openDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                    </select>
+                  </label>
                   <label className="col-span-2 grid gap-2 text-sm text-brand-body sm:col-span-1">
                     <span>บริการ</span>
                     <select aria-label="กรองบริการ" value={effectiveServiceFilter} onChange={(event) => { setServiceFilter(event.target.value); setDoctorFilter('all'); }} className={filterClass}>

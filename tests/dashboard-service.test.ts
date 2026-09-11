@@ -26,6 +26,7 @@ const { database, supabaseMock } = vi.hoisted(() => {
 vi.mock('@/utils/supabase/client', () => ({ createClient: () => supabaseMock }));
 
 import {
+  deleteStaffProfile,
   getBroadcastHistory,
   getDashboardView,
   getStaffProfileDirectory,
@@ -121,6 +122,15 @@ describe('Supabase Broadcast service', () => {
       isActive: true,
     }]);
     expect(supabaseMock.rpc).toHaveBeenCalledWith('get_staff_profile_directory');
+  });
+
+  it('requests permanent deletion through the protected staff RPC', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: null });
+
+    await expect(deleteStaffProfile('suspended-1')).resolves.toBeUndefined();
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('staff_admin_delete_profile', {
+      p_profile_id: 'suspended-1',
+    });
   });
 });
 

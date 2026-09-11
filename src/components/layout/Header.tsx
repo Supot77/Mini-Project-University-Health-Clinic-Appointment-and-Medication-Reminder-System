@@ -22,6 +22,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import type { UserRole } from "@/types/database";
 import ProfileAccountDrawer from "@/components/profile/ProfileAccountDrawer";
+import { getUnreadCount } from "@/services/dashboardService";
 
 type NavigationIcon = ComponentType<{
   className?: string;
@@ -133,6 +134,39 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
+  const activeUnreadCount = isAuthenticated && user?.id ? unreadCount : null;
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) {
+      return;
+    }
+
+    let isMounted = true;
+    const fetchCount = async () => {
+      try {
+        const count = await getUnreadCount(user.id);
+        if (isMounted) setUnreadCount(count);
+      } catch {
+        if (isMounted) setUnreadCount(0);
+      }
+    };
+
+    void fetchCount();
+
+    const handleUpdate = () => {
+      void fetchCount();
+    };
+
+    window.addEventListener("notifications-updated", handleUpdate);
+    window.addEventListener("focus", handleUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("notifications-updated", handleUpdate);
+      window.removeEventListener("focus", handleUpdate);
+    };
+  }, [isAuthenticated, user?.id, pathname]);
 
   const handleSignOut = async () => {
     try {
@@ -233,8 +267,39 @@ export default function Header() {
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 lg:ml-0">
           {isAuthenticated && (
-            <Link href="/notifications" aria-current={isActive("/notifications") ? "page" : undefined} aria-label="แจ้งเตือน" title="แจ้งเตือน" className="flex size-10 items-center justify-center rounded-brand-sm text-brand-footer-text transition-[background-color,color] duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent">
-              <Bell className="size-[18px]" aria-hidden="true" />
+            <Link
+              href="/notifications"
+              aria-current={isActive("/notifications") ? "page" : undefined}
+              aria-label={
+                activeUnreadCount !== null && activeUnreadCount > 0
+                  ? `แจ้งเตือน มีข้อความที่ยังไม่ได้อ่าน ${activeUnreadCount} รายการ`
+                  : "แจ้งเตือน อ่านหมดแล้ว"
+              }
+              title={
+                activeUnreadCount !== null && activeUnreadCount > 0
+                  ? `แจ้งเตือน (${activeUnreadCount} ข้อความที่ยังไม่ได้อ่าน)`
+                  : "แจ้งเตือน (อ่านหมดแล้ว)"
+              }
+              className="relative flex size-10 items-center justify-center rounded-brand-sm text-brand-footer-text transition-[background-color,color] duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent"
+            >
+              <span className="relative inline-flex items-center justify-center">
+                <Bell className="size-[18px]" aria-hidden="true" />
+                {activeUnreadCount !== null && (
+                  activeUnreadCount > 0 ? (
+                    <span
+                      data-testid="notification-badge-count"
+                      className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-brand-ink"
+                    >
+                      {activeUnreadCount > 99 ? "99+" : activeUnreadCount}
+                    </span>
+                  ) : (
+                    <span
+                      data-testid="notification-badge-dot"
+                      className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-brand-ink"
+                    />
+                  )
+                )}
+              </span>
             </Link>
           )}
 

@@ -91,6 +91,7 @@ export default function NotificationsPage() {
     try {
       const updated = await markAsRead(notification.id);
       setNotifications((current) => current.map((item) => item.id === notification.id ? updated : item));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('notifications-updated'));
       setError(null);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'บันทึกสถานะอ่านไม่สำเร็จ');
@@ -105,6 +106,8 @@ export default function NotificationsPage() {
     try {
       await markAllAsRead(inboxUserId);
       await reloadInbox();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('notifications-updated'));
+      setError(null);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'บันทึกสถานะอ่านทั้งหมดไม่สำเร็จ');
     } finally {
@@ -118,6 +121,7 @@ export default function NotificationsPage() {
     try {
       await deleteNotificationFromDatabase(notification.id);
       setNotifications((current) => current.filter((item) => item.id !== notification.id));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('notifications-updated'));
       setError(null);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'ลบการแจ้งเตือนไม่สำเร็จ');
