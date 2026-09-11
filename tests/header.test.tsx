@@ -107,4 +107,20 @@ describe("Header", () => {
     await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/"));
     expect(authState.signOut).toHaveBeenCalledOnce();
   });
+
+  it("uses the profile identity as the only desktop account-menu trigger", () => {
+    authState.user = { full_name: "thunyaporn" };
+    authState.isAuthenticated = true;
+    authState.role = "patient";
+
+    render(<Header />);
+
+    expect(screen.getAllByRole("button", { name: "เปิดเมนูบัญชี" })).toHaveLength(1);
+    expect(screen.queryByTitle("thunyaporn")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "เปิดเมนูบัญชี" }));
+
+    expect(screen.getByRole("complementary", { name: "เมนูบัญชี" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ดูโปรไฟล์ของคุณ" })).toHaveAttribute("href", "/profile");
+  });
 });
