@@ -36,6 +36,11 @@ DROP POLICY IF EXISTS "Staff/Doctor can view all appointments" ON public.appoint
 DROP POLICY IF EXISTS "Staff/Medical can view all appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Staff can update any appointment" ON public.appointments;
 DROP POLICY IF EXISTS "Staff/Medical can update any appointment" ON public.appointments;
+DROP POLICY IF EXISTS "Patients can view own appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Patients can create appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Patients can update own appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Staff admin and medical can view appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Staff admin and medical can update appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Doctors can view and create medical records" ON public.medical_records;
 DROP POLICY IF EXISTS "Medical can view and create medical records" ON public.medical_records;
 DROP POLICY IF EXISTS "Authenticated users can view medications" ON public.medications;
@@ -75,8 +80,12 @@ CREATE POLICY "Anyone can view slots"
   FOR SELECT
   USING (true);
 
+CREATE POLICY "Patients can view own appointments" ON public.appointments FOR SELECT USING (patient_id = auth.uid());
+CREATE POLICY "Patients can create appointments" ON public.appointments FOR INSERT WITH CHECK (patient_id = auth.uid());
+CREATE POLICY "Patients can update own appointments" ON public.appointments FOR UPDATE USING (patient_id = auth.uid());
 CREATE POLICY "Staff/Doctor can view all appointments" ON public.appointments FOR SELECT USING (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Staff can update any appointment" ON public.appointments FOR UPDATE USING (public.get_user_role() IN ('staff_admin', 'medical'));
+CREATE POLICY "Staff admin and medical can create appointments" ON public.appointments FOR INSERT WITH CHECK (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Doctors can view and create medical records" ON public.medical_records FOR ALL USING (public.get_user_role() = 'medical');
 
 -- เปิดให้อ่านข้อมูลยาได้โดยไม่ต้อง Login (Public Read)
