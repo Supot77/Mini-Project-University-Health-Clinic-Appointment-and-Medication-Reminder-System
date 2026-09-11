@@ -104,6 +104,7 @@ describe('Supabase Broadcast service', () => {
         full_name: 'ผู้ป่วยหนึ่ง',
         email: 'patient@example.com',
         phone: '0812345678',
+        created_at: '2026-09-08T03:00:00.000Z',
         role: 'patient',
         is_active: true,
       }],
@@ -115,6 +116,7 @@ describe('Supabase Broadcast service', () => {
       fullName: 'ผู้ป่วยหนึ่ง',
       email: 'patient@example.com',
       phone: '0812345678',
+      createdAt: '2026-09-08T03:00:00.000Z',
       role: 'patient',
       isActive: true,
     }]);

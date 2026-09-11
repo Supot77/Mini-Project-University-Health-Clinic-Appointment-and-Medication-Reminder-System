@@ -69,13 +69,13 @@ export interface MedicationDashboardData {
 }
 
 export interface StaffProfileDirectoryItem {
+  createdAt: string;
   id: string;
   fullName: string;
   email: string | null;
   phone: string | null;
   role: UserRole;
   isActive: boolean;
-  createdAt?: string;
 }
 
 // --- Notifications ---
@@ -180,21 +180,16 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: string | null;
     role: UserRole;
     is_active: boolean | null;
-    created_at?: string;
-  }>).map((profile) => {
-    const item: StaffProfileDirectoryItem = {
-      id: profile.id,
-      fullName: profile.full_name,
-      email: profile.email,
-      phone: profile.phone,
-      role: profile.role,
-      isActive: profile.is_active !== false,
-    };
-    if (profile.created_at) {
-      item.createdAt = profile.created_at;
-    }
-    return item;
-  });
+    created_at: string;
+  }>).map((profile) => ({
+    id: profile.id,
+    fullName: profile.full_name,
+    email: profile.email,
+    phone: profile.phone,
+    role: profile.role,
+    isActive: profile.is_active !== false,
+    createdAt: profile.created_at,
+  }));
 }
 
 type DashboardProfile = Pick<Profile, 'id' | 'full_name' | 'role' | 'is_active'>;

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import AppointmentPage from '@/features/pai/runtime/AppointmentPage';
 import { MedicalRecordsPage, PatientRecordsPage } from '@/features/pai/runtime/RecordsPage';
 import { createPaiMockRepository } from '@/features/pai/runtime/mockRepository';
@@ -7,14 +7,7 @@ import type { PaiRepository } from '@/features/pai/runtime/contract';
 import { fixture, medicationId, slotId, withAppointment } from './pai-runtime-fixtures';
 
 describe('Pai database-backed role containers with injected offline repository', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-09-09T08:00:00Z'));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+  afterEach(() => vi.useRealTimers());
   it.each(['medical', 'staff_admin'] as const)('shows patient contact to %s', async (role) => {
     const seed = withAppointment(role);
     seed.appointments[0].patient_phone = '0800000000';
@@ -58,6 +51,8 @@ describe('Pai database-backed role containers with injected offline repository',
     expect(screen.getByLabelText('รอบตรวจ')).toHaveValue(slotId);
   });
   it('uses a compact Thai calendar for booking date while keeping the list filter separate', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-08T12:00:00+07:00'));
     render(<AppointmentPage role="patient" repository={createPaiMockRepository(fixture())} />);
     expect(await screen.findByRole('heading', { name: 'จองนัดใหม่' })).toBeInTheDocument();
     const trigger = screen.getByRole('button', { name: /เปิดปฏิทินเลือกวันที่ตรวจ/ });
@@ -66,6 +61,7 @@ describe('Pai database-backed role containers with injected offline repository',
     fireEvent.click(trigger);
     const dialog = screen.getByRole('dialog', { name: 'เลือกวันที่ตรวจ' });
     expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'เลือกวันที่ 7 กันยายน 2569' })).toBeDisabled();
     expect(within(dialog).getByText('กันยายน 2569')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'เดือนถัดไป' }));
     expect(within(dialog).getByText('ตุลาคม 2569')).toBeInTheDocument();
