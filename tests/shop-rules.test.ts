@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MOCK_DEPARTMENTS, MOCK_DOCTORS, MOCK_SERVICES, MOCK_SLOTS } from '@/mocks/scheduleData';
-import { deriveSlotStatus, validateDepartmentName, validateSlot } from '@/features/shop/domain/rules';
+import { deriveSlotStatus, isSlotExpired, validateDepartmentName, validateSlot } from '@/features/shop/domain/rules';
 
 const validSlot = {
   doctorId: 'profile-stephen-strange',
@@ -148,10 +148,36 @@ describe('shop schedule domain rules', () => {
     expect(validateSlot(validSlot, [], MOCK_DOCTORS, inactiveService, undefined, 0, TEST_TODAY)).toMatchObject({ ok: false, field: 'serviceId' });
   });
 
-  it('derives full while preserving a closed slot', () => {
-    expect(deriveSlotStatus(4, 4)).toBe('full');
+  it('closes slot immediately when capacity is full, while preserving closed status', () => {
+    expect(deriveSlotStatus(4, 4)).toBe('closed');
+    expect(deriveSlotStatus(5, 4)).toBe('closed');
     expect(deriveSlotStatus(0, 4)).toBe('available');
     expect(deriveSlotStatus(0, 4, 'closed')).toBe('closed');
+  });
+
+  it('closes slot immediately when past start time or past date', () => {
+    const nowCtx = { currentDate: '2026-09-07', currentTime: '10:00' };
+
+    // Same day, startTime <= currentTime -> closed
+    expect(deriveSlotStatus(0, 4, undefined, { slotDate: '2026-09-07', startTime: '10:00', ...nowCtx })).toBe('closed');
+    expect(deriveSlotStatus(0, 4, undefined, { slotDate: '2026-09-07', startTime: '09:30', ...nowCtx })).toBe('closed');
+
+    // Same day, startTime > currentTime -> available
+    expect(deriveSlotStatus(0, 4, undefined, { slotDate: '2026-09-07', startTime: '10:30', ...nowCtx })).toBe('available');
+
+    // Past date -> closed
+    expect(deriveSlotStatus(0, 4, undefined, { slotDate: '2026-09-06', startTime: '14:00', ...nowCtx })).toBe('closed');
+
+    // Future date -> available
+    expect(deriveSlotStatus(0, 4, undefined, { slotDate: '2026-09-08', startTime: '08:30', ...nowCtx })).toBe('available');
+  });
+
+  it('correctly determines if a slot is expired', () => {
+    expect(isSlotExpired('2026-09-06', '09:00', '2026-09-07', '08:00')).toBe(true);
+    expect(isSlotExpired('2026-09-07', '09:00', '2026-09-07', '09:00')).toBe(true);
+    expect(isSlotExpired('2026-09-07', '09:00', '2026-09-07', '09:01')).toBe(true);
+    expect(isSlotExpired('2026-09-07', '09:30', '2026-09-07', '09:15')).toBe(false);
+    expect(isSlotExpired('2026-09-08', '08:30', '2026-09-07', '18:00')).toBe(false);
   });
 
   it('rejects duplicate department names regardless of case', () => {

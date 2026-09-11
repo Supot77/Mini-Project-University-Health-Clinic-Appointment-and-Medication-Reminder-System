@@ -2,69 +2,40 @@
 
 export default function ScheduleSkeleton() {
   return (
-    <div
-      role="status"
-      aria-label="กำลังโหลดตารางตรวจแพทย์"
-      className="space-y-4 animate-in fade-in duration-200"
-    >
-      {/* Top filter bar skeleton */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
-        <div className="flex items-center gap-2">
-          <div className="h-10 w-24 animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-10 w-44 animate-pulse rounded-xl bg-slate-100" />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="h-10 w-36 animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-10 w-36 animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-10 w-28 animate-pulse rounded-xl bg-slate-100" />
-        </div>
-      </div>
-
-      {/* Calendar Grid Skeleton for Desktop */}
-      <div className="hidden lg:block">
-        <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50/70">
-          {Array.from({ length: 7 }, (_, i) => (
-            <div key={i} className="px-3 py-4 text-center">
-              <div className="mx-auto h-3 w-8 animate-pulse rounded bg-slate-200" />
-              <div className="mx-auto mt-2 h-7 w-7 animate-pulse rounded-full bg-slate-200" />
-            </div>
-          ))}
-        </div>
-        <div className="grid min-h-[420px] grid-cols-7 divide-x divide-slate-100 bg-white p-2">
-          {Array.from({ length: 7 }, (_, dayIdx) => (
-            <div key={dayIdx} className="space-y-2 p-1.5">
-              {Array.from({ length: (dayIdx % 3) + 1 }, (_, cardIdx) => (
-                <div
-                  key={cardIdx}
-                  className="space-y-2 rounded-xl border border-slate-100 bg-slate-50/60 p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="h-3 w-14 animate-pulse rounded bg-slate-200" />
-                    <div className="h-4 w-12 animate-pulse rounded-full bg-emerald-100/60" />
-                  </div>
-                  <div className="h-3.5 w-24 animate-pulse rounded bg-slate-200" />
-                  <div className="h-2.5 w-16 animate-pulse rounded bg-slate-200" />
-                </div>
-              ))}
+    <div role="status" aria-label="กำลังโหลดตารางตรวจแพทย์" className="space-y-6">
+      <div aria-hidden="true" className="space-y-5 motion-safe:animate-pulse">
+        <div className="h-6 w-56 rounded bg-brand-border-soft" />
+        <div className="grid grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className={index === 0 ? 'col-span-2 sm:col-span-1' : ''}>
+              <div className="mb-2 h-3 w-12 rounded bg-brand-border-soft" />
+              <div className="h-11 rounded-lg border border-brand-border-soft" />
             </div>
           ))}
         </div>
       </div>
-
-      {/* Mobile view skeleton */}
-      <div className="space-y-3 p-4 lg:hidden">
-        {Array.from({ length: 3 }, (_, idx) => (
-          <div
-            key={idx}
-            className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs"
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
-              <div className="h-4 w-12 animate-pulse rounded-full bg-slate-100" />
-            </div>
-            <div className="space-y-2">
-              <div className="h-16 animate-pulse rounded-xl bg-slate-50" />
-              <div className="h-16 animate-pulse rounded-xl bg-slate-50" />
+      <div aria-hidden="true" className="hidden grid-cols-7 divide-x divide-brand-border-soft border-y border-brand-border-soft lg:grid">
+        {Array.from({ length: 7 }, (_, day) => (
+          <div key={day} className="min-h-[420px] space-y-8 px-3 py-5">
+            <div className="mx-auto h-6 w-12 rounded bg-brand-border-soft motion-safe:animate-pulse" />
+            {Array.from({ length: day % 2 + 1 }, (_, row) => (
+              <div key={row} className="space-y-3 border-l-2 border-brand-border pl-3 motion-safe:animate-pulse">
+                <div className="h-3 w-4/5 rounded bg-brand-border-soft" />
+                <div className="h-3 w-full rounded bg-brand-border-soft" />
+                <div className="h-3 w-3/5 rounded bg-brand-border-soft" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div aria-hidden="true" className="divide-y divide-brand-border-soft border-y border-brand-border-soft lg:hidden">
+        {[0, 1, 2].map((day) => (
+          <div key={day} className="space-y-5 py-6 motion-safe:animate-pulse">
+            <div className="h-5 w-28 rounded bg-brand-border-soft" />
+            <div className="space-y-3 border-l-2 border-brand-border pl-3">
+              <div className="h-3 w-32 rounded bg-brand-border-soft" />
+              <div className="h-3 w-44 rounded bg-brand-border-soft" />
+              <div className="h-3 w-24 rounded bg-brand-border-soft" />
             </div>
           </div>
         ))}
@@ -73,4 +44,3 @@ export default function ScheduleSkeleton() {
     </div>
   );
 }
-

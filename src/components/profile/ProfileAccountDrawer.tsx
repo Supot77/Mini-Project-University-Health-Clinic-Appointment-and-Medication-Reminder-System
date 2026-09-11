@@ -11,22 +11,31 @@ interface ProfileAccountDrawerProps {
   role: UserRole | null;
   onClose: () => void;
   onSignOut: () => void;
+  role: UserRole | null;
 }
 
-const menuItems = [
-  { href: '/appointments', label: 'ประวัติการรักษา', icon: FileClock },
-  { href: '/results', label: 'ผลการตรวจ', icon: Stethoscope },
-  { href: '/profile#security', label: 'ความปลอดภัยและรหัสผ่าน', icon: ShieldCheck },
-  { href: '/settings', label: 'ตั้งค่า', icon: Settings },
-];
+type AccountMenuItem = { href: string; label: string; icon: typeof UserRound; active?: boolean };
 
-const roleLabels: Record<UserRole, string> = {
-  patient: 'ผู้ป่วย',
-  medical: 'แพทย์ / เภสัชกร',
-  staff_admin: 'เจ้าหน้าที่ / แอดมิน',
+const accountItemsByRole: Record<UserRole, AccountMenuItem[]> = {
+  patient: [
+    { href: '/records', label: 'ประวัติการรักษา', icon: FileClock },
+    { href: '/reminders', label: 'เตือนยา', icon: Stethoscope },
+  ],
+  medical: [
+    { href: '/records', label: 'บันทึกการรักษา', icon: Stethoscope },
+    { href: '/appointments', label: 'นัดหมายผู้ป่วย', icon: FileClock },
+  ],
+  staff_admin: [{ href: '/appointments', label: 'นัดหมาย', icon: FileClock }],
 };
 
-export default function ProfileAccountDrawer({ open, fullName, role, onClose, onSignOut }: ProfileAccountDrawerProps) {
+export default function ProfileAccountDrawer({ open, onClose, onSignOut, role }: ProfileAccountDrawerProps) {
+  const menuItems: AccountMenuItem[] = [
+    { href: '/profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, active: true },
+    ...(role ? accountItemsByRole[role] : []),
+    { href: '/profile#security', label: 'ความปลอดภัยและรหัสผ่าน', icon: ShieldCheck },
+    { href: '/settings', label: 'ตั้งค่า', icon: Settings },
+  ];
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -37,21 +46,18 @@ export default function ProfileAccountDrawer({ open, fullName, role, onClose, on
   }, [open, onClose]);
 
   return (
-    <div className={`fixed inset-0 top-16 z-[60]  hidden xl:block ${open ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!open}>
-      <button type="button" onClick={onClose} aria-label="ปิดเมนูบัญชี" className="absolute inset-0 bg-transparent" />
-      <aside id="profile-account-menu" className={`absolute inset-x-2 top-2 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl transition-all duration-200 ease-out sm:left-auto sm:right-6 sm:w-[360px] ${open ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`} aria-label="เมนูบัญชี">
-        <div className="flex items-center gap-3 border-b border-slate-100 p-4">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-800" aria-hidden="true"><UserRound className="size-6" /></span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-bold text-slate-950">{fullName}</p>
-            <p className="mt-0.5 text-sm text-slate-500">{role ? roleLabels[role] : 'บัญชีผู้ใช้'}</p>
-            <Link href="/profile" onClick={onClose} className="mt-1 inline-block text-sm font-semibold text-teal-700 hover:text-teal-900 hover:underline">ดูโปรไฟล์ของคุณ</Link>
-          </div>
+    <div className={`fixed inset-0 z-[60] ${open ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!open}>
+      <button type="button" onClick={onClose} aria-label="ปิดเมนูบัญชี" className={`absolute inset-0 bg-slate-950/55 backdrop-blur-[1px] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`} />
+      <aside className={`absolute bottom-0 right-0 top-0 flex w-[332px] max-w-[88vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`} aria-label="เมนูบัญชี">
+        <div className="flex h-20 items-center justify-between border-b border-slate-100 px-7">
+          <h2 className="text-2xl font-bold text-slate-950">Profile</h2>
+          <button type="button" onClick={onClose} className="flex size-10 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100" aria-label="ปิด"><X className="size-6" aria-hidden="true" /></button>
         </div>
         <nav className="space-y-1 p-2" aria-label="รายการเมนูบัญชี">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            return <Link key={item.href} href={item.href} onClick={onClose} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-teal-800"><Icon className="size-5 shrink-0 text-slate-500" aria-hidden="true" /><span className="flex-1">{item.label}</span><ChevronRight className="size-4 text-slate-400" aria-hidden="true" /></Link>;
+            const active = item.active ?? false;
+            return <Link key={item.href} href={item.href} onClick={onClose} className={`flex min-h-14 items-center gap-4 rounded-xl px-5 text-base transition ${active ? 'bg-gradient-to-r from-teal-50 to-cyan-50 font-semibold text-teal-800' : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-teal-800'}`}><Icon className={`size-6 shrink-0 ${active ? 'text-teal-700' : 'text-slate-500'}`} aria-hidden="true" /><span>{item.label}</span></Link>;
           })}
           <div className="mx-1 my-2 border-t border-slate-200" />
           <button type="button" onClick={onSignOut} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50"><LogOut className="size-5 shrink-0" aria-hidden="true" /><span>ออกจากระบบ</span></button>
