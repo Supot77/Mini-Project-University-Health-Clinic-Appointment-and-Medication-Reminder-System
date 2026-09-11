@@ -15,6 +15,7 @@ export const recordInputSchema = z.object({
 export type RecordInput = z.infer<typeof recordInputSchema>;
 export const snapshotSchema = z.object({
   actor: z.object({ id: z.string().uuid(), role: roleSchema }),
+  departments: z.array(z.string()).optional(),
   slots: z.array(z.object({
     id: z.string().uuid(), doctor_id: z.string().uuid(), doctor: z.string(), department: z.string(),
     slot_date: z.string(), start_time: z.string(), end_time: z.string(), max_capacity: z.number(),
