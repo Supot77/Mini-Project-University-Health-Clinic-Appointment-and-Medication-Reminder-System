@@ -142,7 +142,7 @@ describe('Supabase dashboard service', () => {
       max_capacity: 10, status: 'available',
     }];
     database.appointments = [{
-      id: 'appointment-1', user_id: 'patient-1', slot_id: 'slot-1', queue_number: 1, status: 'confirmed',
+      id: 'appointment-1', patient_id: 'patient-1', user_id: 'patient-1', slot_id: 'slot-1', queue_number: 1, status: 'confirmed',
     }];
     database.notifications = [
       { id: 'notification-patient', user_id: 'patient-1', type: 'broadcast', title: 'ประกาศ', message: 'ข้อความ', read_at: null, deleted_at: null, created_at: '2026-09-08T03:00:00.000Z' },

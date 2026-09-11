@@ -328,9 +328,9 @@ export async function getDashboardView(
   if (scopedSlotIds.length > 0) {
     let appointmentQuery = supabase
       .from('appointments')
-      .select('id, user_id, slot_id, queue_number, status')
+      .select('id, patient_id, slot_id, queue_number, status')
       .in('slot_id', scopedSlotIds);
-    if (role === 'patient') appointmentQuery = appointmentQuery.eq('user_id', actorId);
+    if (role === 'patient') appointmentQuery = appointmentQuery.eq('patient_id', actorId);
     const appointmentResult = await appointmentQuery;
     throwQueryError('โหลดนัดหมายไม่สำเร็จ', appointmentResult.error);
     appointments = (appointmentResult.data ?? []) as DashboardAppointment[];
