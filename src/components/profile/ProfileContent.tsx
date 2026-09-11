@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { getProfile } from "@/services/authService";
+import { getProfile, updateMyPersonalProfile, updateMyHealthProfile } from "@/services/authService";
 import { createClient } from "@/utils/supabase/client";
 import type {Profile,UserRole,} from "@/types/database";
 const supabase = createClient();

@@ -1,10 +1,14 @@
 # 04. สถาปัตยกรรมและจุดเชื่อมระบบ
 
-ปรับปรุง 7 กันยายน 2569 (2026-09-07) — ฉบับ scope manual ขนาดเล็กตาม D22 ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
+ปรับปรุง 9 กันยายน 2569 (2026-09-09) — target architecture ตาม scope manual และหมายเหตุ as-built จาก code path; ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
 
 package.json เป็นแหล่งอ้างอิงเวอร์ชันจริงของ Next.js, React, TypeScript, Tailwind CSS, Supabase และ Vitest ห้ามยึดเอกสารเวอร์ชันเก่าแทน package ที่ติดตั้งจริง
 
 Role contract กลางมี 3 ค่าเท่านั้น: `patient`, `medical` (แพทย์/เภสัชกร) และ `staff_admin` (เจ้าหน้าที่/แอดมิน)
+
+## หมายเหตุจากการ reverse-engineer
+
+เอกสารนี้ยังเป็น target architecture; จาก code path ปัจจุบัน route นัดหมาย/ผลตรวจใช้ PAI database repository และ RPC ตามที่ออกแบบ แต่ schedule บางคำสั่ง, dashboard metric, reminders และ pharmacy ยังมี mock/direct-service/local-storage path. ให้ใช้ [02](02_user_stories.md), [03](03_database_design_and_er.md) และ [11](11_functional_requirements.md) เป็นตาราง as-built gap และอย่าอ้างส่วน target ด้านล่างเป็นหลักฐานว่า runtime ทุกโมดูลใช้ DB จริงแล้ว
 
 ## ชั้นการทำงาน
 

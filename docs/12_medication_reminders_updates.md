@@ -1,8 +1,10 @@
 # 12. บันทึกการแก้ไขและปรับปรุงระบบเตือนกินยาและจ่ายยา (Medication Reminders Update)
 
-**วันที่ปรับปรุง**: 8 กันยายน 2569 (2026-09-08)  
-**กิ่งพัฒนา (Branch)**: `feature-reminder`  
-**สถานะการทดสอบ**: ผ่าน 100% (13 Test Files, 106 Tests, TypeScript 0 Errors)
+**วันที่ปรับปรุง**: 8 กันยายน 2569 (2026-09-08) — historical note
+**กิ่งพัฒนา (Branch)**: `feature-reminder` (ไม่ใช่ branch ปัจจุบันโดยอัตโนมัติ)
+**สถานะเอกสาร**: บันทึก snapshot เดิม ไม่ใช่หลักฐาน runtime/deployment หรือผลทดสอบล่าสุด
+
+> Reverse-engineered note (2026-09-09): route `/reminders` ยังมี direct Supabase service, CRUD/log/pause-resume และ mock fallback บางกรณี. ดังนั้นข้อความ “fallback ทำรายการสำเร็จเสมอ”, ผลทดสอบ 100% และรายละเอียด branch ด้านล่างต้องอ่านเป็นประวัติของ snapshot นี้ ไม่ใช่ acceptance ของ target D22; ให้ยึด [02](02_user_stories.md), [03](03_database_design_and_er.md) และ [11](11_functional_requirements.md) สำหรับสถานะล่าสุด
 
 ---
 

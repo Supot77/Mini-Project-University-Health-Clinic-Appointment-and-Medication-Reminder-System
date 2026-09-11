@@ -101,6 +101,7 @@ describe("Header", () => {
 
     render(<Header />);
 
+    fireEvent.click(screen.getByRole("button", { name: "เปิดเมนูบัญชี" }));
     fireEvent.click(screen.getByRole("button", { name: "ออกจากระบบ" }));
 
     await waitFor(() => expect(routerState.replace).toHaveBeenCalledWith("/"));
