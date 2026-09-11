@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { getProfile, updateProfile } from "@/services/authService";
+import { getProfile, updateMyPersonalProfile, updateMyHealthProfile } from "@/services/authService";
 import { createClient } from "@/utils/supabase/client";
-import type { Profile } from "@/types/database";
-
+import type {Profile,UserRole,} from "@/types/database";
 const supabase = createClient();
 import {
   Phone,
@@ -23,10 +22,10 @@ import {
   Loader2,
 } from "lucide-react";
 
-const roleLabels: Record<string, string> = {
-  patient: "ผู้ใช้งาน",
-  staff_admin: "เจ้าหน้าที่",
-  medical: "บุคลากรทางการแพทย์",
+const roleLabels: Record<UserRole, string> = {
+  patient: "ผู้ป่วย",
+  staff_admin: "แอดมิน",
+  medical: "หมอ",
 };
 
 type HealthStatus = "yes" | "no" | "unknown";
@@ -34,6 +33,27 @@ type HealthStatus = "yes" | "no" | "unknown";
 interface DoctorInfo {
   specialty: string | null;
   department: { name: string } | null;
+}
+
+async function updateProfile(
+  userId: string,
+  updates: Partial<Profile>,
+): Promise<Profile> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Profile;
 }
 
 export default function ProfileContent() {
@@ -67,13 +87,11 @@ export default function ProfileContent() {
 
   const [editingHealth, setEditingHealth] = useState(false);
 
-  const [allergyStatus, setAllergyStatus] =
-    useState<HealthStatus>("unknown");
+  const [allergyStatus, setAllergyStatus] = useState<HealthStatus>("unknown");
 
   const [allergyDetail, setAllergyDetail] = useState("");
 
-  const [chronicStatus, setChronicStatus] =
-    useState<HealthStatus>("unknown");
+  const [chronicStatus, setChronicStatus] = useState<HealthStatus>("unknown");
 
   const [chronicDetail, setChronicDetail] = useState("");
 
@@ -100,9 +118,7 @@ export default function ProfileContent() {
       address: data?.address ?? "",
     });
 
-    setAllergyStatus(
-      (data?.allergy_status as HealthStatus) ?? "unknown",
-    );
+    setAllergyStatus((data?.allergy_status as HealthStatus) ?? "unknown");
 
     setAllergyDetail(data?.allergies ?? "");
 
@@ -120,9 +136,7 @@ export default function ProfileContent() {
         .eq("id", user.id)
         .maybeSingle();
 
-      setDoctorInfo(
-        medicalData as unknown as DoctorInfo,
-      );
+      setDoctorInfo(medicalData as unknown as DoctorInfo);
     } else {
       setDoctorInfo(null);
     }
@@ -148,9 +162,7 @@ export default function ProfileContent() {
         .catch((err) => {
           if (active) {
             setError(
-              err instanceof Error
-                ? err.message
-                : "โหลดข้อมูลไม่สำเร็จ",
+              err instanceof Error ? err.message : "โหลดข้อมูลไม่สำเร็จ",
             );
           }
         })
@@ -188,10 +200,7 @@ export default function ProfileContent() {
       return;
     }
 
-    if (
-      role === "patient" &&
-      !personalForm.emergency_phone.trim()
-    ) {
+    if (role === "patient" && !personalForm.emergency_phone.trim()) {
       setPersonalError("กรุณากรอกเบอร์ติดต่อฉุกเฉิน");
       return;
     }
@@ -199,24 +208,18 @@ export default function ProfileContent() {
     setSavingPersonal(true);
 
     try {
-      await updateProfile(user.id, {
+      await updateMyPersonalProfile({
         full_name: personalForm.full_name.trim(),
         phone: personalForm.phone.trim(),
-        emergency_phone:
-          personalForm.emergency_phone.trim() || null,
-        address:
-          personalForm.address.trim() || null,
+        emergency_phone: personalForm.emergency_phone.trim() || null,
+        address: personalForm.address.trim() || null,
       });
 
       await loadProfile();
 
       setEditingPersonal(false);
     } catch (err) {
-      setPersonalError(
-        err instanceof Error
-          ? err.message
-          : "บันทึกไม่สำเร็จ",
-      );
+      setPersonalError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
     } finally {
       setSavingPersonal(false);
     }
@@ -231,53 +234,31 @@ export default function ProfileContent() {
 
     setHealthError(null);
 
-    if (
-      allergyStatus === "yes" &&
-      !allergyDetail.trim()
-    ) {
-      setHealthError(
-        "กรุณากรอกรายละเอียดประวัติแพ้ยา",
-      );
+    if (allergyStatus === "yes" && !allergyDetail.trim()) {
+      setHealthError("กรุณากรอกรายละเอียดประวัติแพ้ยา");
       return;
     }
 
-    if (
-      chronicStatus === "yes" &&
-      !chronicDetail.trim()
-    ) {
-      setHealthError(
-        "กรุณากรอกรายละเอียดโรคประจำตัว",
-      );
+    if (chronicStatus === "yes" && !chronicDetail.trim()) {
+      setHealthError("กรุณากรอกรายละเอียดโรคประจำตัว");
       return;
     }
 
     setSavingHealth(true);
 
     try {
-      await updateProfile(user.id, {
+      await updateMyHealthProfile({
         allergy_status: allergyStatus,
-        allergies:
-          allergyStatus === "yes"
-            ? allergyDetail.trim()
-            : null,
-
+        allergies: allergyStatus === "yes" ? allergyDetail.trim() : null,
         chronic_disease_status: chronicStatus,
-
-        chronic_diseases:
-          chronicStatus === "yes"
-            ? chronicDetail.trim()
-            : null,
+        chronic_diseases: chronicStatus === "yes" ? chronicDetail.trim() : null,
       });
 
       await loadProfile();
 
       setEditingHealth(false);
     } catch (err) {
-      setHealthError(
-        err instanceof Error
-          ? err.message
-          : "บันทึกไม่สำเร็จ",
-      );
+      setHealthError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
     } finally {
       setSavingHealth(false);
     }
@@ -339,9 +320,7 @@ export default function ProfileContent() {
   // Helpers
   // =========================================================
 
-  const statusLabel = (
-    status: HealthStatus | null | undefined,
-  ) => {
+  const statusLabel = (status: HealthStatus | null | undefined) => {
     if (status === "yes") return "มี";
     if (status === "no") return "ไม่มี";
     return "ไม่ทราบ";
@@ -353,72 +332,14 @@ export default function ProfileContent() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-80px)] w-screen overflow-x-hidden bg-[#f6fbff]"
+      className="relative min-h-[calc(100vh-80px)] w-screen overflow-x-hidden bg-brand-surface"
       style={{
         marginLeft: "calc(50% - 50vw)",
       }}
     >
       <div className="flex min-h-[calc(100vh-80px)] w-full min-w-0 flex-col lg:flex-row">
 
-        {/* =====================================================
-            Sidebar
-        ====================================================== */}
-
-        <aside className="w-full shrink-0 border-b border-sky-100 bg-white lg:w-[260px] lg:border-b-0 lg:border-r">
-          <nav className="p-3 sm:p-4 lg:sticky lg:top-[80px] lg:p-5">
-            <div className="flex gap-2 overflow-x-auto pb-0.5 lg:block lg:space-y-1.5">
-
-              {/* Profile */}
-
-              <div className="flex min-w-max items-center gap-3 rounded-xl bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700 lg:w-full">
-                <Users className="size-[18px]" />
-
-                <span>
-                  ข้อมูลส่วนตัว
-                </span>
-              </div>
-
-              {/* Treatment history */}
-
-              <Link
-                href="/appointments"
-                className="flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 lg:w-full"
-              >
-                <FileClock className="size-[18px]" />
-
-                <span>
-                  ประวัติการรักษา
-                </span>
-              </Link>
-
-              {/* Results */}
-
-              <Link
-                href="/results"
-                className="flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 lg:w-full"
-              >
-                <Stethoscope className="size-[18px]" />
-
-                <span>
-                  ผลการตรวจ
-                </span>
-              </Link>
-
-              {/* Settings */}
-
-              <Link
-                href="/settings"
-                className="flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 lg:w-full"
-              >
-                <ShieldCheck className="size-[18px]" />
-
-                <span>
-                  ตั้งค่า
-                </span>
-              </Link>
-            </div>
-          </nav>
-        </aside>
+      
 
         {/* =====================================================
             Main
@@ -426,17 +347,11 @@ export default function ProfileContent() {
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-10 lg:py-8">
           <div className="mx-auto w-full max-w-[1440px]">
-
             {/* Page heading */}
 
             <div className="mb-6">
-              <h1 className="text-[22px] font-bold tracking-tight text-slate-800 sm:text-[24px]">
-                ข้อมูลส่วนตัว
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-500">
-                จัดการข้อมูลส่วนตัวและข้อมูลสุขภาพของคุณ
-              </p>
+              <h1 className="text-[22px] font-bold tracking-tight text-slate-800 sm:text-[24px]">ข้อมูลส่วนตัว</h1>
+              <p className="mt-1 text-sm text-slate-500">จัดการข้อมูลส่วนตัวและข้อมูลสุขภาพของคุณ</p>
             </div>
 
             {/* =================================================
@@ -450,15 +365,12 @@ export default function ProfileContent() {
                 ================================================== */}
 
                 <div className="grid w-full min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-
                   {/* =================================================
                       Personal information
                   ================================================== */}
 
                   <section className="min-w-0 overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-[0_3px_14px_rgba(15,77,120,0.05)]">
-
                     <div className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-0">
-
                       <h2 className="text-[18px] font-bold text-slate-800">
                         ข้อมูลส่วนตัว
                       </h2>
@@ -466,13 +378,10 @@ export default function ProfileContent() {
                       {!editingPersonal && (
                         <button
                           type="button"
-                          onClick={() =>
-                            setEditingPersonal(true)
-                          }
+                          onClick={() => setEditingPersonal(true)}
                           className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-xs font-semibold text-sky-600 transition hover:bg-sky-50"
                         >
                           <Pencil className="size-4" />
-
                           แก้ไขข้อมูล
                         </button>
                       )}
@@ -484,7 +393,6 @@ export default function ProfileContent() {
 
                     {editingPersonal ? (
                       <div className="p-6">
-
                         {personalError && (
                           <p className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
                             {personalError}
@@ -492,7 +400,6 @@ export default function ProfileContent() {
                         )}
 
                         <div className="grid gap-4 sm:grid-cols-2">
-
                           {/* Name */}
 
                           <div className="sm:col-span-2">
@@ -501,14 +408,11 @@ export default function ProfileContent() {
                             </label>
 
                             <input
-                              value={
-                                personalForm.full_name
-                              }
+                              value={personalForm.full_name}
                               onChange={(e) =>
                                 setPersonalForm({
                                   ...personalForm,
-                                  full_name:
-                                    e.target.value,
+                                  full_name: e.target.value,
                                 })
                               }
                               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -523,14 +427,11 @@ export default function ProfileContent() {
                             </label>
 
                             <input
-                              value={
-                                personalForm.phone
-                              }
+                              value={personalForm.phone}
                               onChange={(e) =>
                                 setPersonalForm({
                                   ...personalForm,
-                                  phone:
-                                    e.target.value,
+                                  phone: e.target.value,
                                 })
                               }
                               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -545,14 +446,11 @@ export default function ProfileContent() {
                             </label>
 
                             <input
-                              value={
-                                personalForm.emergency_phone
-                              }
+                              value={personalForm.emergency_phone}
                               onChange={(e) =>
                                 setPersonalForm({
                                   ...personalForm,
-                                  emergency_phone:
-                                    e.target.value,
+                                  emergency_phone: e.target.value,
                                 })
                               }
                               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -567,14 +465,11 @@ export default function ProfileContent() {
                             </label>
 
                             <textarea
-                              value={
-                                personalForm.address
-                              }
+                              value={personalForm.address}
                               onChange={(e) =>
                                 setPersonalForm({
                                   ...personalForm,
-                                  address:
-                                    e.target.value,
+                                  address: e.target.value,
                                 })
                               }
                               rows={3}
@@ -586,15 +481,10 @@ export default function ProfileContent() {
                         {/* Buttons */}
 
                         <div className="mt-5 flex gap-2 border-t border-slate-100 pt-5">
-
                           <button
                             type="button"
-                            onClick={
-                              handleSavePersonal
-                            }
-                            disabled={
-                              savingPersonal
-                            }
+                            onClick={handleSavePersonal}
+                            disabled={savingPersonal}
                             className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
                           >
                             {savingPersonal ? (
@@ -602,30 +492,22 @@ export default function ProfileContent() {
                             ) : (
                               <Check className="size-4" />
                             )}
-
                             บันทึก
                           </button>
 
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingPersonal(
-                                false,
-                              );
+                              setEditingPersonal(false);
 
-                              setPersonalError(
-                                null,
-                              );
+                              setPersonalError(null);
 
                               loadProfile();
                             }}
-                            disabled={
-                              savingPersonal
-                            }
+                            disabled={savingPersonal}
                             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                           >
                             <X className="size-4" />
-
                             ยกเลิก
                           </button>
                         </div>
@@ -635,40 +517,30 @@ export default function ProfileContent() {
                         {/* Patient profile header */}
 
                         <div className="flex min-w-0 items-center gap-4 px-4 py-5 sm:gap-5 sm:px-6">
-
                           <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-100 text-2xl font-semibold text-sky-600 sm:size-[86px] sm:text-[30px]">
                             {profile?.avatar_url ? (
                               <img
-                                src={
-                                  profile.avatar_url
-                                }
+                                src={profile.avatar_url}
                                 alt="รูปโปรไฟล์"
                                 className="h-full w-full object-cover"
                               />
                             ) : (
-                              profile?.full_name?.charAt(
-                                0,
-                              ) ?? "?"
+                              (profile?.full_name?.charAt(0) ?? "?")
                             )}
                           </div>
 
                           <div className="min-w-0">
-
                             <p className="text-[18px] font-bold text-slate-800">
-                              {profile?.full_name ||
-                                "ไม่ระบุชื่อ"}
+                              {profile?.full_name || "ไม่ระบุชื่อ"}
                             </p>
 
                             <span className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-600">
-                              {roleLabels[
-                                role || ""
-                              ] || "ผู้ใช้งาน"}
+                              {roleLabels[role || ""] || "ผู้ใช้งาน"}
                             </span>
 
                             <p className="mt-2 text-sm font-medium text-slate-500">
                               รหัสนักศึกษา:{" "}
-                              {profile?.student_id ||
-                                "ยังไม่ได้ระบุ"}
+                              {profile?.student_id || "ยังไม่ได้ระบุ"}
                             </p>
                           </div>
                         </div>
@@ -676,12 +548,10 @@ export default function ProfileContent() {
                         {/* Patient contact information */}
 
                         <div className="grid border-t border-slate-100 sm:grid-cols-2">
-
                           {/* Phone */}
 
                           <div className="border-b border-slate-100 px-4 py-5 sm:border-r sm:px-6">
                             <div className="flex items-center gap-3">
-
                               <div className="flex size-9 items-center justify-center rounded-full bg-sky-50">
                                 <Phone className="size-4 text-sky-600" />
                               </div>
@@ -692,8 +562,7 @@ export default function ProfileContent() {
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium text-slate-700">
-                                  {profile?.phone ||
-                                    "ยังไม่ได้ระบุ"}
+                                  {profile?.phone || "ยังไม่ได้ระบุ"}
                                 </p>
                               </div>
                             </div>
@@ -703,16 +572,12 @@ export default function ProfileContent() {
 
                           <div className="border-b border-slate-100 px-4 py-5 sm:px-6">
                             <div className="flex items-center gap-3">
-
                               <div className="flex size-9 items-center justify-center rounded-full bg-sky-50">
                                 <Mail className="size-4 text-sky-600" />
                               </div>
 
                               <div className="min-w-0">
-
-                                <p className="text-xs text-slate-400">
-                                  อีเมล
-                                </p>
+                                <p className="text-xs text-slate-400">อีเมล</p>
 
                                 <p className="mt-1 break-all text-sm font-medium text-slate-700">
                                   {user.email || "-"}
@@ -725,20 +590,17 @@ export default function ProfileContent() {
 
                           <div className="px-4 py-5 sm:border-r sm:px-6">
                             <div className="flex items-center gap-3">
-
                               <div className="flex size-9 items-center justify-center rounded-full bg-rose-50">
                                 <Phone className="size-4 text-rose-500" />
                               </div>
 
                               <div>
-
                                 <p className="text-xs text-slate-400">
                                   เบอร์ติดต่อฉุกเฉิน
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium text-slate-700">
-                                  {profile?.emergency_phone ||
-                                    "ยังไม่ได้ระบุ"}
+                                  {profile?.emergency_phone || "ยังไม่ได้ระบุ"}
                                 </p>
                               </div>
                             </div>
@@ -747,22 +609,18 @@ export default function ProfileContent() {
                           {/* Address */}
 
                           <div className="border-t border-slate-100 px-4 py-5 sm:border-t-0 sm:px-6">
-
                             <div className="flex items-start gap-3">
-
                               <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-50">
                                 <Users className="size-4 text-sky-600" />
                               </div>
 
                               <div className="min-w-0">
-
                                 <p className="text-xs text-slate-400">
                                   ที่อยู่
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium leading-6 text-slate-700">
-                                  {profile?.address ||
-                                    "ยังไม่ได้ระบุ"}
+                                  {profile?.address || "ยังไม่ได้ระบุ"}
                                 </p>
                               </div>
                             </div>
@@ -777,9 +635,7 @@ export default function ProfileContent() {
                   ================================================== */}
 
                   <section className="min-w-0 overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-[0_3px_14px_rgba(15,77,120,0.05)]">
-
                     <div className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-0">
-
                       <div>
                         <h2 className="text-[18px] font-bold text-slate-800">
                           ข้อมูลสุขภาพ
@@ -793,13 +649,10 @@ export default function ProfileContent() {
                       {!editingHealth && (
                         <button
                           type="button"
-                          onClick={() =>
-                            setEditingHealth(true)
-                          }
+                          onClick={() => setEditingHealth(true)}
                           className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-xs font-semibold text-sky-600 transition hover:bg-sky-50"
                         >
                           <Pencil className="size-4" />
-
                           แก้ไขข้อมูล
                         </button>
                       )}
@@ -809,7 +662,6 @@ export default function ProfileContent() {
 
                     {editingHealth ? (
                       <div className="space-y-6 p-6">
-
                         {healthError && (
                           <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
                             {healthError}
@@ -819,60 +671,43 @@ export default function ProfileContent() {
                         {/* Allergy */}
 
                         <div>
-
                           <p className="mb-3 text-sm font-semibold text-slate-700">
                             ประวัติแพ้ยา
                           </p>
 
                           <div className="flex flex-wrap gap-2">
+                            {(["yes", "no", "unknown"] as HealthStatus[]).map(
+                              (s) => (
+                                <label
+                                  key={s}
+                                  className={`cursor-pointer rounded-xl border px-4 py-2 text-sm transition ${
+                                    allergyStatus === s
+                                      ? "border-sky-300 bg-sky-50 font-semibold text-sky-600"
+                                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="allergyStatus"
+                                    checked={allergyStatus === s}
+                                    onChange={() => setAllergyStatus(s)}
+                                    className="sr-only"
+                                  />
 
-                            {(
-                              [
-                                "yes",
-                                "no",
-                                "unknown",
-                              ] as HealthStatus[]
-                            ).map((s) => (
-                              <label
-                                key={s}
-                                className={`cursor-pointer rounded-xl border px-4 py-2 text-sm transition ${
-                                  allergyStatus === s
-                                    ? "border-sky-300 bg-sky-50 font-semibold text-sky-600"
-                                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="allergyStatus"
-                                  checked={
-                                    allergyStatus ===
-                                    s
-                                  }
-                                  onChange={() =>
-                                    setAllergyStatus(
-                                      s,
-                                    )
-                                  }
-                                  className="sr-only"
-                                />
-
-                                {s === "yes"
-                                  ? "มี"
-                                  : s === "no"
-                                    ? "ไม่มี"
-                                    : "ไม่ทราบ"}
-                              </label>
-                            ))}
+                                  {s === "yes"
+                                    ? "มี"
+                                    : s === "no"
+                                      ? "ไม่มี"
+                                      : "ไม่ทราบ"}
+                                </label>
+                              ),
+                            )}
                           </div>
 
                           {allergyStatus === "yes" && (
                             <textarea
                               value={allergyDetail}
-                              onChange={(e) =>
-                                setAllergyDetail(
-                                  e.target.value,
-                                )
-                              }
+                              onChange={(e) => setAllergyDetail(e.target.value)}
                               placeholder="ระบุรายละเอียดประวัติแพ้ยา"
                               rows={3}
                               className="mt-3 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -883,60 +718,43 @@ export default function ProfileContent() {
                         {/* Chronic disease */}
 
                         <div>
-
                           <p className="mb-3 text-sm font-semibold text-slate-700">
                             โรคประจำตัว
                           </p>
 
                           <div className="flex flex-wrap gap-2">
+                            {(["yes", "no", "unknown"] as HealthStatus[]).map(
+                              (s) => (
+                                <label
+                                  key={s}
+                                  className={`cursor-pointer rounded-xl border px-4 py-2 text-sm transition ${
+                                    chronicStatus === s
+                                      ? "border-sky-300 bg-sky-50 font-semibold text-sky-600"
+                                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="chronicStatus"
+                                    checked={chronicStatus === s}
+                                    onChange={() => setChronicStatus(s)}
+                                    className="sr-only"
+                                  />
 
-                            {(
-                              [
-                                "yes",
-                                "no",
-                                "unknown",
-                              ] as HealthStatus[]
-                            ).map((s) => (
-                              <label
-                                key={s}
-                                className={`cursor-pointer rounded-xl border px-4 py-2 text-sm transition ${
-                                  chronicStatus === s
-                                    ? "border-sky-300 bg-sky-50 font-semibold text-sky-600"
-                                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="chronicStatus"
-                                  checked={
-                                    chronicStatus ===
-                                    s
-                                  }
-                                  onChange={() =>
-                                    setChronicStatus(
-                                      s,
-                                    )
-                                  }
-                                  className="sr-only"
-                                />
-
-                                {s === "yes"
-                                  ? "มี"
-                                  : s === "no"
-                                    ? "ไม่มี"
-                                    : "ไม่ทราบ"}
-                              </label>
-                            ))}
+                                  {s === "yes"
+                                    ? "มี"
+                                    : s === "no"
+                                      ? "ไม่มี"
+                                      : "ไม่ทราบ"}
+                                </label>
+                              ),
+                            )}
                           </div>
 
                           {chronicStatus === "yes" && (
                             <textarea
                               value={chronicDetail}
-                              onChange={(e) =>
-                                setChronicDetail(
-                                  e.target.value,
-                                )
-                              }
+                              onChange={(e) => setChronicDetail(e.target.value)}
                               placeholder="ระบุรายละเอียดโรคประจำตัว"
                               rows={3}
                               className="mt-3 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -947,12 +765,9 @@ export default function ProfileContent() {
                         {/* Health buttons */}
 
                         <div className="flex gap-2 border-t border-slate-100 pt-5">
-
                           <button
                             type="button"
-                            onClick={
-                              handleSaveHealth
-                            }
+                            onClick={handleSaveHealth}
                             disabled={savingHealth}
                             className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
                           >
@@ -961,7 +776,6 @@ export default function ProfileContent() {
                             ) : (
                               <Check className="size-4" />
                             )}
-
                             บันทึก
                           </button>
 
@@ -976,33 +790,26 @@ export default function ProfileContent() {
                             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                           >
                             <X className="size-4" />
-
                             ยกเลิก
                           </button>
                         </div>
                       </div>
                     ) : (
                       <div className="p-5">
-
                         <div className="grid gap-4 sm:grid-cols-2">
-
                           {/* Allergy tile */}
 
                           <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-
                             <div className="flex items-start justify-between gap-3">
-
                               <div className="flex size-11 items-center justify-center rounded-xl bg-rose-50">
                                 <HeartPulse className="size-5 text-rose-500" />
                               </div>
 
                               <span
                                 className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                  profile?.allergy_status ===
-                                  "yes"
+                                  profile?.allergy_status === "yes"
                                     ? "bg-rose-50 text-rose-600"
-                                    : profile?.allergy_status ===
-                                        "no"
+                                    : profile?.allergy_status === "no"
                                       ? "bg-emerald-50 text-emerald-600"
                                       : "bg-slate-100 text-slate-500"
                                 }`}
@@ -1018,12 +825,10 @@ export default function ProfileContent() {
                             </p>
 
                             <p className="mt-2 text-xs leading-5 text-slate-400">
-                              {profile?.allergy_status ===
-                                "yes" &&
+                              {profile?.allergy_status === "yes" &&
                               profile?.allergies
                                 ? profile.allergies
-                                : profile?.allergy_status ===
-                                    "no"
+                                : profile?.allergy_status === "no"
                                   ? "ไม่มีประวัติแพ้ยาที่ระบุ"
                                   : "ยังไม่ได้ระบุข้อมูล"}
                             </p>
@@ -1032,20 +837,16 @@ export default function ProfileContent() {
                           {/* Chronic disease tile */}
 
                           <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-
                             <div className="flex items-start justify-between gap-3">
-
                               <div className="flex size-11 items-center justify-center rounded-xl bg-sky-50">
                                 <AlertCircle className="size-5 text-sky-600" />
                               </div>
 
                               <span
                                 className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                  profile?.chronic_disease_status ===
-                                  "yes"
+                                  profile?.chronic_disease_status === "yes"
                                     ? "bg-amber-50 text-amber-600"
-                                    : profile?.chronic_disease_status ===
-                                        "no"
+                                    : profile?.chronic_disease_status === "no"
                                       ? "bg-emerald-50 text-emerald-600"
                                       : "bg-slate-100 text-slate-500"
                                 }`}
@@ -1061,12 +862,10 @@ export default function ProfileContent() {
                             </p>
 
                             <p className="mt-2 text-xs leading-5 text-slate-400">
-                              {profile?.chronic_disease_status ===
-                                "yes" &&
+                              {profile?.chronic_disease_status === "yes" &&
                               profile?.chronic_diseases
                                 ? profile.chronic_diseases
-                                : profile?.chronic_disease_status ===
-                                    "no"
+                                : profile?.chronic_disease_status === "no"
                                   ? "ไม่มีโรคประจำตัวที่ระบุ"
                                   : "ยังไม่ได้ระบุข้อมูล"}
                             </p>
@@ -1082,11 +881,8 @@ export default function ProfileContent() {
                 ================================================== */}
 
                 <section className="mt-5 overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-[0_3px_14px_rgba(15,77,120,0.05)]">
-
                   <div className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-0">
-
                     <div className="flex items-center gap-3">
-
                       <div className="flex size-10 items-center justify-center rounded-xl bg-sky-50">
                         <FileClock className="size-5 text-sky-600" />
                       </div>
@@ -1096,17 +892,12 @@ export default function ProfileContent() {
                       </h2>
                     </div>
 
-                    <span className="text-xs text-sky-600">
-                      ดูทั้งหมด ›
-                    </span>
+                    <span className="text-xs text-sky-600">ดูทั้งหมด ›</span>
                   </div>
 
                   <div className="p-5">
-
-                    <div className="flex min-h-[190px] items-center justify-center rounded-2xl bg-[#f8fcff] text-center">
-
+                    <div className="flex min-h-[190px] items-center justify-center rounded-2xl bg-brand-page text-center">
                       <div>
-
                         <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-sky-50">
                           <FileClock className="size-7 text-sky-500" />
                         </div>
@@ -1129,15 +920,12 @@ export default function ProfileContent() {
               ====================================================== */
 
               <div className="space-y-5">
-
                 {/* =================================================
                     Staff / Medical personal information
                 ================================================== */}
 
                 <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-[0_3px_14px_rgba(15,77,120,0.05)]">
-
                   <div className="flex min-h-[68px] flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-0">
-
                     <h2 className="text-[18px] font-bold text-slate-800">
                       ข้อมูลส่วนตัว
                     </h2>
@@ -1145,13 +933,10 @@ export default function ProfileContent() {
                     {!editingPersonal && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setEditingPersonal(true)
-                        }
+                        onClick={() => setEditingPersonal(true)}
                         className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-xs font-semibold text-sky-600 transition hover:bg-sky-50"
                       >
                         <Pencil className="size-4" />
-
                         แก้ไขข้อมูล
                       </button>
                     )}
@@ -1163,7 +948,6 @@ export default function ProfileContent() {
 
                   {editingPersonal ? (
                     <div className="p-6">
-
                       {personalError && (
                         <p className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
                           {personalError}
@@ -1171,24 +955,19 @@ export default function ProfileContent() {
                       )}
 
                       <div className="grid gap-4 sm:grid-cols-2">
-
                         {/* Full name */}
 
                         <div className="sm:col-span-2">
-
                           <label className="mb-2 block text-xs font-semibold text-slate-600">
                             ชื่อ-นามสกุล
                           </label>
 
                           <input
-                            value={
-                              personalForm.full_name
-                            }
+                            value={personalForm.full_name}
                             onChange={(e) =>
                               setPersonalForm({
                                 ...personalForm,
-                                full_name:
-                                  e.target.value,
+                                full_name: e.target.value,
                               })
                             }
                             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -1198,20 +977,16 @@ export default function ProfileContent() {
                         {/* Phone */}
 
                         <div>
-
                           <label className="mb-2 block text-xs font-semibold text-slate-600">
                             เบอร์โทรศัพท์
                           </label>
 
                           <input
-                            value={
-                              personalForm.phone
-                            }
+                            value={personalForm.phone}
                             onChange={(e) =>
                               setPersonalForm({
                                 ...personalForm,
-                                phone:
-                                  e.target.value,
+                                phone: e.target.value,
                               })
                             }
                             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -1221,20 +996,16 @@ export default function ProfileContent() {
                         {/* Address */}
 
                         <div>
-
                           <label className="mb-2 block text-xs font-semibold text-slate-600">
                             ที่อยู่
                           </label>
 
                           <input
-                            value={
-                              personalForm.address
-                            }
+                            value={personalForm.address}
                             onChange={(e) =>
                               setPersonalForm({
                                 ...personalForm,
-                                address:
-                                  e.target.value,
+                                address: e.target.value,
                               })
                             }
                             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-50"
@@ -1243,15 +1014,10 @@ export default function ProfileContent() {
                       </div>
 
                       <div className="mt-5 flex gap-2 border-t border-slate-100 pt-5">
-
                         <button
                           type="button"
-                          onClick={
-                            handleSavePersonal
-                          }
-                          disabled={
-                            savingPersonal
-                          }
+                          onClick={handleSavePersonal}
+                          disabled={savingPersonal}
                           className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
                         >
                           {savingPersonal ? (
@@ -1259,7 +1025,6 @@ export default function ProfileContent() {
                           ) : (
                             <Check className="size-4" />
                           )}
-
                           บันทึก
                         </button>
 
@@ -1274,22 +1039,18 @@ export default function ProfileContent() {
                           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                         >
                           <X className="size-4" />
-
                           ยกเลิก
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="p-5 sm:p-6">
-
                       {/* Profile identity */}
 
                       <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
-
                         {/* Avatar */}
 
                         <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-100 text-2xl font-semibold text-sky-600 sm:size-24 sm:text-3xl">
-
                           {profile?.avatar_url ? (
                             <img
                               src={profile.avatar_url}
@@ -1297,34 +1058,26 @@ export default function ProfileContent() {
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            profile?.full_name?.charAt(
-                              0,
-                            ) ?? "?"
+                            (profile?.full_name?.charAt(0) ?? "?")
                           )}
                         </div>
 
                         {/* Identity */}
 
                         <div className="min-w-0">
-
                           <p className="text-xl font-bold text-slate-800">
-                            {profile?.full_name ||
-                              "ไม่ระบุชื่อ"}
+                            {profile?.full_name || "ไม่ระบุชื่อ"}
                           </p>
 
                           <span className="mt-2 inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-600">
-                            {roleLabels[
-                              role || ""
-                            ] || "ผู้ใช้งาน"}
-                          </span>
+{role ? roleLabels[role] : "ไม่ระบุบทบาท"}                          </span>
 
                           {/* Staff ID */}
 
                           {role === "staff_admin" && (
                             <p className="mt-2 text-sm font-medium text-slate-500">
                               รหัสเจ้าหน้าที่:{" "}
-                              {profile?.employee_id ||
-                                "ยังไม่ได้ระบุ"}
+                              {profile?.employee_id || "ยังไม่ได้ระบุ"}
                             </p>
                           )}
 
@@ -1333,8 +1086,7 @@ export default function ProfileContent() {
                           {role === "medical" && (
                             <p className="mt-2 text-sm font-medium text-slate-500">
                               รหัสบุคลากร:{" "}
-                              {profile?.employee_id ||
-                                "ยังไม่ได้ระบุ"}
+                              {profile?.employee_id || "ยังไม่ได้ระบุ"}
                             </p>
                           )}
                         </div>
@@ -1345,13 +1097,10 @@ export default function ProfileContent() {
                       ================================================== */}
 
                       <div className="mt-6 grid border-t border-slate-100 sm:grid-cols-2 lg:grid-cols-3">
-
                         {/* Phone */}
 
                         <div className="border-b border-slate-100 py-4 sm:pr-5 lg:border-r">
-
                           <div className="flex items-center gap-3">
-
                             <div className="flex size-9 items-center justify-center rounded-full bg-sky-50">
                               <Phone className="size-4 text-sky-600" />
                             </div>
@@ -1362,8 +1111,7 @@ export default function ProfileContent() {
                               </p>
 
                               <p className="mt-2 text-sm font-medium text-slate-700">
-                                {profile?.phone ||
-                                  "ยังไม่ได้ระบุ"}
+                                {profile?.phone || "ยังไม่ได้ระบุ"}
                               </p>
                             </div>
                           </div>
@@ -1372,18 +1120,13 @@ export default function ProfileContent() {
                         {/* Email */}
 
                         <div className="border-b border-slate-100 py-4 sm:pl-5 lg:border-r lg:px-5">
-
                           <div className="flex items-center gap-3">
-
                             <div className="flex size-9 items-center justify-center rounded-full bg-sky-50">
                               <Mail className="size-4 text-sky-600" />
                             </div>
 
                             <div className="min-w-0">
-
-                              <p className="text-xs text-slate-400">
-                                อีเมล
-                              </p>
+                              <p className="text-xs text-slate-400">อีเมล</p>
 
                               <p className="mt-2 break-all text-sm font-medium text-slate-700">
                                 {user.email || "-"}
@@ -1395,22 +1138,16 @@ export default function ProfileContent() {
                         {/* Address */}
 
                         <div className="py-4 sm:col-span-2 lg:col-span-1 lg:pl-5">
-
                           <div className="flex items-start gap-3">
-
                             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-50">
                               <Users className="size-4 text-sky-600" />
                             </div>
 
                             <div className="min-w-0">
-
-                              <p className="text-xs text-slate-400">
-                                ที่อยู่
-                              </p>
+                              <p className="text-xs text-slate-400">ที่อยู่</p>
 
                               <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
-                                {profile?.address ||
-                                  "ยังไม่ได้ระบุ"}
+                                {profile?.address || "ยังไม่ได้ระบุ"}
                               </p>
                             </div>
                           </div>
@@ -1426,41 +1163,30 @@ export default function ProfileContent() {
 
                 {role === "medical" && (
                   <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-[0_3px_14px_rgba(15,77,120,0.05)]">
-
                     <div className="border-b border-slate-100 px-6 py-4">
-
                       <h2 className="text-[18px] font-bold text-slate-800">
                         ข้อมูลการปฏิบัติงาน
                       </h2>
                     </div>
 
                     <div className="grid gap-4 p-6 sm:grid-cols-2">
-
                       {/* Specialty */}
 
                       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-
-                        <p className="text-xs text-slate-400">
-                          ความเชี่ยวชาญ
-                        </p>
+                        <p className="text-xs text-slate-400">ความเชี่ยวชาญ</p>
 
                         <p className="mt-2 text-sm font-semibold text-slate-700">
-                          {doctorInfo?.specialty ||
-                            "ยังไม่ได้ระบุ"}
+                          {doctorInfo?.specialty || "ยังไม่ได้ระบุ"}
                         </p>
                       </div>
 
                       {/* Department */}
 
                       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-
-                        <p className="text-xs text-slate-400">
-                          แผนก
-                        </p>
+                        <p className="text-xs text-slate-400">แผนก</p>
 
                         <p className="mt-2 text-sm font-semibold text-slate-700">
-                          {doctorInfo?.department?.name ||
-                            "ยังไม่ได้ระบุ"}
+                          {doctorInfo?.department?.name || "ยังไม่ได้ระบุ"}
                         </p>
                       </div>
                     </div>
@@ -1473,16 +1199,13 @@ export default function ProfileContent() {
 
                 {role === "staff_admin" && (
                   <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-[0_3px_14px_rgba(15,77,120,0.05)]">
-
                     <div className="border-b border-slate-100 px-6 py-4">
-
                       <h2 className="text-[18px] font-bold text-slate-800">
                         งานบริหารจัดการ
                       </h2>
                     </div>
 
                     <div className="grid gap-4 p-6 sm:grid-cols-2">
-
                       {/* Schedules */}
 
                       <Link

@@ -69,7 +69,7 @@ describe('appointment preview workspace', () => {
     expect(screen.queryByRole('button', { name: 'ล้างตัวกรอง' })).not.toBeInTheDocument();
   });
 
-  it('keeps failed bookings editable, disables unavailable slots and resets the selected slot after changing departments', () => {
+  it('keeps failed bookings editable, disables unavailable slots and resets the selected slot after changing services', () => {
     render(<AppointmentWorkspace />);
     const booking = openBooking();
     expect(booking.getByRole('button', { name: /09:30–10:00.*เต็มแล้ว/ })).toBeDisabled();
@@ -81,7 +81,7 @@ describe('appointment preview workspace', () => {
     expect(screen.queryByRole('article', { name: 'นัดหมาย APT-007' })).not.toBeInTheDocument();
     expect(booking.getByRole('button', { name: /09:00–09:30/ })).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.change(booking.getByLabelText('แผนก'), { target: { value: 'ทันตกรรม' } });
+    fireEvent.change(booking.getByLabelText('บริการ'), { target: { value: 'ตรวจสุขภาพช่องปาก' } });
     expect(booking.getByRole('button', { name: 'ยืนยันส่งคำขอนัด' })).toBeDisabled();
     expect(booking.getByRole('button', { name: /10:00–10:30.*ปิดรับจอง/ })).toBeDisabled();
     fireEvent.change(booking.getByLabelText('วันที่ต้องการนัด'), { target: { value: '2026-09-12' } });

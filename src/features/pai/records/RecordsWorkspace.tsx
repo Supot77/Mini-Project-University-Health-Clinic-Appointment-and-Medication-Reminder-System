@@ -12,7 +12,7 @@ const labelClass = 'mb-2 block text-sm font-medium text-slate-700';
 const textareaClass = `${inputClass} min-h-24 resize-y`;
 
 function RecordStatus({ status }: { status: DemoRecord['status'] }) {
-  return <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{status === 'completed' ? <Check className="h-3 w-3" aria-hidden="true" /> : <Pencil className="h-3 w-3" aria-hidden="true" />}{status === 'completed' ? 'ปิดตรวจแล้ว' : 'แบบร่าง'}</span>;
+  return <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${status === 'completed' ? 'bg-status-success-bg text-status-success' : 'bg-status-warning-bg text-status-warning'}`}>{status === 'completed' ? <Check className="h-3 w-3" aria-hidden="true" /> : <Pencil className="h-3 w-3" aria-hidden="true" />}{status === 'completed' ? 'ปิดตรวจแล้ว' : 'แบบร่าง'}</span>;
 }
 
 export default function RecordsWorkspace({ repository }: { repository?: RecordsDemoRepository }) {

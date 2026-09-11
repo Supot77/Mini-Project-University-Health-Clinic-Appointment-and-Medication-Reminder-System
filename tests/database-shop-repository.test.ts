@@ -203,6 +203,8 @@ describe('DatabaseShopRepository', () => {
               {
                 id: 'slot-1',
                 doctor_id: 'doc-1',
+                daily_service_offering_id: 'offering-1',
+                daily_service_offering: { service_id: 'service-1' },
                 slot_date: '2026-09-08',
                 start_time: '09:00:00',
                 end_time: '12:00:00',
@@ -227,6 +229,8 @@ describe('DatabaseShopRepository', () => {
     expect(slots[0]).toMatchObject({
       id: 'slot-1',
       doctorId: 'doc-1',
+      serviceOfferingId: 'offering-1',
+      serviceId: 'service-1',
       slotDate: '2026-09-08',
       startTime: '09:00',
       endTime: '12:00',
@@ -247,6 +251,7 @@ describe('DatabaseShopRepository', () => {
     const mockDocResult = await repo.saveSlot(
       {
         doctorId: 'profile-stephen-strange',
+        serviceId: 'service-1',
         slotDate: '2026-09-08',
         startTime: '09:00',
         endTime: '09:30',
@@ -263,6 +268,7 @@ describe('DatabaseShopRepository', () => {
     const result = await repo.saveSlot(
       {
         doctorId: validDoctorId,
+        serviceId: 'service-1',
         slotDate: '2026-09-08',
         startTime: '12:00',
         endTime: '09:00',
@@ -270,7 +276,7 @@ describe('DatabaseShopRepository', () => {
       },
       [],
       [{ id: validDoctorId, profileId: validDoctorId, fullName: 'หมอสมชาย', email: '', initials: 'SC', specialty: 'ทั่วไป', departmentId: 'dept-1', availability: 'active' }],
-      [{ id: 'dept-1', name: 'อายุรกรรม', description: '', isActive: true }],
+      [{ id: 'service-1', code: 'GEN', name: 'ตรวจโรคทั่วไป', description: '', isActive: true }],
     );
 
     expect(result.ok).toBe(false);
@@ -279,10 +285,11 @@ describe('DatabaseShopRepository', () => {
 
   it('inserts valid slot into appointment_slots table', async () => {
     const validDoctorId = 'a0000000-0000-0000-0000-000000000001';
-    const mockSingle = vi.fn().mockResolvedValue({
+    const mockSlotSingle = vi.fn().mockResolvedValue({
       data: {
         id: 'new-slot-1',
         doctor_id: validDoctorId,
+        daily_service_offering_id: 'offering-1',
         slot_date: '2026-09-08',
         start_time: '09:00:00',
         end_time: '12:00:00',
@@ -292,9 +299,17 @@ describe('DatabaseShopRepository', () => {
       },
       error: null,
     });
-    const mockSelect = vi.fn().mockReturnValue({ single: mockSingle });
-    const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
-    const mockFrom = vi.fn().mockReturnValue({ insert: mockInsert });
+    const mockSlotSelect = vi.fn().mockReturnValue({ single: mockSlotSingle });
+    const mockInsert = vi.fn().mockReturnValue({ select: mockSlotSelect });
+    const mockOfferingSingle = vi.fn().mockResolvedValue({
+      data: { id: 'offering-1', service_id: 'service-1', doctor_id: validDoctorId, offering_date: '2026-09-08', is_active: true, created_by: null },
+      error: null,
+    });
+    const mockOfferingSelect = vi.fn().mockReturnValue({ single: mockOfferingSingle });
+    const mockOfferingUpsert = vi.fn().mockReturnValue({ select: mockOfferingSelect });
+    const mockFrom = vi.fn((table: string) => table === 'daily_service_offerings'
+      ? { upsert: mockOfferingUpsert }
+      : { insert: mockInsert });
 
     const mockClient = { from: mockFrom } as unknown as SupabaseClient;
     const repo = new DatabaseShopRepository(mockClient);
@@ -302,6 +317,7 @@ describe('DatabaseShopRepository', () => {
     const result = await repo.saveSlot(
       {
         doctorId: validDoctorId,
+        serviceId: 'service-1',
         slotDate: '2026-09-08',
         startTime: '09:00',
         endTime: '12:00',
@@ -309,7 +325,9 @@ describe('DatabaseShopRepository', () => {
       },
       [],
       [{ id: validDoctorId, profileId: validDoctorId, fullName: 'หมอสมชาย', email: '', initials: 'SC', specialty: 'ทั่วไป', departmentId: 'dept-1', availability: 'active' }],
-      [{ id: 'dept-1', name: 'อายุรกรรม', description: '', isActive: true }],
+      [{ id: 'service-1', code: 'GEN', name: 'ตรวจโรคทั่วไป', description: '', isActive: true }],
+      undefined,
+      '2026-09-07',
     );
 
     expect(result.ok).toBe(true);
@@ -318,6 +336,32 @@ describe('DatabaseShopRepository', () => {
       expect(result.value.startTime).toBe('09:00');
     }
     expect(mockFrom).toHaveBeenCalledWith('appointment_slots');
+  });
+
+  it('rejects saving a slot for a past date', async () => {
+    const mockClient = {} as unknown as SupabaseClient;
+    const repo = new DatabaseShopRepository(mockClient);
+    const validDoctorId = 'a0000000-0000-0000-0000-000000000001';
+    const result = await repo.saveSlot(
+      {
+        doctorId: validDoctorId,
+        serviceId: 'service-1',
+        slotDate: '2026-09-04',
+        startTime: '09:00',
+        endTime: '09:30',
+        maxCapacity: 1,
+      },
+      [],
+      [{ id: validDoctorId, profileId: validDoctorId, fullName: 'หมอสมชาย', email: '', initials: 'SC', specialty: 'ทั่วไป', departmentId: 'dept-1', availability: 'active' }],
+      [{ id: 'service-1', code: 'GEN', name: 'ตรวจโรคทั่วไป', description: '', isActive: true }],
+      undefined,
+      '2026-09-07',
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้',
+      field: 'slotDate',
+    });
   });
 
   it('toggles slot status to closed in appointment_slots', async () => {

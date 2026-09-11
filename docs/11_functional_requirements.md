@@ -1,6 +1,6 @@
 # 11. ตาราง Functional Requirements (FR)
 
-ปรับปรุง 7 กันยายน 2569 (2026-09-07) — ฉบับ scope manual ขนาดเล็กตาม D22 ใน [10](10_team_decisions.md) ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
+ปรับปรุง 9 กันยายน 2569 (2026-09-09) — scope manual ขนาดเล็กตาม D22 ใน [10](10_team_decisions.md) พร้อม reverse-engineered as-built map; ยังไม่ใช่หลักฐานว่าโค้ดหรือฐานข้อมูลทำครบแล้ว
 
 เอกสารนี้ระบุเฉพาะความสามารถที่คงไว้สำหรับมินิโปรเจกต์ รายการ FR ที่ไม่ปรากฏในฉบับนี้ถือว่าอยู่นอก scope ไม่ต้องพัฒนาและไม่ต้องทำเป็นข้อยกเว้นเพิ่มเติม ระบบไม่มีงานเบื้องหลังและไม่เปลี่ยนสถานะเองตามเวลา
 
@@ -20,12 +20,33 @@
 
 FR ที่มีคำว่า “ระบบ” หมายถึง validation หรือการสร้างผลจากคำสั่งของผู้ใช้ ไม่ได้หมายถึง automation เมื่อไม่มีผู้ใช้กดคำสั่ง ระบบต้องไม่เปลี่ยนสถานะเอง และเมื่อคำสั่งไม่ผ่านต้องไม่สร้างข้อมูลค้างหรือตัดข้อมูลเดิม
 
+## Reverse-engineered as-built map (2026-09-09)
+
+ตารางนี้อ่านจาก route, component, service/repository, migration และ test ที่มีอยู่จริง ใช้ตรวจช่องว่างระหว่าง FR เป้าหมายกับ implementation; ไม่เปลี่ยน requirement และไม่ถือว่า migration ถูก deploy แล้ว
+
+| กลุ่ม FR | เส้นทาง/ข้อมูลที่พบ | สถานะที่สรุปได้ |
+| --- | --- | --- |
+| `FR-AUTH-*` | `authService`, auth pages, `profiles`, route guards บางหน้า | มี flow Supabase; guard ไม่สม่ำเสมอทุกหน้า ต้องตรวจ session/RLS จริง |
+| `FR-SCH-*` | `ScheduleWorkspace` → `ShopProvider` → `DatabaseShopRepository` หรือ `MockShopRepository`; `services`, `daily_service_offerings`, `appointment_slots` | มี service/daily offering และ validation; factory กับ weekly schedule ยังมี mock path |
+| `FR-APT-*` | `RoleAppointmentWorkspaces` → `AppointmentPage` → `PaiDatabaseRepository` → `pai_*` RPC และ `pai_appointments` | active appointment route; ไม่มี reschedule ในเส้นทางนี้; old preview แยกต่างหาก |
+| `FR-MED-*` | `RecordsPage` → `PaiDatabaseRepository` → `pai_medical_records` | active record route; บันทึกผลตรวจ/รายการยาก่อนจบตรวจ; ไม่ใช่ตาราง `medical_records` เดิม |
+| `FR-PHA-*` | `/pharmacy`, `medicationService`, old `medications`/`inventory_logs`, mock/local storage | มี UI/service แยก แต่ยังไม่พบการเชื่อม dispense กับ PAI appointment แบบ end-to-end |
+| `FR-REM-*` | `/reminders`, `reminderService`, `medication_reminders`/`medication_logs` | มี CRUD, log และ pause/resume; มี mock fallback และไม่ตรง target D22 บางข้อ |
+| `FR-NOT-*` | `dashboardService`/notifications RPC, BroadcastPanel, mock dashboard repository | Broadcast/notifications ใช้ Supabase service แต่ metric dashboard บางส่วนมาจาก mock |
+| `FR-SYS-*` | route guards, repository contracts, RLS/RPC migrations | PAI มี DB boundary ชัด; ยังมีหน้า/adapter ที่ไม่สอดคล้องกับ DB-first target |
+
+### ข้อควรระวังในการอ่าน FR
+
+- “มีโค้ด” หมายถึงพบ implementation ใน repository เท่านั้น ไม่ได้แปลว่า remote migration, RLS, auth session หรือ email flow ทำงานจริง
+- “active route” หมายถึง route ปัจจุบันเรียก component นั้น; preview/test เก่าที่รองรับ reschedule หรือ workflow อื่นไม่ควรนำไปเขียนเป็น production use case
+- ช่องว่างที่ระบุข้างต้นเป็น implementation gap สำหรับติดตาม ไม่ใช่การเพิ่ม scope ใหม่
+
 ## ความสัมพันธ์ระหว่าง FR กับการตรวจรับ
 
 | กลุ่ม FR | สิ่งที่ต้องพิสูจน์ร่วมกับ [08](08_system_rules_and_acceptance.md) |
 | --- | --- |
 | `FR-AUTH-*` | role/session ถูกต้องและบัญชีหรือข้อมูลที่ไม่ได้รับอนุญาตถูกปฏิเสธ |
-| `FR-SCH-*` | slot เวลา ความจุ วันลา และขอบเขตแพทย์ไม่ทำให้ข้อมูลทับกันหรือเปลี่ยนเอง |
+| `FR-SCH-*` | service offering, slot เวลา ความจุ วันลา และขอบเขตแพทย์ไม่ทำให้ข้อมูลทับกันหรือเปลี่ยนเอง |
 | `FR-APT-*` | การจอง การตัดสิน และการตรวจอ้างอิงผู้ป่วย/แพทย์ถูกต้อง |
 | `FR-MED-*`, `FR-PHA-*` | ผลตรวจ รายการยา stock และการจ่ายเต็มสอดคล้องกัน |
 | `FR-REM-*`, `FR-NOT-*` | เตือน Broadcast และ Dashboard แสดงจากข้อมูลที่ผู้ใช้บันทึก |
@@ -43,13 +64,13 @@ FR ที่มีคำว่า “ระบบ” หมายถึง valid
 | FR-AUTH-04 | Login/session | ทุกบทบาท | login, logout, หมดอายุ และ refresh session | ตรวจ role ที่ service ไม่เชื่อค่าจากหน้าจอ | ฟีม |
 | FR-AUTH-05 | Data access | ทุกบทบาท | อ่านและแก้ข้อมูลตาม role และความสัมพันธ์กับผู้ป่วย | ผู้ป่วยเห็นเฉพาะข้อมูลตนเอง; เจ้าหน้าที่/แอดมินไม่เห็น diagnosis | ฟีม |
 
-## 2. ตารางแพทย์ แผนก และ slot แบบ manual
+## 2. ตารางแพทย์ บริการ และ slot แบบ manual
 
 | รหัส | โมดูล | ผู้ใช้ | Functional requirement | เกณฑ์สำเร็จ/ข้อจำกัด | เจ้าของ |
 | --- | --- | --- | --- | --- | --- |
-| FR-SCH-01 | แผนก/แพทย์ | เจ้าหน้าที่/แอดมิน | เพิ่ม แก้ ปิดใช้งาน และดูข้อมูลแผนกกับแพทย์ | ไม่ทำลายข้อมูลที่มีนัดอ้างอิง | ช้อป |
-| FR-SCH-02 | ปฏิทิน | เจ้าหน้าที่/แอดมิน | ดู slot และกรองตามวัน แผนก และแพทย์ | แสดงข้อมูลที่บันทึกไว้เท่านั้น | ช้อป |
-| FR-SCH-03 | สร้าง/ปิด slot | เจ้าหน้าที่/แอดมิน | กรอก สร้าง แก้ และปิด slot ด้วยตนเอง | เวลาไม่ทับกันและความจุไม่เกินค่าที่กรอก | ช้อป |
+| FR-SCH-01 | แผนก/แพทย์ | เจ้าหน้าที่/แอดมิน | เพิ่ม แก้ ปิดใช้งาน และดูข้อมูลแผนกกับแพทย์ | แผนกใช้บอกความถนัด/สาขางาน ไม่ใช้เป็นหน่วยที่ผู้ป่วยจอง และไม่ทำลายข้อมูลที่มีนัดอ้างอิง | ช้อป |
+| FR-SCH-02 | บริการ/ปฏิทิน | ผู้ป่วย/แพทย์/เจ้าหน้าที่ | ดูบริการที่เปิดในวันนั้น และกรอง slot ตามวัน บริการ และแพทย์ | แสดงเฉพาะ service และ daily offering ที่ active; แผนกเป็นข้อมูลประกอบความถนัด | ช้อป/ปาย |
+| FR-SCH-03 | สร้าง/ปิด slot | แพทย์/เจ้าหน้าที่/แอดมิน | เพิ่ม service, เปิด daily offering ของแพทย์ในวันนั้น และสร้าง/แก้/ปิด slot ด้วยตนเอง | slot ต้องอ้างบริการ+แพทย์+วันที่เดียวกัน เวลาไม่ทับกัน และความจุไม่ต่ำกว่าจำนวนจอง | ช้อป |
 | FR-SCH-04 | ความจุ | ระบบ | ตรวจจำนวนจองไม่เกินความจุ | ไม่มีการ generate หรือเปิด/ปิด slot อัตโนมัติ | ช้อป/ปาย |
 | FR-SCH-05 | สิทธิ์แพทย์ | แพทย์/เภสัชกร | แพทย์เปิดดูงานของตนเอง | เปลี่ยน `doctorId` ไปยังบัญชีอื่นไม่ได้ | ฟีม/ช้อป |
 | FR-SCH-06 | แจ้งวันลา | แพทย์/เภสัชกร/เจ้าหน้าที่/แอดมิน | แพทย์/เภสัชกรกรอกวันลา และเจ้าหน้าที่/แอดมินตัดสินใจด้วยมือ | เจ้าหน้าที่/แอดมินปิด slot ที่ได้รับผลกระทบเองและแจ้งผู้ป่วยเอง | ช้อป |

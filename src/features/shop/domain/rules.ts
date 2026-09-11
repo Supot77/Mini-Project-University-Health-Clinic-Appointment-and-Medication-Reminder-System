@@ -1,6 +1,7 @@
 import type {
   ScheduleDepartment,
   ScheduleDoctor,
+  ScheduleService,
   ScheduleSlot,
   ScheduleSlotStatus,
 } from '@/types/schedule';
@@ -11,6 +12,7 @@ export type ShopResult<T> =
 
 export interface SlotInput {
   doctorId: string;
+  serviceId: string;
   slotDate: string;
   startTime: string;
   endTime: string;
@@ -38,34 +40,76 @@ function isValidClinicTime(value: string) {
   return hour <= 23 && minute <= 59;
 }
 
+export function getBangkokCurrentTime(): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date());
+}
+
+export function isSlotExpired(
+  slotDate: string,
+  startTime: string,
+  currentDate?: string,
+  currentTime?: string,
+): boolean {
+  const effectiveDate = currentDate ?? getBangkokToday();
+  if (slotDate < effectiveDate) return true;
+  if (slotDate > effectiveDate) return false;
+  const effectiveTime = currentTime ?? getBangkokCurrentTime();
+  return effectiveTime >= startTime;
+}
+
+export interface SlotTimingContext {
+  slotDate: string;
+  startTime: string;
+  currentDate?: string;
+  currentTime?: string;
+}
+
 export function deriveSlotStatus(
   bookedCount: number,
   maxCapacity: number,
   currentStatus?: ScheduleSlotStatus,
+  timing?: SlotTimingContext,
 ): ScheduleSlotStatus {
   if (currentStatus === 'closed') return 'closed';
-  return bookedCount >= maxCapacity ? 'full' : 'available';
+  if (bookedCount >= maxCapacity) return 'closed';
+  if (timing && isSlotExpired(timing.slotDate, timing.startTime, timing.currentDate, timing.currentTime)) {
+    return 'closed';
+  }
+  return 'available';
+}
+
+export function getBangkokToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
 }
 
 export function validateSlot(
   input: SlotInput,
   slots: ScheduleSlot[],
   doctors: ScheduleDoctor[],
-  departments: ScheduleDepartment[],
+  services: ScheduleService[],
   editingId?: string,
   bookedCount = 0,
+  todayDate?: string,
 ): ShopResult<SlotInput> {
-  if (!input.doctorId || !input.slotDate || !input.startTime || !input.endTime) {
-    return failure('กรอกแพทย์ วันที่ และเวลาให้ครบ');
+  if (!input.doctorId || !input.serviceId || !input.slotDate || !input.startTime || !input.endTime) {
+    return failure('กรอกแพทย์ บริการ วันที่ และเวลาให้ครบ');
   }
   if (!isValidClinicDate(input.slotDate)) return failure('วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD', 'slotDate');
   if (!isValidClinicTime(input.startTime) || !isValidClinicTime(input.endTime)) {
     return failure('เวลาต้องอยู่ในรูปแบบ HH:mm', 'startTime');
   }
   const doctor = doctors.find((item) => item.id === input.doctorId);
-  const department = doctor && departments.find((item) => item.id === doctor.departmentId);
-  if (!doctor || doctor.availability !== 'active' || !department?.isActive) {
-    return failure('แพทย์และแผนกต้องเปิดใช้งานก่อนสร้างรอบ', 'doctorId');
+  const service = services.find((item) => item.id === input.serviceId);
+  if (!doctor || doctor.availability !== 'active') {
+    return failure('แพทย์ต้องเปิดใช้งานก่อนสร้างรอบ', 'doctorId');
+  }
+  if (!service || !service.isActive) {
+    return failure('เลือกบริการที่เปิดใช้งาน', 'serviceId');
   }
   if (input.startTime >= input.endTime) {
     return failure('เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด', 'startTime');
@@ -76,6 +120,14 @@ export function validateSlot(
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   if (weekday === 0 || weekday === 6) {
     return failure('คลินิกเปิดรอบตรวจเฉพาะวันจันทร์ถึงศุกร์', 'slotDate');
+  }
+
+  const effectiveToday = todayDate ?? getBangkokToday();
+  const existing = editingId ? slots.find((slot) => slot.id === editingId) : undefined;
+  if (input.slotDate < effectiveToday) {
+    if (!editingId || !existing || existing.slotDate !== input.slotDate) {
+      return failure('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้', 'slotDate');
+    }
   }
   if (input.startTime < '08:30' || input.endTime > '16:30') {
     return failure('รอบตรวจต้องอยู่ระหว่าง 08:30–16:30 น.', 'startTime');

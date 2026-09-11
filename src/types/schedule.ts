@@ -32,6 +32,24 @@ export interface ScheduleDepartment {
   hasHistory?: boolean;
 }
 
+export interface ScheduleService {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  hasHistory?: boolean;
+}
+
+export interface DailyServiceOffering {
+  id: string;
+  serviceId: string;
+  doctorId: string;
+  offeringDate: string;
+  isActive: boolean;
+  createdBy?: string;
+}
+
 export type DoctorAvailability = 'active' | 'on_leave' | 'inactive';
 
 export interface ScheduleDoctor {
@@ -52,6 +70,8 @@ export type ScheduleSlotClosedReason = 'manual' | 'doctor_leave';
 export interface ScheduleSlot {
   id: string;
   doctorId: string;
+  serviceOfferingId: string;
+  serviceId: string;
   slotDate: string;
   startTime: string;
   endTime: string;

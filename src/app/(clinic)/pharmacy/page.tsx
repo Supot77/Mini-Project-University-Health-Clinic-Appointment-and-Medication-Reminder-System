@@ -47,11 +47,11 @@ function getMedicationStatus(item: Medication): Status {
 }
 
 const STATUS_STYLE: Record<Status, string> = {
-  มีเพียงพอ: "bg-emerald-500/10 text-emerald-600",
-  "ต้องสั่งเพิ่ม": "bg-amber-500/10 text-amber-600",
-  "วิกฤตใกล้หมด": "bg-rose-500/10 text-rose-600",
-  "หมดอายุ": "bg-red-500/10 text-red-600",
-  "นำออก": "bg-zinc-500/10 text-zinc-600",
+  มีเพียงพอ: "bg-status-success-bg text-status-success",
+  "ต้องสั่งเพิ่ม": "bg-status-warning-bg text-status-warning",
+  "วิกฤตใกล้หมด": "bg-status-critical-bg text-status-critical",
+  "หมดอายุ": "bg-status-critical-bg text-status-critical",
+  "นำออก": "bg-status-neutral-bg text-status-neutral",
 };
 
 function formatExpiry(dateStr: string | null) {
@@ -358,11 +358,11 @@ export default function InventoryPage() {
   }, [items]);
 
   const donutSegments = [
-    { label: "มีเพียงพอ", value: summaryData.inStock, color: "#22c55e" },
-    { label: "ต้องสั่งเพิ่ม", value: summaryData.reorder, color: "#f59e0b" },
-    { label: "วิกฤตใกล้หมด", value: summaryData.critical, color: "#f43f5e" },
-    { label: "หมดอายุ", value: summaryData.expired, color: "#ef4444" },
-    { label: "นำออก", value: summaryData.removed, color: "#71717a" }, // zinc-500
+    { label: "มีเพียงพอ", value: summaryData.inStock, color: "#15803d" },
+    { label: "ต้องสั่งเพิ่ม", value: summaryData.reorder, color: "#a16207" },
+    { label: "วิกฤตใกล้หมด", value: summaryData.critical, color: "#b42318" },
+    { label: "หมดอายุ", value: summaryData.expired, color: "#b42318" },
+    { label: "นำออก", value: summaryData.removed, color: "#49636b" },
   ].filter((segment) => segment.value > 0);
 
   const donutTotal = donutSegments.reduce((sum, segment) => sum + segment.value, 0) || 1;
@@ -545,7 +545,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="min-h-[85vh] bg-[#f5f5f7] py-16 px-6 flex flex-col items-center">
+    <div className="min-h-[85vh] bg-brand-surface py-16 px-6 flex flex-col items-center">
       <div className="w-full max-w-245 space-y-12">
         {/* Editorial Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 pb-4 border-b border-zinc-200/60">
@@ -553,13 +553,13 @@ export default function InventoryPage() {
             <p className="text-[12px] font-bold uppercase tracking-wider text-zinc-500">
               ระบบควบคุมสต็อกเวชภัณฑ์และคลังยา
             </p>
-            <h1 className="text-3xl md:text-[40px] font-semibold text-[#1d1d1f] tracking-tight leading-[1.1] apple-tight-headline">
+            <h1 className="text-3xl md:text-[40px] font-semibold text-brand-ink tracking-tight leading-[1.1] apple-tight-headline">
               การจัดการคลังยา (Inventory).
             </h1>
           </div>
           <button
             onClick={openAddForm}
-            className="apple-btn-active bg-[#0066cc] text-white text-xs font-semibold px-4 py-2 rounded-full hover:bg-[#0071e3] transition shadow-sm"
+            className="apple-btn-active bg-brand-strong text-white text-xs font-semibold px-4 py-2 rounded-full hover:bg-brand transition shadow-sm"
           >
             + นำเข้าเวชภัณฑ์ใหม่
           </button>
@@ -575,7 +575,7 @@ export default function InventoryPage() {
             placeholder="ค้นหาชื่อเวชภัณฑ์ หรือหมวดหมู่ยา..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full h-11 pl-11 pr-5 rounded-full border border-zinc-200 bg-white text-sm text-[#1d1d1f] placeholder-zinc-400 outline-none transition focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
+            className="w-full h-11 pl-11 pr-5 rounded-full border border-brand-border-soft bg-white text-sm text-brand-ink placeholder-brand-muted outline-none transition focus:border-brand-strong focus:ring-1 focus:ring-brand-soft"
           />
         </div>
 
@@ -636,7 +636,7 @@ export default function InventoryPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)] gap-6 items-start">
           <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
-            <div className="rounded-[18px] border border-[#e0e0e0] bg-white p-5 h-full">
+            <div className="rounded-brand-card border border-brand-border-soft bg-white p-5 h-full">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-xs font-bold uppercase tracking-wide text-zinc-700">
                   ภาพรวมคลังยา
@@ -646,7 +646,7 @@ export default function InventoryPage() {
               <div className="flex items-center gap-4">
                 <div className="relative h-24 w-24 shrink-0">
                   <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-                    <circle cx="60" cy="60" r="36" fill="none" stroke="#e5e7eb" strokeWidth="12" />
+                    <circle cx="60" cy="60" r="36" fill="none" stroke="#dbe9e5" strokeWidth="12" />
                     {donutSegments.map((segment, index) => {
                       const previousTotal = donutSegments
                         .slice(0, index)
@@ -674,7 +674,7 @@ export default function InventoryPage() {
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-500">รวม</span>
-                    <span className="text-lg font-bold text-[#1d1d1f]">{summaryData.total}</span>
+                    <span className="text-lg font-bold text-brand-ink">{summaryData.total}</span>
                   </div>
                 </div>
 
@@ -693,7 +693,7 @@ export default function InventoryPage() {
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <div className="rounded-[18px] border border-[#e0e0e0] bg-white p-5">
+              <div className="rounded-brand-card border border-brand-border-soft bg-white p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-700">
                     หมวดหมู่ยา
@@ -737,12 +737,12 @@ export default function InventoryPage() {
                         }`}
                       >
                         <div className="mb-1 flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold text-[#1d1d1f]">{category}</span>
-                          <span className="text-[10px] font-bold text-[#0066cc]">{total}</span>
+                          <span className="text-sm font-semibold text-brand-ink">{category}</span>
+                          <span className="text-[10px] font-bold text-brand-strong">{total}</span>
                         </div>
                         <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-200">
                           <div
-                            className="h-full rounded-full bg-linear-to-r from-[#7cc6ff] to-[#0066cc]"
+                            className="h-full rounded-full bg-linear-to-r from-brand-accent to-brand-strong"
                             style={{ width }}
                           />
                         </div>
@@ -752,7 +752,7 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              <div className="rounded-[18px] border border-[#e0e0e0] bg-white p-5">
+              <div className="rounded-brand-card border border-brand-border-soft bg-white p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-700">
                     ตามสถานะสต็อก
@@ -785,7 +785,7 @@ export default function InventoryPage() {
                         }`}
                       >
                         <div className="mb-1 flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold text-[#1d1d1f]">{label}</span>
+                          <span className="text-sm font-semibold text-brand-ink">{label}</span>
                           <span className="text-[10px] font-bold text-zinc-600">{count}</span>
                         </div>
                         <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-200">
@@ -816,8 +816,8 @@ export default function InventoryPage() {
         )}
 
         {shouldShowInventoryTable && (
-          <div ref={itemSectionRef} className="bg-white border border-[#e0e0e0] rounded-[18px] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-zinc-100 bg-[#fafafc] px-5 py-3">
+          <div ref={itemSectionRef} className="bg-white border border-brand-border-soft rounded-brand-card overflow-hidden">
+            <div className="flex items-center justify-between border-b border-brand-border-soft bg-brand-surface px-5 py-3">
               <h2 className="text-sm font-bold uppercase tracking-wide text-zinc-700">
                 {selectedCategory
                   ? `ยาในหมวด: ${selectedCategory}`
@@ -846,7 +846,7 @@ export default function InventoryPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-zinc-100 bg-[#fafafc] text-zinc-450 font-bold uppercase tracking-wider">
+                  <tr className="border-b border-brand-border-soft bg-brand-surface text-brand-muted font-bold uppercase tracking-wider">
                     <th className="p-4 pl-6 text-zinc-500">ชื่อเวชภัณฑ์</th>
                     <th className="p-4 text-zinc-500">หมวดหมู่</th>
                     <th className="p-4 text-zinc-500">จำนวนคงเหลือ</th>
@@ -858,17 +858,20 @@ export default function InventoryPage() {
                 <tbody className="divide-y divide-zinc-100 font-normal">
                   {isLoading &&
                     [...Array(4)].map((_, i) => (
-                      <tr key={`sk-${i}`}>
-                        <td colSpan={6} className="p-4 pl-6">
-                          <div className="h-4 w-full max-w-md animate-pulse rounded bg-zinc-100" />
-                        </td>
+                      <tr key={`sk-${i}`} className="animate-pulse">
+                        <td className="p-4 pl-6"><div className="h-4 w-36 rounded bg-zinc-200" /></td>
+                        <td className="p-4"><div className="h-4 w-20 rounded bg-zinc-100" /></td>
+                        <td className="p-4"><div className="h-4 w-16 rounded bg-zinc-100" /></td>
+                        <td className="p-4"><div className="h-4 w-20 rounded bg-zinc-100" /></td>
+                        <td className="p-4"><div className="h-4 w-14 rounded-full bg-zinc-100" /></td>
+                        <td className="p-4 pr-6 text-right"><div className="ml-auto h-6 w-12 rounded bg-zinc-100" /></td>
                       </tr>
                     ))}
 
                   {!isLoading && filteredItems.length === 0 && (
                     <tr>
                       <td colSpan={6} className="p-12 text-center">
-                        <p className="text-sm font-semibold text-[#1d1d1f]">
+                        <p className="text-sm font-semibold text-brand-ink">
                           ไม่พบเวชภัณฑ์ที่ค้นหา
                         </p>
                         <p className="mt-1 text-[11px] text-zinc-400">
@@ -884,12 +887,12 @@ export default function InventoryPage() {
                       return (
                         <tr key={item.id} className="hover:bg-zinc-50 transition">
                           <td className="p-4 pl-6">
-                            <div className="font-bold text-[#1d1d1f]">{item.name}</div>
+                            <div className="font-bold text-brand-ink">{item.name}</div>
                             <div className="text-[10px] text-zinc-400 mt-0.5">{item.type}</div>
                           </td>
                           <td className="p-4 text-zinc-650">{item.category}</td>
                           <td className="p-4 font-mono">
-                            <span className="font-bold text-[#1d1d1f]">{item.stock}</span>
+                            <span className="font-bold text-brand-ink">{item.stock}</span>
                             <span className="text-[10px] text-zinc-400 font-sans ml-1">({item.min_stock} min)</span>
                           </td>
                           <td className="p-4 text-zinc-600 font-mono">{formatExpiry(item.expiry_date)}</td>
@@ -902,7 +905,7 @@ export default function InventoryPage() {
                             <div className="flex justify-end gap-2">
                               <button
                                 onClick={() => openEditForm(item)}
-                                className="rounded-full border border-zinc-200 px-3 py-1 text-[10px] font-semibold text-[#1d1d1f] hover:bg-zinc-50 transition"
+                                className="rounded-full border border-brand-border-soft px-3 py-1 text-[10px] font-semibold text-brand-ink hover:bg-brand-surface transition"
                               >
                                 แก้ไข
                               </button>
@@ -933,10 +936,10 @@ export default function InventoryPage() {
         )}
 
         {/* Developer Attribution Card */}
-        <div className="rounded-[18px] bg-white border border-[#e0e0e0] p-6 text-center">
+        <div className="rounded-brand-card bg-white border border-brand-border-soft p-6 text-center">
           <p className="text-[10px] text-zinc-500 leading-relaxed font-normal">
             📦{" "}
-            <span className="font-semibold text-[#0066cc]">
+            <span className="font-semibold text-brand-strong">
               ผู้พัฒนาคนที่ 4 (Gun):
             </span>{" "}
             ระบบจัดการฐานข้อมูลยา คลังยา และระบบควบคุมสต็อกเวชภัณฑ์ (Drug
@@ -949,7 +952,7 @@ export default function InventoryPage() {
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div className="w-full max-w-md rounded-[18px] bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-[#1d1d1f]">
+            <h2 className="text-lg font-semibold text-brand-ink">
               {editingId ? "แก้ไขข้อมูลเวชภัณฑ์" : "นำเข้าเวชภัณฑ์ใหม่"}
             </h2>
 
@@ -960,7 +963,7 @@ export default function InventoryPage() {
                   onChange={(e) =>
                     setDraft({ ...draft, name: e.target.value })
                   }
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-[#1d1d1f] outline-none transition focus:border-[#0066cc] focus:bg-white focus:ring-1 focus:ring-[#0066cc]"
+                  className="w-full rounded-xl border border-brand-border-soft bg-brand-surface px-4 py-2.5 text-sm text-brand-ink outline-none transition focus:border-brand-strong focus:bg-white focus:ring-1 focus:ring-brand-soft"
                   placeholder="เช่น Paracetamol 500mg"
                 />
               </ModalField>
@@ -971,7 +974,7 @@ export default function InventoryPage() {
                   onChange={(e) =>
                     setDraft({ ...draft, type: e.target.value })
                   }
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-[#1d1d1f] outline-none transition focus:border-[#0066cc] focus:bg-white focus:ring-1 focus:ring-[#0066cc]"
+                  className="w-full rounded-xl border border-brand-border-soft bg-brand-surface px-4 py-2.5 text-sm text-brand-ink outline-none transition focus:border-brand-strong focus:bg-white focus:ring-1 focus:ring-brand-soft"
                 >
                   {TYPE_OPTIONS.map((t) => (
                     <option key={t} value={t}>
@@ -987,7 +990,7 @@ export default function InventoryPage() {
                   onChange={(e) =>
                     setDraft({ ...draft, category: e.target.value })
                   }
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-[#1d1d1f] outline-none transition focus:border-[#0066cc] focus:bg-white focus:ring-1 focus:ring-[#0066cc]"
+                  className="w-full rounded-xl border border-brand-border-soft bg-brand-surface px-4 py-2.5 text-sm text-brand-ink outline-none transition focus:border-brand-strong focus:bg-white focus:ring-1 focus:ring-brand-soft"
                   placeholder="เช่น ยาลดไข้/ปวด"
                 />
               </ModalField>
@@ -999,7 +1002,7 @@ export default function InventoryPage() {
                     min={0}
                     value={draft.stock}
                     onChange={(e) => handleNumberInput("stock", e.target.value)}
-                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-[#1d1d1f] outline-none transition focus:border-[#0066cc] focus:bg-white focus:ring-1 focus:ring-[#0066cc]"
+                    className="w-full rounded-xl border border-brand-border-soft bg-brand-surface px-4 py-2.5 text-sm text-brand-ink outline-none transition focus:border-brand-strong focus:bg-white focus:ring-1 focus:ring-brand-soft"
                     placeholder="0"
                   />
                 </ModalField>
@@ -1009,7 +1012,7 @@ export default function InventoryPage() {
                     min={0}
                     value={draft.min_stock === 0 ? "" : draft.min_stock}
                     onChange={(e) => handleNumberInput("min_stock", e.target.value)}
-                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-[#1d1d1f] outline-none transition focus:border-[#0066cc] focus:bg-white focus:ring-1 focus:ring-[#0066cc]"
+                    className="w-full rounded-xl border border-brand-border-soft bg-brand-surface px-4 py-2.5 text-sm text-brand-ink outline-none transition focus:border-brand-strong focus:bg-white focus:ring-1 focus:ring-brand-soft"
                     placeholder="0"
                   />
                 </ModalField>
@@ -1022,7 +1025,7 @@ export default function InventoryPage() {
                   onChange={(e) =>
                     setDraft({ ...draft, expiry_date: e.target.value })
                   }
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-[#1d1d1f] outline-none transition focus:border-[#0066cc] focus:bg-white focus:ring-1 focus:ring-[#0066cc]"
+                  className="w-full rounded-xl border border-brand-border-soft bg-brand-surface px-4 py-2.5 text-sm text-brand-ink outline-none transition focus:border-brand-strong focus:bg-white focus:ring-1 focus:ring-brand-soft"
                 />
               </ModalField>
             </div>
@@ -1044,7 +1047,7 @@ export default function InventoryPage() {
               <button
                 onClick={handleSubmit}
                 disabled={isSaving}
-                className="rounded-full bg-[#0066cc] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0071e3] disabled:opacity-60"
+                className="rounded-full bg-brand-strong px-4 py-2 text-sm font-semibold text-white hover:bg-brand disabled:opacity-60"
               >
                 {isSaving ? "กำลังบันทึก..." : "บันทึก"}
               </button>
@@ -1057,7 +1060,7 @@ export default function InventoryPage() {
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div className="w-full max-w-sm rounded-[18px] bg-white p-6 shadow-xl">
-            <h2 className="text-base font-semibold text-[#1d1d1f]">
+            <h2 className="text-base font-semibold text-brand-ink">
               ยืนยันลบเวชภัณฑ์นี้?
             </h2>
             <p className="mt-2 text-sm text-zinc-500">
@@ -1103,7 +1106,7 @@ function SummaryCard({
   active?: boolean;
 }) {
   const toneStyles = {
-    blue: "bg-[#eaf2ff] text-[#0066cc]",
+    blue: "bg-brand-page text-brand-strong",
     green: "bg-emerald-50 text-emerald-700",
     amber: "bg-amber-50 text-amber-700",
     rose: "bg-rose-50 text-rose-700",
@@ -1116,13 +1119,13 @@ function SummaryCard({
       type="button"
       onClick={onClick}
       className={`w-full rounded-[18px] border p-4 text-left transition ${
-        active ? "border-[#cfe1ff] bg-[#f5f9ff] shadow-sm" : "border-[#e0e0e0] bg-white hover:bg-zinc-50"
+        active ? "border-brand-border bg-brand-page shadow-sm" : "border-brand-border-soft bg-white hover:bg-brand-surface"
       }`}
     >
       <div className={`mb-3 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${toneStyles[tone]}`}>
         {label}
       </div>
-      <div className="text-3xl font-bold text-[#1d1d1f]">{value}</div>
+      <div className="text-3xl font-bold text-brand-ink">{value}</div>
       <div className="mt-1 text-[10px] text-zinc-500">{meta}</div>
     </button>
   );

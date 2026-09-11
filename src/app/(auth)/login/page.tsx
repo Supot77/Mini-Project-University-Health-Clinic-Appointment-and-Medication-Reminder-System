@@ -3,7 +3,9 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 import { signIn } from '@/services/authService';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 function LoginForm() {
   const router = useRouter();
@@ -88,8 +90,9 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-3 bg-sky-500 text-white font-semibold rounded-xl hover:bg-sky-600 transition disabled:opacity-60"
+          className="w-full py-3 bg-sky-500 text-white font-semibold rounded-xl hover:bg-sky-600 transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
         >
+          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin text-white" aria-hidden="true" />}
           {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
         </button>
 
@@ -109,7 +112,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center p-8">กำลังโหลด...</div>}>
+    <Suspense fallback={<LoadingSpinner center label="กำลังโหลดหน้าเข้าสู่ระบบ..." />}>
       <LoginForm />
     </Suspense>
   );

@@ -1,4 +1,4 @@
-// Persisted contract for migrations 01-03. Runtime still uses mock repositories.
+// Persisted contract for the Supabase schema and additive migrations.
 
 export const userRoles = [
   'patient',
@@ -129,6 +129,28 @@ export interface Department {
   updated_at: string;
 }
 
+export interface Service {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailyServiceOffering {
+  id: string;
+  service_id: string;
+  doctor_id: string;
+  offering_date: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Doctor {
   id: string; // FK → profiles.id
   specialty: string | null;
@@ -140,6 +162,7 @@ export interface Doctor {
 export interface AppointmentSlot {
   id: string;
   doctor_id: string; // FK → doctors.id
+  daily_service_offering_id?: string; // FK → daily_service_offerings.id; legacy fixtures may omit it
   slot_date: string; // DATE
   start_time: string; // TIME
   end_time: string; // TIME

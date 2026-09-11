@@ -21,7 +21,8 @@ import {
   getAvailableMedications, 
   seedSampleReminders
 } from '@/services/reminderService';
-import type { Medication, MedicationReminderWithMedication } from '@/types/database';
+import type { Medication, MedicationReminderWithMedication, Profile } from '@/types/database';
+import { getPatients, getProfile } from '@/services/authService';
 
 // รายชื่อผู้ป่วยตัวอย่างสำหรับคลินิก (ใช้เลือกผู้ป่วยเพื่อจ่ายยา)
 interface PatientOption {
@@ -69,13 +70,13 @@ function formatTimeToThai(time: string) {
 
 // Helper แปลง Reminder Model เป็น UI Item
 function mapReminderToDisplay(reminder: MedicationReminderWithMedication): MedicationDisplayItem {
-  const times = reminder.reminder_times.map((t) => formatTimeToThai(t));
+  const times = (reminder.reminder_times || []).map((t) => formatTimeToThai(t));
   const med = reminder.medication;
   const desc = med?.description ? ` (${med.description})` : '';
   const dosage = (med as unknown as { dosage?: string })?.dosage ?? `1 ${med?.type ?? 'เม็ด'}`;
   const instruction = reminder.status === 'paused'
     ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
-    : `รับทาน ครั้งละ ${dosage} · วันละ ${reminder.reminder_times.length} ครั้ง${desc}`;
+    : `รับทาน ครั้งละ ${dosage} · วันละ ${(reminder.reminder_times || []).length} ครั้ง${desc}`;
 
   return {
     id: reminder.id,
@@ -94,24 +95,96 @@ function mapReminderToDisplay(reminder: MedicationReminderWithMedication): Medic
 }
 
 export default function RemindersPage() {
-  const { user, role } = useAuth();
+  const { user, role, isLoading: authLoading } = useAuth();
   const { repositories } = useClinicMockDatabase();
 
   const [selectedPatientOverride, setSelectedPatientOverride] = useState<string | null>(null);
+  const [dbPatients, setDbPatients] = useState<PatientOption[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
+
+  // ตรวจสอบสิทธิ์: อนุญาตเฉพาะบุคลากรทางการแพทย์หรือผู้ดูแลระบบคลินิกเท่านั้นที่สามารถจ่ายยา/แก้ไข/ลบยาได้
+  const effectiveRole = (currentUserProfile?.role || user?.role || role || '').toString().toLowerCase().trim();
+  const canManageMedication = !authLoading && ['medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'].includes(effectiveRole);
+  const isPatient = !canManageMedication;
+
+  // ดึงข้อมูลโปรไฟล์ของผู้ใช้ปัจจุบัน (สำหรับผู้ป่วย เพื่อนำข้อมูลการแพ้ยา/รหัสนักศึกษามาแสดง)
+  useEffect(() => {
+    if (user && isUuid(user.id)) {
+      getProfile(user.id)
+        .then((p) => {
+          if (p) setCurrentUserProfile(p);
+        })
+        .catch((e) => console.warn('Could not fetch user profile:', e));
+    }
+  }, [user]);
+
+  // โหลดรายชื่อผู้ป่วยจากฐานข้อมูล Supabase (ตาราง profiles โดย role = 'patient')
+  const loadPatients = useCallback(async () => {
+    try {
+      const patients = await getPatients();
+      if (patients && patients.length > 0) {
+        const mapped: PatientOption[] = patients.map((p) => ({
+          id: p.id,
+          name: p.full_name || 'ไม่ระบุชื่อ',
+          studentId: p.student_id || '-',
+          allergies: p.allergies || null,
+          phone: p.phone || undefined,
+          gender: undefined,
+        }));
+        setDbPatients(mapped);
+        return;
+      }
+    } catch (err) {
+      console.warn('Could not fetch patients from Supabase profiles:', err);
+    }
+
+    // Fallback: หากยังไม่ต่อ DB หรือใช้ mock repository
+    try {
+      const { data: mockProfiles } = await repositories.profiles.list();
+      if (mockProfiles && mockProfiles.length > 0) {
+        const patientProfiles = mockProfiles.filter((p) => p.role === 'patient');
+        if (patientProfiles.length > 0) {
+          const mapped: PatientOption[] = patientProfiles.map((p) => ({
+            id: p.id,
+            name: p.full_name || 'ไม่ระบุชื่อ',
+            studentId: p.student_id || '-',
+            allergies: p.allergies || null,
+            phone: p.phone || undefined,
+            gender: undefined,
+          }));
+          setDbPatients(mapped);
+          return;
+        }
+      }
+    } catch (mockErr) {
+      console.warn('Could not fetch patients from mock repository:', mockErr);
+    }
+
+    setDbPatients(CLINIC_PATIENTS);
+  }, [repositories.profiles]);
+
+  useEffect(() => {
+    if (canManageMedication) {
+      const frame = requestAnimationFrame(() => {
+        void loadPatients();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [canManageMedication, loadPatients]);
 
   // คำนวณผู้ป่วยที่เลือกอย่างปลอดภัยและสอดคล้องกับบทบาท
   const selectedPatientId = useMemo(() => {
-    if (role === 'patient') {
-      return (user && isUuid(user.id)) ? user.id : 'profile-peter-parker';
+    if (!canManageMedication) {
+      return (user && isUuid(user.id)) ? user.id : (user?.id || 'profile-peter-parker');
     }
     if (selectedPatientOverride) {
       return selectedPatientOverride;
     }
-    if (user && isUuid(user.id)) {
-      return user.id;
+    if (dbPatients.length > 0) {
+      return dbPatients[0].id;
     }
-    return 'profile-peter-parker';
-  }, [role, user, selectedPatientOverride]);
+    return CLINIC_PATIENTS[0].id;
+  }, [canManageMedication, user, selectedPatientOverride, dbPatients]);
 
   const [medicationList, setMedicationList] = useState<MedicationDisplayItem[]>([]);
   const [availableMeds, setAvailableMeds] = useState<Medication[]>([]);
@@ -125,11 +198,7 @@ export default function RemindersPage() {
   const [selectedMedId, setSelectedMedId] = useState('');
   const [selectedTimes, setSelectedTimes] = useState<string[]>(['08:00', '18:00']);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().split('T')[0];
-  });
+  const [endDate, setEndDate] = useState(''); // ค่าเริ่มต้นว่างไว้เพื่อให้แจ้งเตือนต่อเนื่องจนกว่าจะมาแก้ไข
 
   // Modal State: แก้ไขตัวยาที่จ่ายไปแล้ว
   const [editingItem, setEditingItem] = useState<MedicationDisplayItem | null>(null);
@@ -141,26 +210,33 @@ export default function RemindersPage() {
   // Modal State: ยืนยันการลบรายการยา
   const [deletingItem, setDeletingItem] = useState<MedicationDisplayItem | null>(null);
 
-  // รายชื่อผู้ป่วยทั้งหมด (รวมผู้ใช้ปัจจุบันถ้ามี)
-  const allPatients = useMemo(() => {
-    if (user) {
-      const currentPatientOpt: PatientOption = {
-        id: user.id,
-        name: user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
-        studentId: (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+  // รายชื่อผู้ป่วยทั้งหมด (แยกตามสิทธิ์)
+  const allPatients = useMemo<PatientOption[]>(() => {
+    // หากเป็นผู้ป่วย ให้มีเฉพาะตนเองเท่านั้น ห้ามเลือกคนอื่น
+    if (!canManageMedication) {
+      if (user) {
+        return [{
+          id: user.id,
+          name: currentUserProfile?.full_name || user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
+          studentId: currentUserProfile?.student_id || (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+          allergies: currentUserProfile?.allergies || (user as unknown as { allergies?: string | null }).allergies || null,
+          phone: currentUserProfile?.phone || (user as unknown as { phone?: string }).phone,
+        }];
+      }
+      return [{
+        id: 'profile-peter-parker',
+        name: 'ผู้ป่วย',
+        studentId: '-',
         allergies: null,
-      };
+      }];
+    }
 
-      if (role === 'patient') {
-        return [currentPatientOpt];
-      }
-
-      if (!CLINIC_PATIENTS.some((p) => p.id === user.id)) {
-        return [currentPatientOpt, ...CLINIC_PATIENTS];
-      }
+    // หากเป็นบุคลากรทางการแพทย์ แสดงรายชื่อผู้ป่วยจาก Database
+    if (dbPatients.length > 0) {
+      return dbPatients;
     }
     return CLINIC_PATIENTS;
-  }, [user, role]);
+  }, [canManageMedication, user, currentUserProfile, dbPatients]);
 
   // ข้อมูลผู้ป่วยที่เลือก
   const currentPatient = useMemo(() => {
@@ -192,43 +268,54 @@ export default function RemindersPage() {
       setAvailableMeds(meds);
       setIsDbConnected(true);
 
-      // 2. ถ้า patientId เป็น UUID ให้ดึงจาก Supabase reminders
+      // 2. โหลดรายการยาจาก Supabase (กรณี patientId เป็น UUID)
+      let dbReminders: MedicationReminderWithMedication[] = [];
       if (isUuid(patientId)) {
         try {
-          const dbReminders = await getReminders(patientId);
-          if (dbReminders && dbReminders.length > 0) {
-            setMedicationList(dbReminders.map(mapReminderToDisplay));
-            setIsLoading(false);
-            return;
-          }
+          dbReminders = await getReminders(patientId);
         } catch (dbErr) {
           console.warn('Could not fetch reminders from Supabase for patient:', patientId, dbErr);
         }
       }
 
-      // 3. Fallback: ดึงจาก mock repository ตาม patientId
-      const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
-      if (mockData && mockData.length > 0) {
-        setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-      } else {
-        setMedicationList([]);
-      }
-    } catch (err) {
-      console.error('Error loading reminders data:', err);
+      // 3. โหลดรายการยาจาก Mock repository (เพื่อรองรับกรณี mock user หรือ Supabase ติด RLS)
+      let mockReminders: unknown[] = [];
       try {
-        const { data: mockMeds } = await repositories.medications.list();
-        if (mockMeds && mockMeds.length > 0) {
-          setAvailableMeds(mockMeds as Medication[]);
-        }
         const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
         if (mockData) {
-          setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-        } else {
-          setMedicationList([]);
+          mockReminders = mockData;
         }
-      } catch (fallbackErr) {
-        console.error('Fallback error:', fallbackErr);
+      } catch (mockErr) {
+        console.warn('Could not fetch reminders from mock repo:', mockErr);
       }
+
+      // 4. แปลงข้อมูลและเติมรายละเอียดตัวยาจาก meds หากยังขาด
+      const mappedDb = (dbReminders || []).map(mapReminderToDisplay);
+      const mappedMock = (mockReminders as MedicationReminderWithMedication[] || []).map((item) => {
+        const display = mapReminderToDisplay(item);
+        if (display.name === 'ยาไม่ระบุชื่อ' && item.medication_id) {
+          const found = meds.find((m) => m.id === item.medication_id);
+          if (found) {
+            display.name = found.name;
+            display.category = found.category;
+            display.stockInfo = `เหลือ ${found.stock ?? 30} ${found.type ?? 'เม็ด'}`;
+            const dosage = (found as unknown as { dosage?: string })?.dosage ?? `1 ${found?.type ?? 'เม็ด'}`;
+            display.dosageInstruction = item.status === 'paused'
+              ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
+              : `รับทาน ครั้งละ ${dosage} · วันละ ${(item.reminder_times || []).length} ครั้ง`;
+          }
+        }
+        return display;
+      });
+
+      // รวมรายการยาและขจัด id ซ้ำ
+      const uniqueMap = new Map<string, MedicationDisplayItem>();
+      for (const item of [...mappedDb, ...mappedMock]) {
+        uniqueMap.set(item.id, item);
+      }
+      setMedicationList(Array.from(uniqueMap.values()));
+    } catch (err) {
+      console.error('Error loading reminders data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -285,12 +372,16 @@ export default function RemindersPage() {
 
   // เปิด Modal ยืนยันการลบรายการเตือนยา
   const handleDeleteClick = (item: MedicationDisplayItem) => {
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์ลบรายการยา');
+      return;
+    }
     setDeletingItem(item);
   };
 
   // ยืนยันการลบรายการเตือนยาจริง
   const confirmDelete = async () => {
-    if (!deletingItem) return;
+    if (isPatient || !deletingItem) return;
     const { id, name } = deletingItem;
     setDeletingItem(null);
 
@@ -298,17 +389,19 @@ export default function RemindersPage() {
     setMedicationList((prev) => prev.filter((m) => m.id !== id));
     showToast(`ลบการแจ้งเตือน "${name}" เรียบร้อยแล้ว 🗑️`);
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const isReminderUuid = isUuid(id);
     try {
-      if (isUuid) {
+      if (isReminderUuid) {
         await deleteReminder(id);
       } else {
         await repositories.reminders.delete(id);
       }
+      await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not delete reminder from database/mock:', err);
       try {
         await repositories.reminders.delete(id);
+        await loadData(selectedPatientId);
       } catch {
         // ignore
       }
@@ -317,23 +410,26 @@ export default function RemindersPage() {
 
   // เพิ่มยาตัวอย่างลงฐานข้อมูล Supabase อัตโนมัติ
   const handleSeedSample = async () => {
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์จัดการยา');
+      return;
+    }
     setIsSaving(true);
     try {
-      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
-      if (!targetUserId) {
-        showToast('กรุณาเข้าสู่ระบบด้วยบัญชีจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
+      if (!isUuid(selectedPatientId)) {
+        showToast('กรุณาเลือกผู้ป่วยในระบบจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
         return;
       }
-      const seeded = await seedSampleReminders(targetUserId);
+      const seeded = await seedSampleReminders(selectedPatientId);
       if (seeded && seeded.length > 0) {
-        setMedicationList(seeded.map(mapReminderToDisplay));
-        showToast(`บันทึกชุดยาตัวอย่าง ${seeded.length} รายการให้ ${currentPatient.name} สำเร็จ`);
+        showToast(`บันทึกชุดยาตัวอย่าง ${seeded.length} รายการให้ ${currentPatient.name} สำเร็จ 💊`);
       } else {
-        await loadData(selectedPatientId);
+        showToast('ไม่พบรายการยาในฐานข้อมูล Supabase (กรุณารันคำสั่งใน fix_rls_remote.sql)');
       }
+      await loadData(selectedPatientId);
     } catch (err) {
       console.error('Error seeding sample medications:', err);
-      alert('เกิดข้อผิดพลาดในการโหลดตัวอย่างยาลงฐานข้อมูล');
+      alert('เกิดข้อผิดพลาดในการโหลดตัวอย่างยาลงฐานข้อมูล กรุณาตรวจสอบสิทธิ์ RLS หรือการเชื่อมต่อ');
     } finally {
       setIsSaving(false);
     }
@@ -342,6 +438,10 @@ export default function RemindersPage() {
   // บันทึกการจ่ายยาและเพิ่มการเตือนยาใหม่
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์สั่งจ่ายยา กรุณาเข้าสู่ระบบด้วยบัญชีแพทย์หรือเจ้าหน้าที่ (medical / staff_admin)');
+      return;
+    }
     if (!selectedMedId) {
       alert('กรุณาเลือกตัวยาที่ต้องการจ่าย');
       return;
@@ -367,70 +467,75 @@ export default function RemindersPage() {
     }
 
     setIsSaving(true);
-    try {
-      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
-      
-      if (targetUserId) {
-        const created = await createReminder({
-          user_id: targetUserId,
-          medication_id: selectedMedId,
-          reminder_times: selectedTimes.sort(),
-          start_date: startDate,
-          end_date: endDate || null,
-        });
+    let savedToSupabase = false;
+    let supabaseErrorMessage: string | null = null;
 
-        if (created) {
-          setMedicationList((prev) => [mapReminderToDisplay(created), ...prev]);
-          showToast(`จ่ายยาและบันทึก "${created.medication?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ`);
-          setIsAddModalOpen(false);
-          setSelectedMedId('');
-          setSelectedTimes(['08:00', '18:00']);
-          return;
+    try {
+      // ผู้ป่วยเป้าหมายที่จะได้รับยา ต้องเป็น selectedPatientId ของผู้ป่วยที่เลือกไว้
+      const isTargetUserUuid = isUuid(selectedPatientId);
+      const isMedUuid = isUuid(selectedMedId);
+
+      // 1. ลองบันทึกลง Supabase เมื่อทั้ง User และ Medication เป็น UUID
+      if (isTargetUserUuid && isMedUuid) {
+        try {
+          const created = await createReminder({
+            user_id: selectedPatientId,
+            medication_id: selectedMedId,
+            reminder_times: [...selectedTimes].sort(),
+            start_date: startDate,
+            end_date: endDate || null, // null คือทานต่อเนื่องจนกว่าจะมาแก้ไข
+          });
+
+          if (created) {
+            savedToSupabase = true;
+            showToast(`บันทึกลงฐานข้อมูลและจ่ายยา "${created.medication?.name ?? chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ 💊`);
+          }
+        } catch (dbErr: unknown) {
+          console.warn('Supabase createReminder error:', dbErr);
+          supabaseErrorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
         }
       }
 
-      // Fallback UI เมื่อเป็น mock user หรือไม่มี target user id ใน Supabase
-      const med = availableMeds.find((m) => m.id === selectedMedId);
-      const newItem: MedicationDisplayItem = {
-        id: `reminder-local-${Date.now()}`,
-        medicationId: selectedMedId,
-        name: med?.name ?? 'ยาที่เลือก',
-        category: med?.category,
-        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
-        times: selectedTimes.sort().map(formatTimeToThai),
-        rawTimes: selectedTimes.sort(),
-        startDate: startDate,
-        endDate: endDate || null,
-        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
-        nextDoseMinutes: 15,
-        isActive: true,
-      };
-      setMedicationList((prev) => [newItem, ...prev]);
-      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
+      // 2. หากยังไม่ได้บันทึกลง Supabase (เช่น เป็น mock user/med หรือ Supabase ติด RLS)
+      // ให้บันทึกลง Mock Database เป็น fallback ทันที เพื่อให้ผู้ใช้จ่ายยาสำเร็จเสมอ ไม่ค้างใน Modal
+      if (!savedToSupabase) {
+        await repositories.reminders.create({
+          patient_id: selectedPatientId,
+          medication_id: selectedMedId,
+          reminder_times: [...selectedTimes].sort(),
+          start_date: startDate,
+          end_date: endDate || null,
+          status: 'active',
+        });
+
+        if (supabaseErrorMessage) {
+          console.warn('Fallback to mock repo due to DB error:', supabaseErrorMessage);
+          if (supabaseErrorMessage.includes('row-level security') || supabaseErrorMessage.includes('policy')) {
+            showToast(`จ่ายยาให้ ${currentPatient.name} สำเร็จ (Mock DB) ⚠️ Supabase ติด RLS`);
+            alert(
+              '⚠️ แจ้งเตือนสิทธิ์ฐานข้อมูล Supabase:\n' +
+              'ระบบได้บันทึกการจ่ายยาและแสดงผลเรียบร้อยแล้ว แต่การบันทึกลง Supabase โดยตรงติดสิทธิ์ RLS Policy\n\n' +
+              'วิธีเปิดสิทธิ์ถาวร:\nกรุณานำคำสั่งในไฟล์ supabase/fix_rls_remote.sql ไปรันใน Supabase SQL Editor'
+            );
+          } else {
+            showToast(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อย (Mock DB)`);
+          }
+        } else {
+          showToast(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อย 💊`);
+        }
+      }
+
+      // ปิด modal และรีเซ็ตฟอร์มเสมอ
       setIsAddModalOpen(false);
       setSelectedMedId('');
       setSelectedTimes(['08:00', '18:00']);
-    } catch (err) {
-      console.error('Error creating reminder in Supabase:', err);
-      // Fallback UI
-      const med = availableMeds.find((m) => m.id === selectedMedId);
-      const newItem: MedicationDisplayItem = {
-        id: `reminder-local-${Date.now()}`,
-        medicationId: selectedMedId,
-        name: med?.name ?? 'ยาที่เลือก',
-        category: med?.category,
-        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
-        times: selectedTimes.sort().map(formatTimeToThai),
-        rawTimes: selectedTimes.sort(),
-        startDate: startDate,
-        endDate: endDate || null,
-        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
-        nextDoseMinutes: 15,
-        isActive: true,
-      };
-      setMedicationList((prev) => [newItem, ...prev]);
-      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
-      setIsAddModalOpen(false);
+      setStartDate(new Date().toISOString().split('T')[0]);
+      setEndDate('');
+      await loadData(selectedPatientId);
+    } catch (err: unknown) {
+      console.error('Error handling add submit:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      alert(`เกิดข้อผิดพลาดในการทำรายการ: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -443,6 +548,10 @@ export default function RemindersPage() {
   };
 
   const openEditModal = (item: MedicationDisplayItem) => {
+    if (isPatient) {
+      alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์แก้ไขรายการยา');
+      return;
+    }
     setEditingItem(item);
     // ค้นหาตัวยาที่ตรงกันใน availableMeds จาก id หรือเทียบจากชื่อยา
     const cleanItemName = item.name.toLowerCase().trim();
@@ -467,7 +576,10 @@ export default function RemindersPage() {
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
+    if (!canManageMedication || !editingItem) {
+      if (isPatient) alert('บัญชีนี้อยู่ในบทบาทผู้ป่วย (Patient) ไม่มีสิทธิ์แก้ไขรายการยา');
+      return;
+    }
 
     if (!editMedId) {
       alert('กรุณาเลือกตัวยา');
@@ -529,10 +641,11 @@ export default function RemindersPage() {
       })
     );
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingItem.id);
+    const isReminderUuid = isUuid(editingItem.id);
+    const isMedUuid = isUuid(chosenMed.id);
 
     try {
-      if (isUuid) {
+      if (isReminderUuid && isMedUuid) {
         await updateReminder(editingItem.id, {
           medication_id: chosenMed.id,
           reminder_times: sortedTimes,
@@ -548,9 +661,21 @@ export default function RemindersPage() {
         });
       }
       showToast(`แก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว ✏️`);
+      await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not persist updated reminder to Supabase/mock:', err);
+      try {
+        await repositories.reminders.update(editingItem.id, {
+          medication_id: chosenMed.id,
+          reminder_times: sortedTimes,
+          start_date: editStartDate,
+          end_date: editEndDate || null,
+        });
+      } catch {
+        // ignore
+      }
       showToast(`บันทึกการแก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว`);
+      await loadData(selectedPatientId);
     } finally {
       setIsSaving(false);
       setEditingItem(null);
@@ -589,7 +714,7 @@ export default function RemindersPage() {
             </div>
 
               {/* --- 1. แถบเลือกผู้ป่วย (Patient Selector เอาไว้จ่ายยา) --- */}
-              {role !== 'patient' ? (
+              {canManageMedication ? (
                 <div className="flex items-center gap-3 bg-white border border-slate-200 p-2 rounded-2xl shadow-2xs">
                   <div className="flex items-center gap-2 px-2 text-slate-600">
                     <User size={18} className="text-blue-600 shrink-0" />
@@ -678,23 +803,25 @@ export default function RemindersPage() {
                       </div>
                    </div>
 
-                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                     {medicationList.length === 0 && (
+                   {canManageMedication && (
+                     <div className="flex items-center gap-2 w-full sm:w-auto">
+                       {medicationList.length === 0 && (
+                         <button 
+                           onClick={() => void handleSeedSample()}
+                           disabled={isSaving}
+                           className="bg-white border border-blue-200 text-blue-700 hover:bg-blue-100/50 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-2xs flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                         >
+                           <Sparkles size={16} /> โหลดตัวอย่างยาลง Supabase
+                         </button>
+                       )}
                        <button 
-                         onClick={() => void handleSeedSample()}
-                         disabled={isSaving}
-                         className="bg-white border border-blue-200 text-blue-700 hover:bg-blue-100/50 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-2xs flex items-center gap-2 disabled:opacity-50"
+                         onClick={() => setIsAddModalOpen(true)}
+                         className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center justify-center gap-2 flex-1 sm:flex-initial cursor-pointer"
                        >
-                         <Sparkles size={16} /> โหลดตัวอย่างยาลง Supabase
+                          จ่ายยา / เพิ่มยา <Plus size={16} />
                        </button>
-                     )}
-                     <button 
-                       onClick={() => setIsAddModalOpen(true)}
-                       className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center justify-center gap-2 flex-1 sm:flex-initial"
-                     >
-                        จ่ายยา / เพิ่มยา <Plus size={16} />
-                     </button>
-                   </div>
+                     </div>
+                   )}
                 </div>
 
                 {/* --- List ยา จาก Supabase --- */}
@@ -719,26 +846,32 @@ export default function RemindersPage() {
                       <Pill size={28} />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-slate-800">ยังไม่มีรายการยาสำหรับ {currentPatient.name}</h3>
+                      <h3 className="text-base font-bold text-slate-800">
+                        {isPatient ? 'คุณยังไม่มีรายการยาในระบบ' : `ยังไม่มีรายการยาสำหรับ ${currentPatient.name}`}
+                      </h3>
                       <p className="text-sm text-slate-500 mt-1">
-                        คลิกปุ่ม &quot;จ่ายยา / เพิ่มยา&quot; เพื่อสั่งจ่ายยาและตั้งรอบเตือนยาให้ผู้ป่วยรายนี้
+                        {isPatient
+                          ? 'เมื่อแพทย์หรือเภสัชกรสั่งจ่ายยา รายการยาและรอบเวลาทานยาจะแสดงที่นี่'
+                          : 'คลิกปุ่ม "จ่ายยา / เพิ่มยา" เพื่อสั่งจ่ายยาและตั้งรอบเตือนยาให้ผู้ป่วยรายนี้'}
                       </p>
                     </div>
-                    <div className="flex justify-center gap-3 pt-2">
-                      <button 
-                        onClick={() => void handleSeedSample()}
-                        disabled={isSaving}
-                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-sm px-4 py-2 rounded-lg border border-blue-200 transition"
-                      >
-                        <Sparkles size={16} className="inline mr-1" /> สร้างชุดยาตัวอย่างใน Supabase
-                      </button>
-                      <button 
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition"
-                      >
-                        <Plus size={16} className="inline mr-1" /> จ่ายยาใหม่
-                      </button>
-                    </div>
+                    {canManageMedication && (
+                      <div className="flex justify-center gap-3 pt-2">
+                        <button 
+                          onClick={() => void handleSeedSample()}
+                          disabled={isSaving}
+                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-sm px-4 py-2 rounded-lg border border-blue-200 transition cursor-pointer"
+                        >
+                          <Sparkles size={16} className="inline mr-1" /> สร้างชุดยาตัวอย่างใน Supabase
+                        </button>
+                        <button 
+                          onClick={() => setIsAddModalOpen(true)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition cursor-pointer"
+                        >
+                          <Plus size={16} className="inline mr-1" /> จ่ายยาใหม่
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -776,6 +909,16 @@ export default function RemindersPage() {
                                         </span>
                                      ))}
                                   </div>
+
+                                  {/* ข้อมูลระยะเวลาทานยา */}
+                                  <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500">
+                                    <span className="font-medium text-slate-600">เริ่ม: {med.startDate || 'วันนี้'}</span>
+                                    <span>•</span>
+                                    <span className={med.endDate ? 'text-slate-600' : 'text-emerald-700 font-semibold flex items-center gap-1'}>
+                                      {!med.endDate && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>}
+                                      {med.endDate ? `สิ้นสุด: ${med.endDate}` : 'ทานต่อเนื่อง (จนกว่าจะมีการแก้ไข)'}
+                                    </span>
+                                  </div>
                                </div>
                             </div>
 
@@ -788,26 +931,28 @@ export default function RemindersPage() {
                                  </div>
                                </div>
 
-                               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
-                                 <button 
-                                   type="button"
-                                   onClick={() => openEditModal(med)}
-                                   title="แก้ไขข้อมูลยานี้"
-                                   className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition cursor-pointer"
-                                 >
-                                   <Pencil size={15} />
-                                   <span className="hidden sm:inline">แก้ไข</span>
-                                 </button>
-                                 <button 
-                                   type="button"
-                                   onClick={() => handleDeleteClick(med)}
-                                   title="ลบรายการยานี้"
-                                   className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
-                                 >
-                                   <Trash2 size={15} />
-                                   <span className="hidden sm:inline">ลบ</span>
-                                 </button>
-                               </div>
+                               {canManageMedication && (
+                                 <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+                                   <button 
+                                     type="button"
+                                     onClick={() => openEditModal(med)}
+                                     title="แก้ไขข้อมูลยานี้"
+                                     className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                                   >
+                                     <Pencil size={15} />
+                                     <span className="hidden sm:inline">แก้ไข</span>
+                                   </button>
+                                   <button 
+                                     type="button"
+                                     onClick={() => handleDeleteClick(med)}
+                                     title="ลบรายการยานี้"
+                                     className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                                   >
+                                     <Trash2 size={15} />
+                                     <span className="hidden sm:inline">ลบ</span>
+                                   </button>
+                                 </div>
+                               )}
                             </div>
                          </div>
                       </div>
@@ -928,8 +1073,11 @@ export default function RemindersPage() {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {endDate ? `สิ้นสุดวันที่ ${endDate}` : '✨ ปล่อยว่างไว้เพื่อให้แสดงผลต่อเนื่องจนกว่าจะมาแก้ไข'}
+                  </p>
                 </div>
               </div>
 
@@ -1070,8 +1218,11 @@ export default function RemindersPage() {
                     type="date"
                     value={editEndDate}
                     onChange={(e) => setEditEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {editEndDate ? `สิ้นสุดวันที่ ${editEndDate}` : '✨ ปล่อยว่างไว้เพื่อให้แสดงผลต่อเนื่องจนกว่าจะมาแก้ไข'}
+                  </p>
                 </div>
               </div>
 

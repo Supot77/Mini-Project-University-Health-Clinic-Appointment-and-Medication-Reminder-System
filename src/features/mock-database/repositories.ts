@@ -431,6 +431,33 @@ export function createClinicRepositories(
         }),
 
       delete: (id: string) => database.deleteById('medication_reminders', id),
+
+      create: async (input: {
+        patient_id?: string;
+        user_id?: string;
+        medication_id: string;
+        reminder_times: string[];
+        start_date: string;
+        end_date?: string | null;
+        status?: MedicationReminderStatus;
+      }) => {
+        const revision = database.getRevision();
+        return database.transaction(revision, (draft) => {
+          const reminder = {
+            id: `reminder-${crypto.randomUUID()}`,
+            user_id: input.user_id || input.patient_id || 'profile-peter-parker',
+            medication_id: input.medication_id,
+            reminder_times: input.reminder_times,
+            start_date: input.start_date,
+            end_date: input.end_date ?? null,
+            status: input.status ?? 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          draft.medication_reminders.push(reminder);
+          return mockResult.ok(reminder);
+        });
+      },
     },
 
     notifications: {
@@ -788,8 +815,8 @@ export function createClinicRepositories(
               tables.departments.length,
               'department-workload',
               'แผนกที่ให้บริการ',
-              'ดูภาระงานแยกตามแผนก',
-              '/schedules',
+              'จัดการและดูภาระงานแผนก',
+              '/departments',
               'violet',
             ),
 
@@ -797,8 +824,8 @@ export function createClinicRepositories(
               tables.profiles.length,
               'accounts',
               'บัญชีทั้งหมด',
-              'สรุปรวมโดยไม่แสดงข้อมูลผู้ป่วย',
-              '/profile',
+              'คลิกเพื่อดูรายชื่อและบทบาทบัญชีทั้งหมด',
+              '/staff/accounts',
               'blue',
             ),
           ],
