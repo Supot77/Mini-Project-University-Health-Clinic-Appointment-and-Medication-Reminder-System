@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   allowedDevOrigins: [
+    '10.52.60.155',
     '10.107.0.46',
     '*.wu.ac.th',
     '*.trycloudflare.com',
