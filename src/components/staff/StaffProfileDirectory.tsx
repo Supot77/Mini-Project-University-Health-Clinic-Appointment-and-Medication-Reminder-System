@@ -1,9 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   Mail,
   Pencil,
@@ -28,6 +26,7 @@ import {
 import type { UserRole } from '@/types/database';
 
 const roleOrder: UserRole[] = ['patient', 'medical', 'staff_admin'];
+type ProfileSort = 'name-th' | 'name-en' | 'registered-asc' | 'registered-desc';
 
 function rolePillClass(role: UserRole, isActive = true): string {
   if (!isActive) return 'bg-slate-100 text-slate-500 ring-slate-300';
@@ -40,10 +39,15 @@ function displayValue(value: string | null): string {
   return value?.trim() || 'ไม่ระบุ';
 }
 
+function summaryCardClass(isSelected: boolean): string {
+  return `rounded-2xl border bg-white p-5 text-left shadow-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${isSelected ? 'border-teal-300 ring-2 ring-teal-100' : 'border-slate-200 hover:border-teal-200 hover:bg-slate-50'}`;
+}
+
 export default function StaffProfileDirectory() {
   const [profiles, setProfiles] = useState<StaffProfileDirectoryItem[]>([]);
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [sortBy, setSortBy] = useState<ProfileSort>('name-th');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,8 +142,20 @@ export default function StaffProfileDirectory() {
         return [profile.fullName, profile.email ?? '', profile.phone ?? '']
           .some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
       })
-      .sort((a, b) => Number(b.isActive) - Number(a.isActive));
-  }, [profiles, query, roleFilter]);
+      .sort((a, b) => {
+        if (sortBy === 'registered-asc' || sortBy === 'registered-desc') {
+          const aTime = Date.parse(a.createdAt);
+          const bTime = Date.parse(b.createdAt);
+          const registrationOrder = sortBy === 'registered-asc' ? aTime - bTime : bTime - aTime;
+          if (registrationOrder !== 0) return registrationOrder;
+        } else {
+          const locale = sortBy === 'name-th' ? 'th' : 'en';
+          const nameOrder = a.fullName.localeCompare(b.fullName, locale, { sensitivity: 'base' });
+          if (nameOrder !== 0) return nameOrder;
+        }
+        return Number(b.isActive) - Number(a.isActive);
+      });
+  }, [profiles, query, roleFilter, sortBy]);
 
   async function confirmAccountAction() {
     if (!accountAction) return;
@@ -165,30 +181,34 @@ export default function StaffProfileDirectory() {
   }
 
   return (
-    <main className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <Link href="/dashboard/staff_admin" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-sky-700">
-            <ArrowLeft className="size-4" aria-hidden="true" /> กลับไปหน้า Dashboard
-          </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-950">บัญชีผู้ใช้งานทั้งหมดตอนนี้</h1>
-          <p className="mt-1 text-sm text-slate-500">ข้อมูลติดต่อและ role</p>
+    <main className="dashboard-shell mx-auto flex max-w-7xl flex-col gap-5 pb-10">
+      <header className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <div className="absolute inset-y-0 left-0 w-2 bg-sky-500" aria-hidden="true" />
+        <div className="relative px-6 py-5 sm:px-8 sm:py-6">
+          <button type="button" onClick={() => void loadProfiles(true)} disabled={loading || refreshing} className="absolute right-4 top-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-60 sm:right-8 sm:top-6">
+            <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" /> รีเฟรช
+          </button>
+          <div className="pr-24 sm:pr-28">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-teal-700">
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1">OPERATIONS USERPROFILE</span>
+              <span className="text-slate-500">เจ้าหน้าที่ ·TIME: ASIA/BANGKOK</span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 text-balance sm:text-3xl">บัญชีผู้ใช้งานทั้งหมดตอนนี้</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">ข้อมูลติดต่อและ role</p>
+          </div>
         </div>
-        <button type="button" onClick={() => void loadProfiles(true)} disabled={loading || refreshing} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
-          <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" /> รีเฟรช
-        </button>
-      </div>
+      </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="สรุปจำนวนบัญชี">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="สรุปจำนวนบัญชี">
+        <button type="button" onClick={() => setRoleFilter('all')} aria-pressed={roleFilter === 'all'} className={summaryCardClass(roleFilter === 'all')}>
           <div className="flex items-center justify-between"><p className="text-sm text-slate-500">บัญชีทั้งหมด</p><Users className="size-5 text-sky-600" aria-hidden="true" /></div>
           <p className="mt-3 text-3xl font-bold text-slate-950">{profiles.length}</p>
-        </div>
+        </button>
         {roleOrder.map((role) => (
-          <div key={role} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+          <button key={role} type="button" onClick={() => setRoleFilter(role)} aria-pressed={roleFilter === role} className={summaryCardClass(roleFilter === role)}>
             <div className="flex items-center justify-between"><div><p className="text-sm text-slate-500">{role}</p><p className="mt-0.5 text-xs text-slate-400">{roleLabels[role]}</p></div><UserRound className="size-5 text-slate-400" aria-hidden="true" /></div>
             <p className="mt-3 text-3xl font-bold text-slate-950">{counts[role]}</p>
-          </div>
+          </button>
         ))}
       </section>
 
@@ -196,12 +216,13 @@ export default function StaffProfileDirectory() {
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div><h2 className="font-semibold text-slate-950">รายชื่อบัญชี</h2><p className="mt-1 text-xs text-slate-500">แสดง {filteredProfiles.length} จาก {profiles.length} บัญชี</p></div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <label className="relative block sm:w-64"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" /><span className="sr-only">ค้นหาบัญชี</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อ อีเมล หรือเบอร์โทร" className="w-full rounded-xl border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" /></label>
-            <label className="sr-only" htmlFor="role-filter">กรองตาม role</label><select id="role-filter" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as UserRole | 'all')} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"><option value="all">ทุก role</option>{roleOrder.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select>
+            <label className="relative block sm:w-64"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" /><span className="sr-only">ค้นหาบัญชี</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อ อีเมล หรือเบอร์โทร" className="w-full rounded-xl border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100" /></label>
+            <label className="sr-only" htmlFor="role-filter">กรองตาม role</label><select id="role-filter" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as UserRole | 'all')} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"><option value="all">ทุก role</option>{roleOrder.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select>
+            <label className="sr-only" htmlFor="profile-sort">เรียงลำดับบัญชี</label><select id="profile-sort" value={sortBy} onChange={(event) => setSortBy(event.target.value as ProfileSort)} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"><option value="name-th">เรียงตาม ก-ฮ</option><option value="name-en">เรียงตาม A-Z</option><option value="registered-asc">สมัครเก่าสุด</option><option value="registered-desc">สมัครล่าสุด</option></select>
           </div>
         </div>
 
-        {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500"><RefreshCw className="size-4 animate-spin" aria-hidden="true" />กำลังโหลดข้อมูลบัญชี…</div> : error ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm text-rose-700">{error}</p><button type="button" onClick={() => void loadProfiles()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">ลองอีกครั้ง</button></div> : filteredProfiles.length === 0 ? <div className="flex min-h-48 items-center justify-center px-5 text-sm text-slate-500">ไม่พบบัญชีตามเงื่อนไขที่เลือก</div> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm"><thead className="bg-slate-50 text-xs font-semibold text-slate-500"><tr><th className="px-5 py-3 sm:px-6">ชื่อ</th><th className="px-5 py-3">อีเมล</th><th className="px-5 py-3">เบอร์โทร</th><th className="px-5 py-3">role</th><th className="px-5 py-3 sm:px-6">จัดการ</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredProfiles.map((profile) => <tr key={profile.id} className={`transition-colors ${profile.isActive ? 'text-slate-700' : 'bg-slate-100/80 text-slate-400 grayscale'}`}><td className={`px-5 py-4 font-medium sm:px-6 ${profile.isActive ? 'text-slate-950' : 'text-slate-500 line-through'}`}>{displayValue(profile.fullName)}</td><td className="px-5 py-4"><span className="inline-flex items-center gap-2"><Mail className="size-4 text-slate-400" aria-hidden="true" />{displayValue(profile.email)}</span></td><td className="px-5 py-4"><span className="inline-flex items-center gap-2"><Phone className="size-4 text-slate-400" aria-hidden="true" />{displayValue(profile.phone)}</span></td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${rolePillClass(profile.role, profile.isActive)}`}><ShieldCheck className="size-3.5" aria-hidden="true" />{profile.role}</span><span className={`mt-1 block text-xs ${profile.isActive ? 'text-slate-400' : 'font-semibold text-slate-500'}`}>{roleLabels[profile.role]} · {profile.isActive ? 'ใช้งานอยู่' : 'ระงับบัญชี'}</span></td><td className="px-5 py-4 sm:px-6"><div className="flex items-center gap-2"><button type="button" onClick={() => openEdit(profile)} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50"><Pencil className="size-4" aria-hidden="true" />แก้ไข</button><button type="button" onClick={() => setAccountAction({ profile, nextActive: !profile.isActive })} title={profile.isActive ? 'ลบบัญชี' : 'กู้คืนบัญชี'} className={`inline-flex size-10 items-center justify-center rounded-lg border bg-white transition ${profile.isActive ? 'border-rose-200 text-rose-600 hover:bg-rose-50' : 'border-emerald-300 text-emerald-600 hover:bg-emerald-50'}`}>{profile.isActive ? <Trash2 className="size-5" aria-hidden="true" /> : <RotateCcw className="size-5" aria-hidden="true" />}</button></div></td></tr>)}</tbody></table></div>}
+        {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500"><RefreshCw className="size-4 animate-spin" aria-hidden="true" />กำลังโหลดข้อมูลบัญชี…</div> : error ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 px-5 text-center"><p className="text-sm text-rose-700">{error}</p><button type="button" onClick={() => void loadProfiles()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-300 hover:text-teal-700">ลองอีกครั้ง</button></div> : filteredProfiles.length === 0 ? <div className="flex min-h-48 items-center justify-center px-5 text-sm text-slate-500">ไม่พบบัญชีตามเงื่อนไขที่เลือก</div> : <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm"><thead className="bg-slate-50 text-xs font-semibold text-slate-500"><tr><th className="w-16 px-5 py-3 sm:px-6">ลำดับ</th><th className="px-5 py-3 sm:px-6">ชื่อ</th><th className="px-5 py-3">อีเมล</th><th className="px-5 py-3">เบอร์โทร</th><th className="px-5 py-3">role</th><th className="px-5 py-3 sm:px-6">จัดการ</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredProfiles.map((profile, index) => <tr key={profile.id} className={`transition-colors ${profile.isActive ? 'text-slate-700' : 'bg-slate-100/80 text-slate-400 grayscale'}`}><td className="px-5 py-4 text-slate-500">{index + 1}</td><td className={`px-5 py-4 font-medium sm:px-6 ${profile.isActive ? 'text-slate-950' : 'text-slate-500 line-through'}`}>{displayValue(profile.fullName)}</td><td className="px-5 py-4"><span className="inline-flex items-center gap-2"><Mail className="size-4 text-slate-400" aria-hidden="true" />{displayValue(profile.email)}</span></td><td className="px-5 py-4"><span className="inline-flex items-center gap-2"><Phone className="size-4 text-slate-400" aria-hidden="true" />{displayValue(profile.phone)}</span></td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${rolePillClass(profile.role, profile.isActive)}`}><ShieldCheck className="size-3.5" aria-hidden="true" />{profile.role}</span><span className={`mt-1 block text-xs ${profile.isActive ? 'text-slate-400' : 'font-semibold text-slate-500'}`}>{roleLabels[profile.role]} · {profile.isActive ? 'ใช้งานอยู่' : 'ระงับบัญชี'}</span></td><td className="px-5 py-4 sm:px-6"><div className="flex items-center gap-2"><button type="button" onClick={() => openEdit(profile)} className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50"><Pencil className="size-4" aria-hidden="true" />แก้ไข</button><button type="button" onClick={() => setAccountAction({ profile, nextActive: !profile.isActive })} title={profile.isActive ? 'ลบบัญชี' : 'กู้คืนบัญชี'} className={`inline-flex size-10 items-center justify-center rounded-lg border bg-white transition ${profile.isActive ? 'border-rose-200 text-rose-600 hover:bg-rose-50' : 'border-emerald-300 text-emerald-600 hover:bg-emerald-50'}`}>{profile.isActive ? <Trash2 className="size-5" aria-hidden="true" /> : <RotateCcw className="size-5" aria-hidden="true" />}</button></div></td></tr>)}</tbody></table></div>}
       </section>
 
       {accountAction && (

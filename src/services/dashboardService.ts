@@ -3,29 +3,26 @@
 
 import { createClient } from '@/utils/supabase/client';
 import type {
+  Appointment,
+  AppointmentSlot,
+  AppointmentStatus,
+  Department,
+  Doctor,
+  MedicalRecord,
+  Medication,
+  MedicationReminder,
   Notification,
   NotificationType,
+  Profile,
   UserRole,
 } from '@/types/database';
-import type { BroadcastHistoryItem } from '@/features/dashboard/types';
-
-export interface StaffProfileDirectoryItem {
-  id: string;
-  fullName: string;
-  email: string | null;
-  phone: string | null;
-  role: UserRole;
-  isActive: boolean;
-}
-
-interface StaffProfileRpcRow {
-  id: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
-  role: UserRole;
-  is_active: boolean;
-}
+import {
+  dashboardRangeLabels,
+  type BroadcastHistoryItem,
+  type DashboardMetric,
+  type DashboardRange,
+  type DashboardView,
+} from '@/features/dashboard/types';
 
 const supabase = createClient();
 
@@ -69,6 +66,15 @@ export interface MedicationDashboardData {
   lowStockCount: number;
   expiredCount: number;
   alerts: MedicationAlertItem[];
+}
+
+export interface StaffProfileDirectoryItem {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: UserRole;
+  isActive: boolean;
 }
 
 // --- Notifications ---
@@ -157,6 +163,61 @@ export async function getBroadcastHistory(limit = 20): Promise<BroadcastHistoryI
   }));
 }
 
+export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryItem[]> {
+  const { data, error } = await supabase.rpc('get_staff_profile_directory');
+  if (error) {
+    if (error.code === 'PGRST202') {
+      throw new Error('ยังไม่ได้ติดตั้ง RPC get_staff_profile_directory กรุณารัน supabase/migrations/12_staff_profile_directory.sql ใน Supabase SQL Editor');
+    }
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as Array<{
+    id: string;
+    full_name: string;
+    email: string | null;
+    phone: string | null;
+    role: UserRole;
+    is_active: boolean | null;
+  }>).map((profile) => ({
+    id: profile.id,
+    fullName: profile.full_name,
+    email: profile.email,
+    phone: profile.phone,
+    role: profile.role,
+    isActive: profile.is_active !== false,
+  }));
+}
+
+type DashboardProfile = Pick<Profile, 'id' | 'full_name' | 'role' | 'is_active'>;
+type DashboardDepartment = Pick<Department, 'id' | 'name' | 'is_active'>;
+type DashboardDoctor = Pick<Doctor, 'id' | 'department_id'>;
+type DashboardSlot = Pick<AppointmentSlot, 'id' | 'doctor_id' | 'slot_date' | 'start_time' | 'max_capacity' | 'status'>;
+type DashboardAppointment = Pick<Appointment, 'id' | 'user_id' | 'slot_id' | 'queue_number' | 'status'>;
+type DashboardMedication = Pick<Medication, 'id' | 'name' | 'stock' | 'min_stock' | 'expiry_date' | 'is_active'>;
+type DashboardReminder = Pick<MedicationReminder, 'id' | 'user_id' | 'medication_id' | 'status'>;
+type DashboardMedicalRecord = Pick<MedicalRecord, 'id' | 'prescribed_medications'>;
+
+const activeAppointmentStatuses: AppointmentStatus[] = ['pending', 'confirmed', 'in_progress', 'completed', 'no_show'];
+
+function subtractDays(date: string, days: number): string {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() - days);
+  return value.toISOString().slice(0, 10);
+}
+
+function toBangkokDate(value: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(value));
+  const dateParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+}
+
+function throwQueryError(label: string, error: { message: string } | null): void {
+  if (error) throw new Error(`${label}: ${error.message}`);
+}
+
 export async function createNotification(
   userId: string,
   type: NotificationType,
@@ -215,6 +276,215 @@ export async function getMedicationDashboardData(): Promise<MedicationDashboardD
 }
 
 // --- Dashboard Stats ---
+export async function getDashboardView(
+  role: UserRole,
+  actorId: string,
+  today: string,
+  range: DashboardRange,
+): Promise<DashboardView> {
+  const rangeDays: Record<DashboardRange, number> = { today: 1, '7d': 7, '30d': 30 };
+  const startDate = subtractDays(today, rangeDays[range] - 1);
+
+  const [profilesResult, departmentsResult, doctorsResult, slotsResult, notifications] = await Promise.all([
+    supabase.from('profiles').select('id, full_name, role, is_active'),
+    supabase.from('departments').select('id, name, is_active'),
+    supabase.from('doctors').select('id, department_id'),
+    supabase
+      .from('appointment_slots')
+      .select('id, doctor_id, slot_date, start_time, max_capacity, status')
+      .gte('slot_date', startDate)
+      .lte('slot_date', today),
+    getNotifications(actorId, 100),
+  ]);
+
+  throwQueryError('โหลดบัญชีไม่สำเร็จ', profilesResult.error);
+  throwQueryError('โหลดแผนกไม่สำเร็จ', departmentsResult.error);
+  throwQueryError('โหลดข้อมูลแพทย์ไม่สำเร็จ', doctorsResult.error);
+  throwQueryError('โหลดรอบตรวจไม่สำเร็จ', slotsResult.error);
+
+  const profiles = (profilesResult.data ?? []) as DashboardProfile[];
+  const departments = (departmentsResult.data ?? []) as DashboardDepartment[];
+  const doctors = (doctorsResult.data ?? []) as DashboardDoctor[];
+  const allRangeSlots = (slotsResult.data ?? []) as DashboardSlot[];
+  const actor = profiles.find((profile) => profile.id === actorId);
+
+  if (!actor || actor.role !== role || actor.is_active === false) {
+    throw new Error('บัญชีที่เข้าสู่ระบบไม่มีสิทธิ์เปิด Dashboard ของบทบาทนี้');
+  }
+
+  const isDoctorActor = role === 'medical' && doctors.some((doctor) => doctor.id === actorId);
+  const scopedSlots = isDoctorActor
+    ? allRangeSlots.filter((slot) => slot.doctor_id === actorId)
+    : allRangeSlots;
+  const scopedSlotIds = scopedSlots.map((slot) => slot.id);
+
+  let appointments: DashboardAppointment[] = [];
+  if (scopedSlotIds.length > 0) {
+    let appointmentQuery = supabase
+      .from('appointments')
+      .select('id, user_id, slot_id, queue_number, status')
+      .in('slot_id', scopedSlotIds);
+    if (role === 'patient') appointmentQuery = appointmentQuery.eq('user_id', actorId);
+    const appointmentResult = await appointmentQuery;
+    throwQueryError('โหลดนัดหมายไม่สำเร็จ', appointmentResult.error);
+    appointments = (appointmentResult.data ?? []) as DashboardAppointment[];
+  }
+
+  const medicationPromise = role === 'patient'
+    ? Promise.resolve({ data: [] as DashboardMedication[], error: null })
+    : supabase.from('medications').select('id, name, stock, min_stock, expiry_date, is_active');
+  const reminderPromise = role === 'patient'
+    ? supabase.from('medication_reminders').select('id, user_id, medication_id, status').eq('user_id', actorId)
+    : Promise.resolve({ data: [] as DashboardReminder[], error: null });
+  const medicalRecordPromise = role === 'medical' && !isDoctorActor
+    ? supabase.from('medical_records').select('id, prescribed_medications')
+    : Promise.resolve({ data: [] as DashboardMedicalRecord[], error: null });
+
+  const [medicationsResult, remindersResult, medicalRecordsResult] = await Promise.all([
+    medicationPromise,
+    reminderPromise,
+    medicalRecordPromise,
+  ]);
+  throwQueryError('โหลดยาไม่สำเร็จ', medicationsResult.error);
+  throwQueryError('โหลดรายการเตือนไม่สำเร็จ', remindersResult.error);
+  throwQueryError('โหลดรายการจ่ายยาไม่สำเร็จ', medicalRecordsResult.error);
+
+  const medications = (medicationsResult.data ?? []) as DashboardMedication[];
+  const reminders = (remindersResult.data ?? []) as DashboardReminder[];
+  const medicalRecords = (medicalRecordsResult.data ?? []) as DashboardMedicalRecord[];
+  const activeAppointments = appointments.filter((appointment) => activeAppointmentStatuses.includes(appointment.status));
+  const queueRemaining = activeAppointments.filter((appointment) => appointment.status === 'confirmed' || appointment.status === 'in_progress').length;
+  const completedInRange = activeAppointments.filter((appointment) => appointment.status === 'completed').length;
+  const rangeNotifications = notifications.filter((notification) => {
+    const notificationDate = toBangkokDate(notification.created_at);
+    return notificationDate >= startDate && notificationDate <= today;
+  });
+  const unreadNotifications = rangeNotifications.filter((notification) => !notification.is_read).length;
+  const activeMedications = medications.filter((medication) => medication.is_active !== false);
+  const lowStock = activeMedications.filter((medication) => medication.stock <= medication.min_stock && (!medication.expiry_date || medication.expiry_date >= today));
+  const expired = activeMedications.filter((medication) => Boolean(medication.expiry_date && medication.expiry_date < today));
+  const activeReminders = reminders.filter((reminder) => reminder.status === 'active');
+  const patientMedicationIds = new Set(activeReminders.map((reminder) => reminder.medication_id));
+  const pendingDispensing = medicalRecords.filter((record) => (record.prescribed_medications?.length ?? 0) > 0).length;
+  const activeProfiles = profiles.filter((profile) => profile.is_active !== false);
+  const rangeSuffix = range === 'today' ? dashboardRangeLabels[range] : ` ${dashboardRangeLabels[range]}`;
+  const metric = (value: number | string, id: string, label: string, description: string, href: string, tone: DashboardMetric['tone']): DashboardMetric => ({
+    id, value, label, description, href, tone,
+  });
+
+  const metricsByRole: Record<UserRole, DashboardMetric[]> = {
+    staff_admin: [
+      metric(activeAppointments.length, 'appointments-in-range', `นัดหมาย${rangeSuffix}`, 'ไม่รวมรายการยกเลิกและปฏิเสธ', '/appointments', 'blue'),
+      metric(queueRemaining, 'remaining-queue', range === 'today' ? 'คิวที่เหลือ' : 'คิวในช่วงที่เลือก', 'ยืนยันแล้วและกำลังตรวจ', '/appointments', 'amber'),
+      metric(departments.filter((department) => department.is_active !== false).length, 'department-workload', 'แผนกที่ให้บริการ', 'ดูภาระงานแยกตามแผนก', '/departments', 'violet'),
+      metric(activeProfiles.length, 'accounts', 'บัญชีทั้งหมด', 'ดูรายชื่อและข้อมูลติดต่อแยกตาม role', '/staff/accounts', 'blue'),
+    ],
+    medical: isDoctorActor
+      ? [
+          metric(activeAppointments.length, 'own-appointments', `นัดของฉัน${rangeSuffix}`, 'เฉพาะตารางแพทย์ที่เข้าสู่ระบบ', '/appointments', 'blue'),
+          metric(queueRemaining, 'own-queue', range === 'today' ? 'คิวของฉันที่เหลือ' : 'คิวของฉันในช่วงที่เลือก', 'ยืนยันแล้วและกำลังตรวจ', '/appointments', 'amber'),
+          metric(completedInRange, 'completed-in-range', `ตรวจเสร็จ${rangeSuffix}`, 'นับสถานะเสร็จสิ้น', '/appointments', 'emerald'),
+          metric(unreadNotifications, 'unread-notifications', 'ยังไม่ได้อ่าน', 'ข้อความของบัญชีนี้', '/notifications', 'rose'),
+        ]
+      : [
+          metric(activeAppointments.length, 'appointments-in-range', `นัดหมาย${rangeSuffix}`, 'ข้อมูลนัดที่บันทึกแล้ว', '/appointments', 'blue'),
+          metric(pendingDispensing, 'pending-dispensing', 'รอจ่ายยา', 'ใบสั่งยาที่มีรายการยา', '/pharmacy', 'amber'),
+          metric(lowStock.length, 'low-stock', 'ยาใกล้หมด', 'สต๊อกต่ำกว่าหรือเท่าจุดสั่งซื้อ', '/pharmacy', 'rose'),
+          metric(expired.length, 'expired', 'ยาหมดอายุ', 'แยกออกจากรายการยาใกล้หมด', '/pharmacy', 'violet'),
+        ],
+    patient: [
+      metric(activeAppointments.length, 'my-appointments', `การนัดหมายของฉัน${rangeSuffix}`, 'ไม่รวมรายการยกเลิกและปฏิเสธ', '/appointments', 'blue'),
+      metric(patientMedicationIds.size, 'my-medications', 'ยาที่กำลังใช้', 'นับจากรายการเตือนยาที่ใช้งาน', '/reminders', 'violet'),
+      metric(activeReminders.length, 'my-reminders', 'การเตือนที่ใช้งาน', 'เวลาทานยาที่ผู้ป่วยยืนยันแล้ว', '/reminders', 'emerald'),
+      metric(unreadNotifications, 'unread-notifications', 'ยังไม่ได้อ่าน', 'ข้อความของบัญชีนี้', '/notifications', 'rose'),
+    ],
+  };
+
+  const slotsById = new Map(scopedSlots.map((slot) => [slot.id, slot]));
+  const doctorsById = new Map(doctors.map((doctor) => [doctor.id, doctor]));
+  const departmentsById = new Map(departments.map((department) => [department.id, department]));
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const appointmentQueue = activeAppointments
+    .map((appointment) => {
+      const slot = slotsById.get(appointment.slot_id);
+      const doctor = slot ? doctorsById.get(slot.doctor_id) : undefined;
+      return {
+        id: appointment.id,
+        queueNumber: appointment.queue_number,
+        date: slot?.slot_date ?? '',
+        startTime: slot?.start_time?.slice(0, 5) ?? '',
+        status: appointment.status,
+        patientName: profilesById.get(appointment.user_id)?.full_name ?? 'ไม่พบบัญชีผู้ป่วย',
+        doctorName: slot ? profilesById.get(slot.doctor_id)?.full_name ?? 'ไม่พบแพทย์' : 'ไม่พบแพทย์',
+        departmentName: doctor?.department_id
+          ? departmentsById.get(doctor.department_id)?.name ?? 'ไม่ระบุแผนก'
+          : 'ไม่ระบุแผนก',
+      };
+    })
+    .sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`))
+    .slice(0, 8);
+
+  const departmentLoads = role === 'staff_admin'
+    ? departments
+        .filter((department) => department.is_active !== false)
+        .map((department) => {
+          const doctorIds = new Set(doctors.filter((doctor) => doctor.department_id === department.id).map((doctor) => doctor.id));
+          const departmentSlots = allRangeSlots.filter((slot) => doctorIds.has(slot.doctor_id));
+          const departmentSlotIds = new Set(departmentSlots.map((slot) => slot.id));
+          return {
+            departmentId: department.id,
+            departmentName: department.name,
+            appointmentCount: activeAppointments.filter((appointment) => departmentSlotIds.has(appointment.slot_id)).length,
+            capacity: departmentSlots.reduce((sum, slot) => sum + slot.max_capacity, 0),
+          };
+        })
+    : [];
+
+  const copyByRole: Record<UserRole, { title: string; description: string }> = {
+    staff_admin: { title: 'ภาพรวมงานคลินิกของผู้ดูแลระบบ', description: 'ติดตามนัดหมาย คิว แผนก บัญชี และการประกาศของคลินิก' },
+    medical: {
+      title: 'ภาพรวมงานแพทย์และเภสัชกรรม',
+      description: isDoctorActor ? 'แสดงเฉพาะตารางและคิวของแพทย์ที่เข้าสู่ระบบ พร้อมข้อมูลยา' : 'ติดตามงานจ่ายยาและสถานะคลังยา',
+    },
+    patient: { title: 'ภาพรวมสุขภาพของฉัน', description: 'นัดหมาย ยา การเตือน และข้อความของบัญชีนี้เท่านั้น' },
+  };
+
+  return {
+    role,
+    actor: { id: actor.id, fullName: actor.full_name },
+    date: today,
+    startDate,
+    range,
+    ...copyByRole[role],
+    metrics: metricsByRole[role],
+    appointmentStatuses: (['pending', 'confirmed', 'in_progress', 'completed'] as AppointmentStatus[]).map((status) => ({
+      status,
+      label: status === 'pending' ? 'รอยืนยัน' : status === 'confirmed' ? 'ยืนยันแล้ว' : status === 'in_progress' ? 'กำลังตรวจ' : 'เสร็จสิ้น',
+      count: activeAppointments.filter((appointment) => appointment.status === status).length,
+    })),
+    appointmentQueue,
+    departmentLoads,
+    medicationAlerts: activeMedications
+      .filter((medication) => medication.stock <= medication.min_stock || Boolean(medication.expiry_date && medication.expiry_date < today))
+      .map((medication) => ({
+        id: medication.id,
+        name: medication.name,
+        stock: medication.stock,
+        minimumStock: medication.min_stock,
+        expiryDate: medication.expiry_date,
+        lowStock: medication.stock <= medication.min_stock && (!medication.expiry_date || medication.expiry_date >= today),
+        expired: Boolean(medication.expiry_date && medication.expiry_date < today),
+      })),
+    recentNotifications: rangeNotifications.slice(0, 5),
+    roleCounts: role === 'staff_admin'
+      ? (['patient', 'medical', 'staff_admin'] as UserRole[]).map((profileRole) => ({
+          role: profileRole,
+          count: activeProfiles.filter((profile) => profile.role === profileRole).length,
+        }))
+      : [],
+  };
+}
+
 export async function getDashboardStats() {
   const today = new Date().toISOString().split('T')[0];
 
@@ -243,23 +513,6 @@ export async function getDashboardStats() {
     lowStockMedications: lowStockMeds?.length ?? 0,
   };
 }
-
-// --- Staff Directory ---
-export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryItem[]> {
-  const { data, error } = await supabase.rpc('get_staff_profile_directory');
-  if (error) {
-    throw new Error(error.message);
-  }
-  return ((data as StaffProfileRpcRow[] | null) ?? []).map((row) => ({
-    id: row.id,
-    fullName: row.full_name,
-    email: row.email,
-    phone: row.phone,
-    role: row.role,
-    isActive: row.is_active,
-  }));
-}
-
 export interface StaffProfileUpdate {
   fullName: string;
   phone: string | null;
