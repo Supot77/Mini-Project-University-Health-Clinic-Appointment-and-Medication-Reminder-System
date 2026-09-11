@@ -344,7 +344,13 @@ export default function Header() {
           </div>
         </nav>
       )}
-      <ProfileAccountDrawer role={role} open={accountMenuOpen} onClose={() => setAccountMenuOpen(false)} onSignOut={() => void handleSignOut()} />
+      <ProfileAccountDrawer
+        role={role}
+        fullName={user?.full_name ?? "บัญชีผู้ใช้"}
+        open={accountMenuOpen}
+        onClose={() => setAccountMenuOpen(false)}
+        onSignOut={() => void handleSignOut()}
+      />
     </header>
   );
 }

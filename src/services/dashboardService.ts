@@ -196,7 +196,10 @@ type DashboardProfile = Pick<Profile, 'id' | 'full_name' | 'role' | 'is_active'>
 type DashboardDepartment = Pick<Department, 'id' | 'name' | 'is_active'>;
 type DashboardDoctor = Pick<Doctor, 'id' | 'department_id'>;
 type DashboardSlot = Pick<AppointmentSlot, 'id' | 'doctor_id' | 'slot_date' | 'start_time' | 'max_capacity' | 'status'>;
-type DashboardAppointment = Pick<Appointment, 'id' | 'user_id' | 'slot_id' | 'queue_number' | 'status'>;
+type DashboardAppointment = Pick<Appointment, 'id' | 'slot_id' | 'queue_number' | 'status'> & {
+  patient_id?: string;
+  user_id?: string;
+};
 type DashboardMedication = Pick<Medication, 'id' | 'name' | 'stock' | 'min_stock' | 'expiry_date' | 'is_active'>;
 type DashboardReminder = Pick<MedicationReminder, 'id' | 'user_id' | 'medication_id' | 'status'>;
 type DashboardMedicalRecord = Pick<MedicalRecord, 'id' | 'prescribed_medications'>;
@@ -417,7 +420,9 @@ export async function getDashboardView(
         date: slot?.slot_date ?? '',
         startTime: slot?.start_time?.slice(0, 5) ?? '',
         status: appointment.status,
-        patientName: profilesById.get(appointment.user_id)?.full_name ?? 'ไม่พบบัญชีผู้ป่วย',
+        patientName: (appointment.patient_id || appointment.user_id
+          ? profilesById.get(appointment.patient_id || appointment.user_id!)?.full_name
+          : undefined) ?? 'ไม่พบบัญชีผู้ป่วย',
         doctorName: slot ? profilesById.get(slot.doctor_id)?.full_name ?? 'ไม่พบแพทย์' : 'ไม่พบแพทย์',
         departmentName: doctor?.department_id
           ? departmentsById.get(doctor.department_id)?.name ?? 'ไม่ระบุแผนก'

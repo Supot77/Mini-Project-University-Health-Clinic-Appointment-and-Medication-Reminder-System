@@ -1,17 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, FileClock, LogOut, Settings, ShieldCheck, Stethoscope, UserRound } from 'lucide-react';
+import { ChevronRight, FileClock, LogOut, Settings, ShieldCheck, Stethoscope, UserRound, X } from 'lucide-react';
 import { useEffect } from 'react';
 import type { UserRole } from '@/types/database';
 
 interface ProfileAccountDrawerProps {
   open: boolean;
-  fullName: string;
+  fullName?: string;
   role: UserRole | null;
   onClose: () => void;
   onSignOut: () => void;
-  role: UserRole | null;
 }
 
 type AccountMenuItem = { href: string; label: string; icon: typeof UserRound; active?: boolean };
