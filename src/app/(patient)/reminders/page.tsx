@@ -1,29 +1,30 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { 
-  Pill, 
-  X, 
-  Check, 
-  Plus, 
-  Trash2, 
-  AlertCircle, 
-  AlertTriangle, 
-  Pencil, 
-  Search, 
-  Clock 
+import {
+  Pill,
+  X,
+  Check,
+  Plus,
+  Trash2,
+  AlertCircle,
+  AlertTriangle,
+  Pencil,
+  Search,
+  Clock
 } from 'lucide-react';
 import { useClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-  getReminders, 
-  createReminder, 
-  updateReminder, 
-  deleteReminder, 
-  getAvailableMedications 
+import {
+  getReminders,
+  createReminder,
+  updateReminder,
+  deleteReminder,
+  getAvailableMedications
 } from '@/services/reminderService';
 import type { Medication, MedicationReminderWithMedication, Profile } from '@/types/database';
 import { getPatients, getProfile } from '@/services/authService';
+
 
 const isUuid = (val?: string | null): boolean =>
   typeof val === 'string' &&
@@ -386,8 +387,8 @@ export default function RemindersPage() {
     );
 
     showNotice(
-      nextActive 
-        ? `เปิดการแจ้งเตือน "${item.name}" แล้ว` 
+      nextActive
+        ? `เปิดการแจ้งเตือน "${item.name}" แล้ว`
         : `หยุดการแจ้งเตือน "${item.name}" ชั่วคราวแล้ว`
     );
 
@@ -463,7 +464,7 @@ export default function RemindersPage() {
     }
 
     const chosenMed = availableMeds.find(m => m.id === selectedMedId);
-    
+
     // ตรวจสอบการแพ้ยา (Allergy Warning)
     if (currentPatient.allergies && chosenMed) {
       const allergyLower = currentPatient.allergies.toLowerCase();
@@ -685,7 +686,7 @@ export default function RemindersPage() {
           </div>
 
           {canManageMedication && (
-            <button 
+            <button
               type="button"
               onClick={() => setIsAddModalOpen(true)}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50 cursor-pointer"
@@ -787,9 +788,9 @@ export default function RemindersPage() {
         {/* Status Tabs (Left) & Search (Right) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border-soft pb-1.5">
           {/* Status Tabs (Accessible Underline Tabs with Hover Box Affordance) */}
-          <div 
-            className="flex flex-wrap items-center gap-2" 
-            role="tablist" 
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="tablist"
             aria-label="เลือกกรองสถานะการเตือนยา"
           >
             {([
@@ -909,7 +910,7 @@ export default function RemindersPage() {
               </div>
               {canManageMedication && (
                 <div className="flex justify-center pt-2">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setIsAddModalOpen(true)}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover cursor-pointer"
@@ -927,7 +928,7 @@ export default function RemindersPage() {
               <p className="text-xs text-brand-muted">
                 ลองปรับคำค้นหา หรือเลือกดูสถานะทั้งหมด
               </p>
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
@@ -941,11 +942,11 @@ export default function RemindersPage() {
           ) : (
             <div className="space-y-3.5 sm:space-y-4">
               {filteredMedications.map((med) => (
-                <article 
-                  key={med.id} 
+                <article
+                  key={med.id}
                   className={`rounded-xl border bg-white p-4 sm:p-5 shadow-2xs transition-all duration-150 hover:shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 ${
-                    med.isActive 
-                      ? 'border-brand-border-soft hover:border-brand-border-strong' 
+                    med.isActive
+                      ? 'border-brand-border-soft hover:border-brand-border-strong'
                       : 'border-brand-border-soft/70 bg-slate-50/60 opacity-80 hover:opacity-100'
                   }`}
                 >
@@ -979,8 +980,8 @@ export default function RemindersPage() {
                       {/* Time Chips */}
                       <div className="flex flex-wrap gap-1.5 mt-3">
                         {med.times.map((time, i) => (
-                          <span 
-                            key={i} 
+                          <span
+                            key={i}
                             className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong bg-brand-soft border border-brand-border-soft px-2.5 py-0.5 rounded-full"
                           >
                             <Clock size={12} className="text-brand-strong shrink-0" />
@@ -1012,7 +1013,7 @@ export default function RemindersPage() {
 
                     {canManageMedication && (
                       <div className="flex items-center gap-3">
-                        <button 
+                        <button
                           type="button"
                           onClick={() => openEditModal(med)}
                           className={`${textActionClass} text-brand-strong`}
@@ -1021,7 +1022,7 @@ export default function RemindersPage() {
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                           แก้ไข
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handleDeleteClick(med)}
                           className={`${textActionClass} text-status-critical`}
@@ -1053,9 +1054,9 @@ export default function RemindersPage() {
                   สำหรับผู้ป่วย: <span className="font-semibold text-brand-ink">{currentPatient.name}</span> ({currentPatient.studentId})
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setIsAddModalOpen(false)} 
+                onClick={() => setIsAddModalOpen(false)}
                 className="text-brand-muted hover:text-brand-ink p-1 rounded-lg transition cursor-pointer"
                 aria-label="ปิดหน้าต่าง"
               >
@@ -1193,9 +1194,9 @@ export default function RemindersPage() {
                   สำหรับผู้ป่วย: <span className="font-semibold text-brand-ink">{currentPatient.name}</span> ({currentPatient.studentId})
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setEditingItem(null)} 
+                onClick={() => setEditingItem(null)}
                 className="text-brand-muted hover:text-brand-ink cursor-pointer p-1 rounded-lg transition"
                 aria-label="ปิดหน้าต่าง"
               >
@@ -1378,7 +1379,7 @@ export default function RemindersPage() {
 
 function ToggleSwitch({ active, onToggle }: { active: boolean; onToggle?: () => void }) {
   return (
-    <button 
+    <button
       type="button"
       onClick={(e) => {
         e.stopPropagation();

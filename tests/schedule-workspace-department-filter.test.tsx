@@ -356,4 +356,20 @@ describe('ScheduleWorkspace Service Filter', () => {
     expect(screen.getByLabelText('วันที่')).toHaveValue('2026-09-10');
     expect(shopState.slots).toEqual([]);
   });
+
+  it('renders month view with clean weekday headers and navigates month by month', () => {
+    render(<ScheduleWorkspace role="patient" actorId="guest" />);
+    fireEvent.change(screen.getByLabelText('มุมมองปฏิทิน'), { target: { value: 'month' } });
+
+    const monthCalendar = screen.getByLabelText('ปฏิทินรายเดือน');
+    expect(monthCalendar).toBeInTheDocument();
+
+    ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].forEach((day) => {
+      expect(within(monthCalendar).getByText(day)).toBeInTheDocument();
+    });
+
+    // Verify month navigation
+    fireEvent.click(screen.getByLabelText('ช่วงถัดไป'));
+    expect(screen.getByLabelText('ปฏิทินรายเดือน')).toBeInTheDocument();
+  });
 });

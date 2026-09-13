@@ -16,6 +16,7 @@ import {
 } from '@/features/dashboard/types';
 import { getBroadcastHistory, getDashboardView, sendBroadcast } from '@/services/dashboardService';
 import type { AppointmentStatus } from '@/types/database';
+import Toast from '@/components/common/Toast';
 const metricIcons: Record<string, LucideIcon> = {
   'appointments-in-range': CalendarDays, 'remaining-queue': Clock3, 'department-workload': Activity,
   'unread-notifications': Bell, 'own-appointments': CalendarDays, 'own-queue': ClipboardList,
@@ -170,7 +171,7 @@ function BroadcastPanel({ range }: { range: DashboardRange }) {
         <div className="flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center"><div aria-live="polite" className="text-sm text-rose-700">{error}</div><button type="submit" disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">{busy ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}{busy ? 'กำลังส่ง…' : 'ยืนยันการส่ง'}</button></div>
       </form>
       <div className="border-t border-slate-200 px-5 py-5 sm:px-6"><h3 className="font-semibold text-slate-900">ประวัติ Broadcast ที่ส่งสำเร็จ</h3>{filteredHistory.length === 0 ? <p className="mt-3 text-sm text-slate-500">ยังไม่มีประวัติการส่งในช่วง{range === 'today' ? 'วันนี้' : range === '7d' ? ' 7 วันที่ผ่านมา' : ' 30 วันที่ผ่านมา'}</p> : <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200">{filteredHistory.map((item) => <article key={item.id} className="p-4"><div className="flex flex-col justify-between gap-1 sm:flex-row"><h4 className="font-medium text-slate-900">{item.title}</h4><time className="text-xs text-slate-400">{formatThaiDate(bangkokDateFromTimestamp(item.sentAt))}</time></div><p className="mt-2 text-sm text-slate-600">{item.message}</p><p className="mt-2 text-xs text-emerald-700">ส่งสำเร็จ · ผู้รับ {item.recipientCount} คน · อ่านแล้ว {item.readCount ?? 0} คน</p><div className="mt-3 flex flex-wrap gap-2">{broadcastRoleOrder.map((role) => { const summary = item.roleReadCounts?.[role] ?? { read: 0, total: 0 }; return <span key={role} className={`rounded-full px-2.5 py-1 text-xs font-medium ${summary.total > 0 && summary.read === summary.total ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{roleLabels[role]} อ่านแล้ว {summary.read}/{summary.total}</span>; })}</div></article>)}</div>}</div>
-      {success && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/30 p-4" role="dialog" aria-modal="true" aria-label="ส่ง Broadcast สำเร็จ"><div className="relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"><button type="button" onClick={() => setSuccess(null)} aria-label="ปิด" className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full text-xl text-slate-500 hover:bg-slate-100">×</button><CheckCircle2 className="mx-auto size-12 text-emerald-500" /><h3 className="mt-3 text-lg font-bold text-slate-950">ส่งสำเร็จ</h3><p className="mt-2 text-sm text-slate-600">{success}</p></div></div>}
+      <Toast message={success} onDismiss={() => setSuccess(null)} />
     </Section>
   );
 }

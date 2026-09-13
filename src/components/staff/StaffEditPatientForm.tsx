@@ -18,6 +18,7 @@ import type {
   HealthDeclarationStatus,
   PatientType,
 } from '@/types/database';
+import Toast from '@/components/common/Toast';
 
 interface StaffEditPatientFormProps {
   patientId: string;
@@ -204,14 +205,7 @@ export default function StaffEditPatientForm({
         </div>
       )}
 
-      {success && (
-        <div
-          role="status"
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-        >
-          {success}
-        </div>
-      )}
+      <Toast message={success} onDismiss={() => setSuccess(null)} />
 
       <form
         onSubmit={handleSubmit}

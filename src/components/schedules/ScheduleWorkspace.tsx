@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
-  Check,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -15,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import ScheduleSkeleton from './ScheduleSkeleton';
+import Toast from '@/components/common/Toast';
 import { useShop } from '@/features/shop/context/ShopProvider';
 import type { ScheduleSlot, ScheduleSlotStatus } from '@/types/schedule';
 import type { UserRole } from '@/types/database';
@@ -25,9 +25,9 @@ const inputClass =
 const filterClass = 'h-11 w-full rounded-lg border border-brand-border-strong bg-transparent px-3 text-sm text-brand-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
 const textButtonClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold text-brand-strong hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
 const slotStyles: Record<ScheduleSlotStatus, { label: string; marker: string; text: string }> = {
-  available: { label: 'เปิดรับ', marker: 'border-status-success', text: 'text-status-success' },
-  full: { label: 'เต็ม', marker: 'border-status-warning', text: 'text-status-warning' },
-  closed: { label: 'ปิดรอบ', marker: 'border-status-neutral', text: 'text-status-neutral' },
+  available: { label: 'เปิดรับ', marker: 'border-l-status-success', text: 'text-status-success' },
+  full: { label: 'เต็ม', marker: 'border-l-status-warning', text: 'text-status-warning' },
+  closed: { label: 'ปิดรอบ', marker: 'border-l-status-neutral', text: 'text-status-neutral' },
 };
 
 const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
@@ -92,6 +92,14 @@ function shiftClinicDate(isoDate: string, days: number) {
   const date = parseClinicDate(isoDate);
   date.setUTCDate(date.getUTCDate() + days);
   return toClinicDate(date);
+}
+
+function shiftClinicMonth(isoDate: string, deltaMonths: number) {
+  const date = parseClinicDate(isoDate);
+  const targetYear = date.getUTCFullYear();
+  const targetMonth = date.getUTCMonth() + deltaMonths;
+  const targetDate = new Date(Date.UTC(targetYear, targetMonth, 1, 12, 0, 0));
+  return toClinicDate(targetDate);
 }
 
 function formatShortDate(isoDate: string) {
@@ -269,7 +277,10 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     const firstDate = parseClinicDate(first);
     const mondayOffset = (firstDate.getUTCDay() + 6) % 7;
     const gridStart = shiftClinicDate(first, -mondayOffset);
-    return Array.from({ length: 35 }, (_, index) => shiftClinicDate(gridStart, index));
+    const [year, month] = weekStart.slice(0, 7).split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const totalSlots = mondayOffset + daysInMonth > 35 ? 42 : 35;
+    return Array.from({ length: totalSlots }, (_, index) => shiftClinicDate(gridStart, index));
   }, [calendarView, weekDays, weekStart]);
 
   const filteredDoctors = useMemo(
@@ -478,18 +489,9 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
         </div>
       )}
 
+      <Toast message={notice} onDismiss={() => setNotice('')} />
+
       <div className="space-y-2 empty:hidden" aria-live="polite">
-        {notice && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            <span className="flex items-center gap-2">
-              <Check className="h-4 w-4" aria-hidden="true" />
-              {notice}
-            </span>
-            <button type="button" onClick={() => setNotice('')} className="min-h-11 min-w-11 rounded-lg p-2 hover:bg-emerald-100" aria-label="ปิดข้อความ">
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        )}
         {formError && !formOpen && (
           <div className="flex items-center justify-between gap-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-rose-200">
             <span className="flex items-center gap-2">
@@ -728,13 +730,39 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
             <div className="mb-6 space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
-                  <button type="button" onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? -1 : calendarView === 'month' ? -28 : -7))} className={textButtonClass} aria-label="ช่วงก่อนหน้า">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWeekStart((current) =>
+                        calendarView === 'day'
+                          ? shiftClinicDate(current, -1)
+                          : calendarView === 'month'
+                          ? shiftClinicMonth(current, -1)
+                          : shiftClinicDate(current, -7),
+                      )
+                    }
+                    className={textButtonClass}
+                    aria-label="ช่วงก่อนหน้า"
+                  >
                     <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                   </button>
                   <span className="text-sm font-semibold tabular-nums text-brand-ink sm:text-lg" aria-live="polite">
                     {calendarView === 'day' ? formatShortDate(weekStart) : calendarView === 'month' ? `${monthNames[parseClinicDate(weekStart).getUTCMonth()]} ${parseClinicDate(weekStart).getUTCFullYear() + 543}` : formatWeekRange(weekStart)}
                   </span>
-                  <button type="button" onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? 1 : calendarView === 'month' ? 28 : 7))} className={textButtonClass} aria-label="ช่วงถัดไป">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWeekStart((current) =>
+                        calendarView === 'day'
+                          ? shiftClinicDate(current, 1)
+                          : calendarView === 'month'
+                          ? shiftClinicMonth(current, 1)
+                          : shiftClinicDate(current, 7),
+                      )
+                    }
+                    className={textButtonClass}
+                    aria-label="ช่วงถัดไป"
+                  >
                     <ChevronRight className="h-5 w-5" aria-hidden="true" />
                   </button>
                   <button type="button" onClick={jumpToToday} className={textButtonClass}>วันนี้</button>
@@ -788,6 +816,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
           <CalendarBoard
             view={calendarView}
             days={displayDays}
+            currentMonth={weekStart.slice(0, 7)}
             slots={visibleSlots}
             doctors={doctors}
             departments={departments}
@@ -950,7 +979,7 @@ function SlotCard({
   const config = slotStyles[slot.status];
 
   return (
-    <article className={`min-w-0 border-l-2 pl-3 ${config.marker}`}>
+    <article className={`min-w-0 rounded-xl border border-brand-border-soft border-l-4 bg-white px-4 py-4 shadow-xs transition-shadow hover:shadow-sm ${config.marker}`}>
       <div className="text-sm font-bold tabular-nums text-brand-ink">{slot.startTime}–{slot.endTime}</div>
       <h3 className="mt-2 break-words text-sm font-semibold leading-6 text-brand-ink">{service?.name ?? 'ไม่พบบริการ'}</h3>
       <p className="mt-1 break-words text-sm leading-6 text-brand-body">{doctor?.fullName ?? 'ไม่พบแพทย์'}</p>
@@ -976,6 +1005,7 @@ function SlotCard({
 function CalendarBoard({
   view,
   days,
+  currentMonth,
   slots,
   doctors,
   departments,
@@ -990,6 +1020,7 @@ function CalendarBoard({
 }: {
   view: CalendarView;
   days: string[];
+  currentMonth?: string;
   slots: ScheduleSlot[];
   doctors: import('@/types/schedule').ScheduleDoctor[];
   departments: import('@/types/schedule').ScheduleDepartment[];
@@ -1006,11 +1037,11 @@ function CalendarBoard({
     const date = days[0];
     return (
       <div aria-label="ปฏิทินรายวัน">
-        <div className="border-y border-brand-border-soft py-5">
-          <div className="text-xs font-semibold text-sky-700">{dayNames[parseClinicDate(date).getUTCDay()]}</div>
-          <h2 className="mt-1 text-lg font-bold text-slate-950">{formatShortDate(date)}</h2>
+        <div className="border-y border-brand-border-soft bg-brand-surface/60 px-4 py-5">
+          <div className="text-xs font-semibold text-brand-strong">{dayNames[parseClinicDate(date).getUTCDay()]}</div>
+          <h2 className="mt-1 text-lg font-bold text-brand-ink">{formatShortDate(date)}</h2>
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-brand-border-soft">
           {slots.filter((slot) => slot.slotDate === date).map((slot) => (
             <div key={slot.id} className="flex flex-wrap items-center gap-4 py-6">
               <div className="min-w-0 flex-1">
@@ -1050,30 +1081,29 @@ function CalendarBoard({
       </div>
     );
   }
+
+  const monthDayHeaders = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
   return (
-    <div className="overflow-x-auto" aria-label={view === 'month' ? 'ปฏิทินรายเดือน' : 'ปฏิทินรายสัปดาห์'}>
+    <div className="overflow-x-auto" aria-label="ปฏิทินรายเดือน">
       <div className="min-w-[720px]">
-        <div className="grid grid-cols-7 border-y border-brand-border-soft">
-          {days.slice(0, 7).map((date) => {
-            const parsed = parseClinicDate(date);
-            return (
-              <div key={date} className="px-2 py-3 text-center">
-                <div className="text-[11px] font-semibold text-slate-500">{dayNames[parsed.getUTCDay()]}</div>
-                <div className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${date === getTodayDate() ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-7 border-y border-brand-border-soft bg-brand-surface/60">
+          {monthDayHeaders.map((dayName) => (
+            <div key={dayName} className="py-3 text-center text-xs font-semibold text-brand-strong">
+              {dayName}
+            </div>
+          ))}
         </div>
-        <div className="grid grid-cols-7 divide-x divide-y divide-slate-200">
+        <div className="grid grid-cols-7 divide-x divide-y divide-brand-border-soft">
           {days.map((date) => {
             const daySlots = slots.filter((slot) => slot.slotDate === date);
             const isToday = date === getTodayDate();
+            const isCurrentMonth = currentMonth ? date.startsWith(currentMonth) : true;
             return (
               <div
                 key={date}
                 onDoubleClick={() => onSelectDay?.(date)}
-                className={`group min-h-36 min-w-0 p-2 transition-colors cursor-pointer select-none hover:bg-sky-50/40 ${
-                  isToday ? 'bg-sky-50/20' : ''
+                className={`group min-h-36 min-w-0 cursor-pointer select-none p-2 transition-colors hover:bg-brand-soft/40 ${
+                  isToday ? 'bg-brand-surface/50' : !isCurrentMonth ? 'bg-slate-50/40' : ''
                 }`}
                 title="ดับเบิ้ลคลิกเพื่อดูตารางตรวจรายวัน"
               >
@@ -1084,10 +1114,12 @@ function CalendarBoard({
                       e.stopPropagation();
                       onSelectDay?.(date);
                     }}
-                    className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold focus-visible:outline-2 focus-visible:outline-brand-strong ${
+                    className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold focus-visible:outline-2 focus-visible:outline-brand-strong ${
                       isToday
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'text-slate-700 hover:bg-sky-100 hover:text-sky-800'
+                        ? 'bg-brand-strong text-white shadow-xs'
+                        : !isCurrentMonth
+                          ? 'text-slate-400 hover:bg-brand-soft hover:text-brand-ink'
+                          : 'text-brand-ink hover:bg-brand-soft hover:text-brand-strong'
                     }`}
                     title={`ดูตารางตรวจวันที่ ${formatShortDate(date)}`}
                     aria-label={`ดูรายวัน ${formatShortDate(date)}`}
@@ -1095,7 +1127,7 @@ function CalendarBoard({
                     {parseClinicDate(date).getUTCDate()}
                   </button>
                 </div>
-                <div className="space-y-1">
+                <div className={`space-y-2 ${!isCurrentMonth ? 'opacity-60' : ''}`}>
                   {daySlots.map((slot) => (
                     <div
                       key={slot.id}
@@ -1154,7 +1186,7 @@ function MiniSlot({
   if (!canModify) {
     return (
       <div
-        className={`mb-3 block w-full border-l-2 px-2 py-1 text-left text-xs leading-5 ${colors}`}
+        className={`block min-h-11 w-full rounded-lg border border-brand-border-soft border-l-4 bg-white px-3 py-2 text-left text-xs leading-5 shadow-xs ${colors}`}
         title={`${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''} (ดูเท่านั้น)`}
       >
         <span className="block font-semibold tabular-nums">{slot.startTime} · {config.label}</span>
@@ -1168,7 +1200,7 @@ function MiniSlot({
     <button
       type="button"
       onClick={onEdit}
-      className={`mb-3 block min-h-11 w-full border-l-2 px-2 py-1 text-left text-xs leading-5 hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-brand-strong ${colors}`}
+      className={`block min-h-11 w-full rounded-lg border border-brand-border-soft border-l-4 bg-white px-3 py-2 text-left text-xs leading-5 shadow-xs transition-shadow hover:bg-brand-soft hover:shadow-sm focus-visible:outline-2 focus-visible:outline-brand-strong ${colors}`}
       aria-label={`แก้ไขรอบ ${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''}`}
       title={`${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''}`}
     >
