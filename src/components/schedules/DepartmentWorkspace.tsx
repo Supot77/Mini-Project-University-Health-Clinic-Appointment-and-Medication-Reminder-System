@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Building2,
   Loader2,
   Pencil,
   Plus,
   Power,
   Search,
+  Stethoscope,
   X,
 } from 'lucide-react';
 import { useShop } from '@/features/shop/context/ShopProvider';
@@ -301,32 +303,49 @@ export default function DepartmentWorkspace() {
         </button>
       </header>
 
-      <div className="flex gap-6 border-b border-brand-border-soft" role="tablist" aria-label="เลือกมุมมองการจัดการ">
+      <div className="flex items-end gap-1.5 sm:gap-2 border-b-2 border-brand-border-soft pt-3" role="tablist" aria-label="เลือกมุมมองการจัดการ">
         {([
-          ['departments', 'แผนก', departments.length],
-          ['doctors', 'แพทย์', doctors.length],
-        ] as const).map(([tab, label, count]) => (
-          <button
-            key={tab}
-            id={`${tab}-tab`}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            aria-controls={`${tab}-panel`}
-            tabIndex={activeTab === tab ? 0 : -1}
-            onClick={() => changeTab(tab)}
-            onKeyDown={(event) => {
-              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-              event.preventDefault();
-              const nextTab = event.key === 'Home' ? 'departments' : event.key === 'End' ? 'doctors' : tab === 'departments' ? 'doctors' : 'departments';
-              changeTab(nextTab);
-              document.getElementById(`${nextTab}-tab`)?.focus();
-            }}
-            className={`flex min-h-11 items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong ${activeTab === tab ? 'border-brand-strong text-brand-strong' : 'border-transparent text-brand-body hover:text-brand-strong'}`}
-          >
-            {label}<span className="text-xs font-normal tabular-nums">{count}</span>
-          </button>
-        ))}
+          ['departments', 'แผนก', departments.length, Building2],
+          ['doctors', 'แพทย์', doctors.length, Stethoscope],
+        ] as const).map(([tab, label, count, Icon]) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              id={`${tab}-tab`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`${tab}-panel`}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => changeTab(tab)}
+              onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const nextTab = event.key === 'Home' ? 'departments' : event.key === 'End' ? 'doctors' : tab === 'departments' ? 'doctors' : 'departments';
+                changeTab(nextTab);
+                document.getElementById(`${nextTab}-tab`)?.focus();
+              }}
+              className={`group relative flex min-h-12 items-center gap-2.5 rounded-t-2xl px-5 py-3 text-sm font-semibold transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong ${
+                isActive
+                  ? '-mb-[2px] z-10 border-t-4 border-t-brand border-x-2 border-b-2 border-x-brand-border-soft border-b-white bg-white text-brand-strong shadow-xs'
+                  : 'border-t-2 border-x border-b-0 border-transparent bg-slate-100/80 text-brand-body hover:bg-brand-surface hover:text-brand-strong'
+              }`}
+            >
+              <Icon className={`h-4 w-4 transition-colors duration-200 ${isActive ? 'text-brand-strong' : 'text-brand-muted group-hover:text-brand-strong'}`} aria-hidden="true" />
+              <span>{label}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs tabular-nums transition-all duration-300 ${
+                  isActive
+                    ? 'bg-brand-soft font-bold text-brand-strong'
+                    : 'bg-slate-200/80 font-normal text-brand-muted group-hover:bg-brand-soft/70 group-hover:text-brand-strong'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <section aria-label="ค้นหาและกรองรายการ" className="flex flex-wrap items-end gap-4 border-y border-brand-border-soft bg-brand-surface/60 px-4 py-4">
@@ -378,7 +397,7 @@ export default function DepartmentWorkspace() {
       </div>
 
       {activeTab === 'departments' && (
-        <section id="departments-panel" role="tabpanel" aria-labelledby="departments-tab" aria-busy={isLoading}>
+        <section id="departments-panel" role="tabpanel" aria-labelledby="departments-tab" aria-busy={isLoading} className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-brand-ink">รายชื่อแผนก</h2>
             <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm font-medium tabular-nums text-brand-strong">{visibleDepartments.length} รายการ</span>
@@ -438,7 +457,7 @@ export default function DepartmentWorkspace() {
       )}
 
       {activeTab === 'doctors' && (
-        <section id="doctors-panel" role="tabpanel" aria-labelledby="doctors-tab" aria-busy={isLoading}>
+        <section id="doctors-panel" role="tabpanel" aria-labelledby="doctors-tab" aria-busy={isLoading} className="animate-in fade-in-50 slide-in-from-bottom-2 duration-300 ease-out">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-brand-ink">รายชื่อแพทย์</h2>
             <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm font-medium tabular-nums text-brand-strong">{visibleDoctors.length} คน</span>
