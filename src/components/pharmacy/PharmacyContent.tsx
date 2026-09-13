@@ -282,11 +282,23 @@ interface RawInventoryLog {
               log.idempotency_key === key ||
               (log.reason && log.reason.includes(r.id) && log.medication_id === m.medication_id)
           );
-          if (match) {
+
+          const isItemDispensed = Boolean(m.dispensed || match);
+
+          if (isItemDispensed) {
             dispensedCount++;
-            if (!lastDispensedAt || new Date(match.created_at) > new Date(lastDispensedAt)) {
-              lastDispensedAt = match.created_at;
-              pharmacistName = match.pharmacist?.full_name || null;
+            if (m.dispensed_at) {
+              if (!lastDispensedAt || new Date(m.dispensed_at) > new Date(lastDispensedAt)) {
+                lastDispensedAt = m.dispensed_at;
+                const dispUser = m.dispensed_by ? profilesMap.get(m.dispensed_by) : null;
+                pharmacistName =
+                  dispUser?.full_name || match?.pharmacist?.full_name || null;
+              }
+            } else if (match) {
+              if (!lastDispensedAt || new Date(match.created_at) > new Date(lastDispensedAt)) {
+                lastDispensedAt = match.created_at;
+                pharmacistName = match.pharmacist?.full_name || null;
+              }
             }
           }
         });

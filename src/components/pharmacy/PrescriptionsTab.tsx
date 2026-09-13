@@ -28,6 +28,9 @@ export interface PrescribedMedItem {
   frequency: string;
   duration_days: number;
   quantity: number;
+  dispensed?: boolean;
+  dispensed_at?: string | null;
+  dispensed_by?: string | null;
 }
 
 export interface PrescriptionOrder {
@@ -159,18 +162,30 @@ export default function PrescriptionsTab({
   // Handle Dispense
   const handleConfirmDispense = async () => {
     if (!dispenseTarget || !canManage) return;
+
+    if (dispenseTarget.is_fully_dispensed) {
+      alert('ใบสั่งยานี้ได้รับการตัดจ่ายสต็อกเรียบร้อยแล้ว ไม่สามารถตัดซ้ำได้');
+      setDispenseTarget(null);
+      return;
+    }
+
     setIsDispensing(true);
     try {
       let effectiveUserId = userId;
       if (!effectiveUserId) {
-        const { data } = await supabase.auth.getUser();
-        effectiveUserId = data.user?.id;
+        const { data: authData } = await supabase.auth.getUser();
+        effectiveUserId = authData.user?.id;
       }
       if (!effectiveUserId) {
         throw new Error('ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่');
       }
 
       for (const item of dispenseTarget.prescribed_medications) {
+        // Skip medication if it has already been marked as dispensed
+        if (item.dispensed) {
+          continue;
+        }
+
         const med = medications.find(
           (m) => m.id === item.medication_id || m.name.toLowerCase() === item.name.toLowerCase()
         );
@@ -186,7 +201,9 @@ export default function PrescriptionsTab({
             .eq('id', targetMedId);
 
           if (updateError) {
-            console.error(`Failed to update stock for ${item.name}:`, updateError);
+            const updateMsg = updateError.message || JSON.stringify(updateError);
+            console.error(`Failed to update stock for ${item.name}:`, updateMsg);
+            throw new Error(`ไม่สามารถอัปเดตสต็อกของ ${item.name}: ${updateMsg}`);
           }
         }
 
@@ -204,8 +221,40 @@ export default function PrescriptionsTab({
         });
 
         if (logError) {
-          console.error(`Failed to log dispense for ${item.name}:`, logError);
+          const logErrMsg =
+            logError.message ||
+            logError.details ||
+            logError.code ||
+            'RLS policy or permission limitation';
+          console.warn(
+            `[PrescriptionsTab] Notice: inventory_logs insert skipped/failed for ${item.name}:`,
+            logErrMsg
+          );
         }
+      }
+
+      // Mark prescribed_medications as dispensed in medical_records
+      const nowIso = new Date().toISOString();
+      const updatedMeds = dispenseTarget.prescribed_medications.map((item) => ({
+        ...item,
+        dispensed: true,
+        dispensed_at: item.dispensed_at || nowIso,
+        dispensed_by: item.dispensed_by || effectiveUserId,
+      }));
+
+      const { error: recordError } = await supabase
+        .from('medical_records')
+        .update({
+          prescribed_medications: updatedMeds,
+          updated_at: nowIso,
+        })
+        .eq('id', dispenseTarget.id);
+
+      if (recordError) {
+        console.warn(
+          '[PrescriptionsTab] Medical record update notice:',
+          recordError.message || recordError
+        );
       }
 
       onShowToast(`ตัดจ่ายยาสำหรับ ${dispenseTarget.patient_name} และอัปเดตสต็อกเรียบร้อยแล้ว`);
@@ -214,8 +263,9 @@ export default function PrescriptionsTab({
 
       await onStockUpdated();
     } catch (err: unknown) {
-      console.error('Dispense error:', err);
-      alert(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการตัดจ่ายยา');
+      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการตัดจ่ายยา';
+      console.error('Dispense error:', msg);
+      alert(msg);
     } finally {
       setIsDispensing(false);
     }

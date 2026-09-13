@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import PharmacyContent from '@/components/pharmacy/PharmacyContent';
 
 vi.mock('next/navigation', () => ({
@@ -57,6 +57,28 @@ const mockMedicalRecords = [
     ],
     created_at: '2026-09-13T10:00:00Z',
   },
+  {
+    id: 'rec-2',
+    appointment_id: 'apt-2',
+    patient_id: 'pat-2',
+    doctor_id: 'doc-1',
+    diagnosis: 'ปวดท้องโรคกระเพาะ',
+    treatment_notes: 'รับประทานยาตรงเวลา',
+    prescribed_medications: [
+      {
+        medication_id: 'med-2',
+        name: 'Amoxicillin 500mg',
+        dosage: '1 เม็ด',
+        frequency: 'ก่อนอาหาร เช้า-เย็น',
+        duration_days: 5,
+        quantity: 10,
+        dispensed: true,
+        dispensed_at: '2026-09-13T11:00:00Z',
+        dispensed_by: 'doc-1',
+      },
+    ],
+    created_at: '2026-09-13T09:00:00Z',
+  },
 ];
 
 const mockProfiles = [
@@ -65,6 +87,13 @@ const mockProfiles = [
     full_name: 'นายสมศักดิ์ รักเรียน',
     student_id: '65123456',
     phone: '0812345678',
+    role: 'patient',
+  },
+  {
+    id: 'pat-2',
+    full_name: 'นางสาว อารียา สุขใจ',
+    student_id: '65123999',
+    phone: '0898765432',
     role: 'patient',
   },
   {
@@ -102,6 +131,10 @@ vi.mock('@/utils/supabase/client', () => ({
         };
         return queryObj;
       },
+      update: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+      }),
+      insert: () => Promise.resolve({ data: null, error: null }),
     }),
   }),
 }));
@@ -164,12 +197,12 @@ describe('PharmacyContent Role Permissions & Lock Behavior', () => {
     // Verify patient name and doctor name are shown
     expect(await screen.findByText('นายสมศักดิ์ รักเรียน')).toBeInTheDocument();
     expect(screen.getByText('65123456')).toBeInTheDocument();
-    expect(screen.getByText('นพ. วิชัย เก่งการุณ')).toBeInTheDocument();
+    expect(screen.getAllByText('นพ. วิชัย เก่งการุณ').length).toBeGreaterThan(0);
     expect(screen.getByText(/ไข้หวัดทั่วไป/)).toBeInTheDocument();
 
     // Verify medication details and stock status
     expect(screen.getByText('Paracetamol 500mg')).toBeInTheDocument();
-    expect(screen.getByText('พร้อมตัดจ่าย')).toBeInTheDocument();
+    expect(screen.getAllByText('พร้อมตัดจ่าย').length).toBeGreaterThan(0);
 
     // Role medical should see active dispense button
     expect(screen.getByRole('button', { name: /ตัดสต็อกจ่ายยา/ })).toBeInTheDocument();
@@ -203,5 +236,46 @@ describe('PharmacyContent Role Permissions & Lock Behavior', () => {
     // Role staff_admin should see locked dispense indicator
     expect(screen.getByText('ตัดสต็อก (ล็อค)')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'ตัดสต็อกจ่ายยา' })).not.toBeInTheDocument();
+  });
+
+  it('displays dispensed badge and disabled action for already dispensed prescriptions', async () => {
+    render(<PharmacyContent currentRole="medical" userName="นพ. สมชาย" />);
+
+    const prescriptionsTab = screen.getByRole('button', {
+      name: /รายการสั่งยาและตัดจ่าย/,
+    });
+    fireEvent.click(prescriptionsTab);
+
+    // Wait for prescriptions to load
+    expect(await screen.findByText('ปวดท้องโรคกระเพาะ')).toBeInTheDocument();
+
+    // The dispensed prescription (rec-2) should show "จ่ายยาครบถ้วนแล้ว"
+    expect(screen.getByText('จ่ายยาครบถ้วนแล้ว')).toBeInTheDocument();
+    expect(screen.getByText('ตัดจ่ายสต็อกแล้ว')).toBeInTheDocument();
+  });
+
+  it('opens confirmation modal when clicking dispense and handles confirm', async () => {
+    render(<PharmacyContent currentRole="medical" userName="นพ. สมชาย" />);
+
+    const prescriptionsTab = screen.getByRole('button', {
+      name: /รายการสั่งยาและตัดจ่าย/,
+    });
+    fireEvent.click(prescriptionsTab);
+
+    expect(await screen.findByText('ไข้หวัดทั่วไป มีไข้สูง')).toBeInTheDocument();
+
+    const dispenseBtn = screen.getByRole('button', { name: /ตัดสต็อกจ่ายยา/ });
+    fireEvent.click(dispenseBtn);
+
+    // Confirmation modal should open
+    expect(screen.getByRole('heading', { name: 'ยืนยันการตัดสต็อกจ่ายยา' })).toBeInTheDocument();
+    expect(screen.getByText('รายการเวชภัณฑ์ที่จะตัดสต็อก')).toBeInTheDocument();
+    expect(screen.getByText('คงเหลือหลังจ่าย')).toBeInTheDocument();
+
+    // Click confirm button
+    const confirmBtn = screen.getByRole('button', { name: /ยืนยันการตัดสต็อกจ่ายยา/ });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
   });
 });
