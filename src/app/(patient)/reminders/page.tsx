@@ -733,121 +733,8 @@ export default function RemindersPage() {
           )}
         </div>
 
-        {/* Status Tabs (Accessible Underline Tabs with Hover Box Affordance) */}
-        <div 
-          className="flex flex-wrap items-center gap-2 border-b border-brand-border-soft pb-1.5" 
-          role="tablist" 
-          aria-label="เลือกกรองสถานะการเตือนยา"
-        >
-          {([
-            ['all', 'ทั้งหมด', medicationList.length],
-            ['active', 'เปิดเตือน', activeCount],
-            ['paused', 'หยุดชั่วคราว', pausedCount],
-          ] as const).map(([tab, label, count]) => {
-            const isSelected = filterStatus === tab;
-            return (
-              <button
-                key={tab}
-                id={`${tab}-tab`}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                aria-controls="reminders-panel"
-                tabIndex={isSelected ? 0 : -1}
-                onClick={() => setFilterStatus(tab)}
-                onKeyDown={(e) => {
-                  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
-                  e.preventDefault();
-                  const tabs: ('all' | 'active' | 'paused')[] = ['all', 'active', 'paused'];
-                  const currentIndex = tabs.indexOf(tab);
-                  let nextTab: 'all' | 'active' | 'paused';
-                  if (e.key === 'Home') nextTab = 'all';
-                  else if (e.key === 'End') nextTab = 'paused';
-                  else if (e.key === 'ArrowRight') nextTab = tabs[(currentIndex + 1) % tabs.length];
-                  else nextTab = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
-                  setFilterStatus(nextTab);
-                  document.getElementById(`${nextTab}-tab`)?.focus();
-                }}
-                className={`group relative inline-flex min-h-11 items-center gap-2.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong cursor-pointer ${
-                  isSelected
-                    ? 'bg-brand-soft text-brand-strong font-bold shadow-2xs'
-                    : 'text-brand-body hover:bg-brand-soft/70 hover:text-brand-ink'
-                }`}
-              >
-                <span>{label}</span>
-                <span
-                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors ${
-                    isSelected
-                      ? 'bg-brand-strong text-white shadow-2xs'
-                      : 'bg-white border border-brand-border-soft text-brand-muted group-hover:border-brand-border-strong group-hover:text-brand-ink'
-                  }`}
-                >
-                  {count}
-                </span>
-                {/* Active & Hover Underline indicator */}
-                <span
-                  className={`absolute -bottom-[7px] left-2 right-2 h-0.5 rounded-full transition-all duration-150 ${
-                    isSelected
-                      ? 'bg-brand-strong'
-                      : 'bg-transparent group-hover:bg-brand-border-strong/70'
-                  }`}
-                  aria-hidden="true"
-                />
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Search & Patient Filter Controls */}
-        <section aria-label="ค้นหาและกรองรายการยา" className="flex flex-wrap items-end gap-4">
-          <label className="grid w-full gap-2 text-sm text-brand-body sm:w-80">
-            <span>ค้นหารายการยา</span>
-            <span className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-brand-muted" aria-hidden="true" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ชื่อยา หรือวิธีทาน..."
-                className={`${inputClass} pl-9`}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-3 text-brand-muted hover:text-brand-ink p-0.5 cursor-pointer"
-                  title="ล้างคำค้นหา"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </span>
-          </label>
-
-          {canManageMedication ? (
-            <label className="grid w-full gap-2 text-sm text-brand-body sm:w-72">
-              <span>ผู้ป่วย</span>
-              <select
-                value={selectedPatientId}
-                onChange={(e) => setSelectedPatientOverride(e.target.value)}
-                className={inputClass}
-              >
-                {allPatients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.studentId}) {p.allergies ? `[⚠️ ${p.allergies}]` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <div className="flex min-h-11 items-center gap-2 text-sm text-brand-body">
-              <span className="font-medium text-brand-ink">ผู้ป่วย:</span>
-              <span>{user?.full_name || 'บัญชีของคุณ'}</span>
-            </div>
-          )}
-        </section>
-
-        {/* Patient Meta & Allergy Warning Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-brand-border-soft text-sm">
+        {/* Patient Meta & Selector */}
+        <section aria-label="ข้อมูลผู้ป่วย" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-brand-border-soft text-sm">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-brand-soft text-brand-strong font-bold text-sm flex items-center justify-center border border-brand-border-soft shrink-0">
               {currentPatient.name.charAt(0)}
@@ -865,12 +752,127 @@ export default function RemindersPage() {
             </div>
           </div>
 
-          {currentPatient.allergies && (
-            <div className="inline-flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 px-3.5 py-1.5 text-xs font-semibold">
-              <AlertTriangle size={15} className="text-rose-600 shrink-0" />
-              <span>{currentPatient.allergies}</span>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {canManageMedication ? (
+              <label className="flex items-center gap-2 text-sm text-brand-body">
+                <span className="text-xs font-semibold text-brand-ink whitespace-nowrap">ผู้ป่วย:</span>
+                <select
+                  value={selectedPatientId}
+                  onChange={(e) => setSelectedPatientOverride(e.target.value)}
+                  className="h-10 rounded-lg border border-brand-border-strong bg-white px-3 text-xs text-brand-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+                >
+                  {allPatients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.studentId}) {p.allergies ? `[⚠️ ${p.allergies}]` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-brand-body">
+                <span className="font-medium text-brand-ink">ผู้ป่วย:</span>
+                <span>{user?.full_name || 'บัญชีของคุณ'}</span>
+              </div>
+            )}
+
+            {currentPatient.allergies && (
+              <div className="inline-flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 px-3.5 py-1.5 text-xs font-semibold">
+                <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+                <span>{currentPatient.allergies}</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Status Tabs (Left) & Search (Right) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border-soft pb-1.5">
+          {/* Status Tabs (Accessible Underline Tabs with Hover Box Affordance) */}
+          <div 
+            className="flex flex-wrap items-center gap-2" 
+            role="tablist" 
+            aria-label="เลือกกรองสถานะการเตือนยา"
+          >
+            {([
+              ['all', 'ทั้งหมด', medicationList.length],
+              ['active', 'เปิดเตือน', activeCount],
+              ['paused', 'หยุดชั่วคราว', pausedCount],
+            ] as const).map(([tab, label, count]) => {
+              const isSelected = filterStatus === tab;
+              return (
+                <button
+                  key={tab}
+                  id={`${tab}-tab`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  aria-controls="reminders-panel"
+                  tabIndex={isSelected ? 0 : -1}
+                  onClick={() => setFilterStatus(tab)}
+                  onKeyDown={(e) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                    e.preventDefault();
+                    const tabs: ('all' | 'active' | 'paused')[] = ['all', 'active', 'paused'];
+                    const currentIndex = tabs.indexOf(tab);
+                    let nextTab: 'all' | 'active' | 'paused';
+                    if (e.key === 'Home') nextTab = 'all';
+                    else if (e.key === 'End') nextTab = 'paused';
+                    else if (e.key === 'ArrowRight') nextTab = tabs[(currentIndex + 1) % tabs.length];
+                    else nextTab = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+                    setFilterStatus(nextTab);
+                    document.getElementById(`${nextTab}-tab`)?.focus();
+                  }}
+                  className={`group relative inline-flex min-h-11 items-center gap-2.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong cursor-pointer ${
+                    isSelected
+                      ? 'bg-brand-soft text-brand-strong font-bold shadow-2xs'
+                      : 'text-brand-body hover:bg-brand-soft/70 hover:text-brand-ink'
+                  }`}
+                >
+                  <span>{label}</span>
+                  <span
+                    className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors ${
+                      isSelected
+                        ? 'bg-brand-strong text-white shadow-2xs'
+                        : 'bg-white border border-brand-border-soft text-brand-muted group-hover:border-brand-border-strong group-hover:text-brand-ink'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                  {/* Active & Hover Underline indicator */}
+                  <span
+                    className={`absolute -bottom-[7px] left-2 right-2 h-0.5 rounded-full transition-all duration-150 ${
+                      isSelected
+                        ? 'bg-brand-strong'
+                        : 'bg-transparent group-hover:bg-brand-border-strong/70'
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search Input on the Right */}
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-muted" aria-hidden="true" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหารายการยา..."
+              className="h-10 w-full min-w-0 rounded-lg border border-brand-border-strong bg-white pl-9 pr-8 text-sm text-brand-ink placeholder:text-brand-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+              aria-label="ค้นหารายการยา"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand-ink p-1 cursor-pointer"
+                title="ล้างคำค้นหา"
+                aria-label="ล้างคำค้นหา"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Data Stream (Tab Panel) */}
