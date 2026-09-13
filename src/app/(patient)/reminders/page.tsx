@@ -733,32 +733,69 @@ export default function RemindersPage() {
           )}
         </div>
 
-        {/* Status Tabs (Accessible role="tablist") */}
-        <div className="flex gap-6 border-b border-brand-border-soft" role="tablist" aria-label="เลือกกรองสถานะการเตือนยา">
+        {/* Status Tabs (Accessible Underline Tabs with Hover Box Affordance) */}
+        <div 
+          className="flex flex-wrap items-center gap-2 border-b border-brand-border-soft pb-1.5" 
+          role="tablist" 
+          aria-label="เลือกกรองสถานะการเตือนยา"
+        >
           {([
             ['all', 'ทั้งหมด', medicationList.length],
             ['active', 'เปิดเตือน', activeCount],
             ['paused', 'หยุดชั่วคราว', pausedCount],
-          ] as const).map(([tab, label, count]) => (
-            <button
-              key={tab}
-              id={`${tab}-tab`}
-              type="button"
-              role="tab"
-              aria-selected={filterStatus === tab}
-              aria-controls={`${tab}-panel`}
-              tabIndex={filterStatus === tab ? 0 : -1}
-              onClick={() => setFilterStatus(tab)}
-              className={`flex min-h-11 items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong cursor-pointer ${
-                filterStatus === tab
-                  ? 'border-brand-strong text-brand-strong'
-                  : 'border-transparent text-brand-body hover:text-brand-strong'
-              }`}
-            >
-              {label}
-              <span className="text-xs font-normal tabular-nums">{count}</span>
-            </button>
-          ))}
+          ] as const).map(([tab, label, count]) => {
+            const isSelected = filterStatus === tab;
+            return (
+              <button
+                key={tab}
+                id={`${tab}-tab`}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                aria-controls="reminders-panel"
+                tabIndex={isSelected ? 0 : -1}
+                onClick={() => setFilterStatus(tab)}
+                onKeyDown={(e) => {
+                  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                  e.preventDefault();
+                  const tabs: ('all' | 'active' | 'paused')[] = ['all', 'active', 'paused'];
+                  const currentIndex = tabs.indexOf(tab);
+                  let nextTab: 'all' | 'active' | 'paused';
+                  if (e.key === 'Home') nextTab = 'all';
+                  else if (e.key === 'End') nextTab = 'paused';
+                  else if (e.key === 'ArrowRight') nextTab = tabs[(currentIndex + 1) % tabs.length];
+                  else nextTab = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+                  setFilterStatus(nextTab);
+                  document.getElementById(`${nextTab}-tab`)?.focus();
+                }}
+                className={`group relative inline-flex min-h-11 items-center gap-2.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong cursor-pointer ${
+                  isSelected
+                    ? 'bg-brand-soft text-brand-strong font-bold shadow-2xs'
+                    : 'text-brand-body hover:bg-brand-soft/70 hover:text-brand-ink'
+                }`}
+              >
+                <span>{label}</span>
+                <span
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors ${
+                    isSelected
+                      ? 'bg-brand-strong text-white shadow-2xs'
+                      : 'bg-white border border-brand-border-soft text-brand-muted group-hover:border-brand-border-strong group-hover:text-brand-ink'
+                  }`}
+                >
+                  {count}
+                </span>
+                {/* Active & Hover Underline indicator */}
+                <span
+                  className={`absolute -bottom-[7px] left-2 right-2 h-0.5 rounded-full transition-all duration-150 ${
+                    isSelected
+                      ? 'bg-brand-strong'
+                      : 'bg-transparent group-hover:bg-brand-border-strong/70'
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+            );
+          })}
         </div>
 
         {/* Search & Patient Filter Controls */}
@@ -836,161 +873,163 @@ export default function RemindersPage() {
           )}
         </div>
 
-        {/* Data Stream */}
-        {isLoading ? (
-          <div className="border-y border-brand-border-soft divide-y divide-brand-border-soft py-2">
-            {[1, 2, 3].map((idx) => (
-              <div key={idx} className="py-5 px-3 animate-pulse flex items-center justify-between">
-                <div className="flex gap-4 items-center">
-                  <div className="w-10 h-10 bg-brand-soft rounded-lg"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 w-44 bg-brand-soft rounded"></div>
-                    <div className="h-3 w-28 bg-brand-surface rounded"></div>
+        {/* Data Stream (Tab Panel) */}
+        <section id="reminders-panel" role="tabpanel" aria-labelledby={`${filterStatus}-tab`} aria-busy={isLoading}>
+          {isLoading ? (
+            <div className="border-y border-brand-border-soft divide-y divide-brand-border-soft py-2">
+              {[1, 2, 3].map((idx) => (
+                <div key={idx} className="py-5 px-3 animate-pulse flex items-center justify-between">
+                  <div className="flex gap-4 items-center">
+                    <div className="w-10 h-10 bg-brand-soft rounded-lg"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 w-44 bg-brand-soft rounded"></div>
+                      <div className="h-3 w-28 bg-brand-surface rounded"></div>
+                    </div>
                   </div>
+                  <div className="h-6 w-14 bg-brand-soft rounded-full"></div>
                 </div>
-                <div className="h-6 w-14 bg-brand-soft rounded-full"></div>
-              </div>
-            ))}
-          </div>
-        ) : medicationList.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-brand-border-strong p-10 text-center space-y-4 bg-white/40">
-            <div className="w-12 h-12 rounded-full bg-brand-soft text-brand-strong mx-auto flex items-center justify-center">
-              <Pill size={24} />
+              ))}
             </div>
-            <div>
-              <h3 className="text-base font-bold text-brand-ink">
-                {isPatient ? 'คุณยังไม่มีรายการยาในระบบ' : `ยังไม่มีรายการยาสำหรับ ${currentPatient.name}`}
-              </h3>
-              <p className="text-xs sm:text-sm text-brand-muted mt-1 max-w-md mx-auto">
-                {isPatient
-                  ? 'เมื่อแพทย์หรือเภสัชกรสั่งจ่ายยา ข้อมูลยาและเวลาทานยาจะแสดงที่นี่'
-                  : 'คลิกปุ่ม "สั่งจ่ายยา / เพิ่มยา" เพื่อสั่งจ่ายยาและตั้งรอบเตือนให้ผู้ป่วยรายนี้'}
+          ) : medicationList.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-brand-border-strong p-10 text-center space-y-4 bg-white/40">
+              <div className="w-12 h-12 rounded-full bg-brand-soft text-brand-strong mx-auto flex items-center justify-center">
+                <Pill size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-brand-ink">
+                  {isPatient ? 'คุณยังไม่มีรายการยาในระบบ' : `ยังไม่มีรายการยาสำหรับ ${currentPatient.name}`}
+                </h3>
+                <p className="text-xs sm:text-sm text-brand-muted mt-1 max-w-md mx-auto">
+                  {isPatient
+                    ? 'เมื่อแพทย์หรือเภสัชกรสั่งจ่ายยา ข้อมูลยาและเวลาทานยาจะแสดงที่นี่'
+                    : 'คลิกปุ่ม "สั่งจ่ายยา / เพิ่มยา" เพื่อสั่งจ่ายยาและตั้งรอบเตือนให้ผู้ป่วยรายนี้'}
+                </p>
+              </div>
+              {canManageMedication && (
+                <div className="flex justify-center pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover cursor-pointer"
+                  >
+                    <Plus size={16} /> สั่งจ่ายยาใหม่
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : filteredMedications.length === 0 ? (
+            <div className="py-12 text-center space-y-3 border-y border-brand-border-soft">
+              <p className="text-sm font-semibold text-brand-ink">
+                ไม่พบรายการยาที่ตรงกับเงื่อนไข
               </p>
-            </div>
-            {canManageMedication && (
-              <div className="flex justify-center pt-2">
-                <button 
-                  type="button"
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover cursor-pointer"
-                >
-                  <Plus size={16} /> สั่งจ่ายยาใหม่
-                </button>
-              </div>
-            )}
-          </div>
-        ) : filteredMedications.length === 0 ? (
-          <div className="py-12 text-center space-y-3 border-y border-brand-border-soft">
-            <p className="text-sm font-semibold text-brand-ink">
-              ไม่พบรายการยาที่ตรงกับเงื่อนไข
-            </p>
-            <p className="text-xs text-brand-muted">
-              ลองปรับคำค้นหา หรือเลือกดูสถานะทั้งหมด
-            </p>
-            <button 
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setFilterStatus('all');
-              }}
-              className="text-xs font-semibold text-brand-strong hover:underline cursor-pointer"
-            >
-              ล้างคำค้นหาและตัวกรอง
-            </button>
-          </div>
-        ) : (
-          <div className="border-y border-brand-border-soft divide-y divide-brand-border-soft">
-            {filteredMedications.map((med) => (
-              <article 
-                key={med.id} 
-                className="py-5 px-1 sm:px-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+              <p className="text-xs text-brand-muted">
+                ลองปรับคำค้นหา หรือเลือกดูสถานะทั้งหมด
+              </p>
+              <button 
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterStatus('all');
+                }}
+                className="text-xs font-semibold text-brand-strong hover:underline cursor-pointer"
               >
-                {/* ข้อมูลยา */}
-                <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-brand-soft border border-brand-border-soft text-brand-strong flex items-center justify-center shrink-0 mt-0.5">
-                    <Pill size={20} />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-base sm:text-lg text-brand-ink leading-snug">
-                        {med.name}
-                      </h3>
-                      {med.category && (
-                        <span className="text-[11px] font-medium bg-brand-page text-brand-body px-2 py-0.5 rounded-full border border-brand-border-soft">
-                          {med.category}
-                        </span>
-                      )}
-                      {!med.isActive && (
-                        <span className="text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
-                          หยุดชั่วคราว
-                        </span>
-                      )}
+                ล้างคำค้นหาและตัวกรอง
+              </button>
+            </div>
+          ) : (
+            <div className="border-y border-brand-border-soft divide-y divide-brand-border-soft">
+              {filteredMedications.map((med) => (
+                <article 
+                  key={med.id} 
+                  className="py-5 px-1 sm:px-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                >
+                  {/* ข้อมูลยา */}
+                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-brand-soft border border-brand-border-soft text-brand-strong flex items-center justify-center shrink-0 mt-0.5">
+                      <Pill size={20} />
                     </div>
 
-                    <p className="text-brand-body text-xs sm:text-sm mt-1">
-                      {med.dosageInstruction}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-base sm:text-lg text-brand-ink leading-snug">
+                          {med.name}
+                        </h3>
+                        {med.category && (
+                          <span className="text-[11px] font-medium bg-brand-page text-brand-body px-2 py-0.5 rounded-full border border-brand-border-soft">
+                            {med.category}
+                          </span>
+                        )}
+                        {!med.isActive && (
+                          <span className="text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                            หยุดชั่วคราว
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Time Chips */}
-                    <div className="flex flex-wrap gap-1.5 mt-2.5">
-                      {med.times.map((time, i) => (
-                        <span 
-                          key={i} 
-                          className="inline-flex items-center gap-1 text-xs font-medium text-brand-strong bg-brand-soft border border-brand-border-soft px-2.5 py-0.5 rounded-full"
-                        >
-                          <Clock size={11} className="text-brand-strong shrink-0" />
-                          <span>{time}</span>
+                      <p className="text-brand-body text-xs sm:text-sm mt-1">
+                        {med.dosageInstruction}
+                      </p>
+
+                      {/* Time Chips */}
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {med.times.map((time, i) => (
+                          <span 
+                            key={i} 
+                            className="inline-flex items-center gap-1 text-xs font-medium text-brand-strong bg-brand-soft border border-brand-border-soft px-2.5 py-0.5 rounded-full"
+                          >
+                            <Clock size={11} className="text-brand-strong shrink-0" />
+                            <span>{time}</span>
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* ระยะเวลาทานยา */}
+                      <div className="flex items-center gap-2 mt-2 text-[11px] text-brand-muted">
+                        <span>เริ่ม: {med.startDate || 'วันนี้'}</span>
+                        <span>•</span>
+                        <span className={med.endDate ? 'text-brand-body' : 'text-status-success font-medium flex items-center gap-1'}>
+                          {!med.endDate && <span className="w-1.5 h-1.5 rounded-full bg-status-success inline-block"></span>}
+                          {med.endDate ? `สิ้นสุด: ${med.endDate}` : 'ทานต่อเนื่องจนกว่าจะมีการเปลี่ยนแปลง'}
                         </span>
-                      ))}
-                    </div>
-
-                    {/* ระยะเวลาทานยา */}
-                    <div className="flex items-center gap-2 mt-2 text-[11px] text-brand-muted">
-                      <span>เริ่ม: {med.startDate || 'วันนี้'}</span>
-                      <span>•</span>
-                      <span className={med.endDate ? 'text-brand-body' : 'text-status-success font-medium flex items-center gap-1'}>
-                        {!med.endDate && <span className="w-1.5 h-1.5 rounded-full bg-status-success inline-block"></span>}
-                        {med.endDate ? `สิ้นสุด: ${med.endDate}` : 'ทานต่อเนื่องจนกว่าจะมีการเปลี่ยนแปลง'}
-                      </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* ขวา: Toggle & Stock & Actions */}
-                <div className="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-brand-border-soft">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-brand-muted font-medium">{med.stockInfo}</span>
-                    <ToggleSwitch active={Boolean(med.isActive)} onToggle={() => handleToggle(med.id)} />
-                  </div>
-
-                  {canManageMedication && (
+                  {/* ขวา: Toggle & Stock & Actions */}
+                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-brand-border-soft">
                     <div className="flex items-center gap-3">
-                      <button 
-                        type="button"
-                        onClick={() => openEditModal(med)}
-                        className={`${textActionClass} text-brand-strong`}
-                        aria-label={`แก้ไข ${med.name}`}
-                      >
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                        แก้ไข
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => handleDeleteClick(med)}
-                        className={`${textActionClass} text-status-critical`}
-                        aria-label={`ลบ ${med.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        ลบ
-                      </button>
+                      <span className="text-xs text-brand-muted font-medium">{med.stockInfo}</span>
+                      <ToggleSwitch active={Boolean(med.isActive)} onToggle={() => handleToggle(med.id)} />
                     </div>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+
+                    {canManageMedication && (
+                      <div className="flex items-center gap-3">
+                        <button 
+                          type="button"
+                          onClick={() => openEditModal(med)}
+                          className={`${textActionClass} text-brand-strong`}
+                          aria-label={`แก้ไข ${med.name}`}
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                          แก้ไข
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => handleDeleteClick(med)}
+                          className={`${textActionClass} text-status-critical`}
+                          aria-label={`ลบ ${med.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          ลบ
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
       {/* --- Modal: จ่ายยาและเพิ่มการแจ้งเตือนยา --- */}
