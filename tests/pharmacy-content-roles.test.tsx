@@ -272,6 +272,13 @@ describe('PharmacyContent Role Permissions & Lock Behavior', () => {
     expect(screen.getByText('รายการเวชภัณฑ์ที่จะตัดสต็อก')).toBeInTheDocument();
     expect(screen.getByText('คงเหลือหลังจ่าย')).toBeInTheDocument();
 
+    // Checkbox to skip stock deduction should be present
+    const skipCheckbox = screen.getByLabelText(/บันทึกสถานะตัดจ่ายแล้วเท่านั้น/);
+    expect(skipCheckbox).toBeInTheDocument();
+    expect(skipCheckbox).not.toBeChecked();
+    fireEvent.click(skipCheckbox);
+    expect(skipCheckbox).toBeChecked();
+
     // Click confirm button
     const confirmBtn = screen.getByRole('button', { name: /ยืนยันการตัดสต็อกจ่ายยา/ });
     await act(async () => {

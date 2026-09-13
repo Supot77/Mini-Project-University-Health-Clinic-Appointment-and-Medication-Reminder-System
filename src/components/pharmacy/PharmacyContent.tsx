@@ -344,6 +344,27 @@ interface RawInventoryLog {
     await Promise.all([loadMedications(), loadPrescriptions()]);
   }, [loadMedications, loadPrescriptions]);
 
+  const handlePrescriptionDispensed = useCallback(
+    (orderId: string, updatedMeds: PrescribedMedItem[]) => {
+      setPrescriptions((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          const count = updatedMeds.filter((m) => m.dispensed).length;
+          const isFull = count >= updatedMeds.length;
+          return {
+            ...order,
+            prescribed_medications: updatedMeds,
+            dispensed_items_count: count,
+            is_fully_dispensed: isFull,
+            dispensed_at: new Date().toISOString(),
+            pharmacist_name: userName || 'แพทย์ผู้ตรวจ',
+          };
+        })
+      );
+    },
+    [userName]
+  );
+
   useEffect(() => {
     let ignore = false;
     async function start() {
@@ -1147,6 +1168,7 @@ interface RawInventoryLog {
           userId={userId}
           onRefresh={loadPrescriptions}
           onStockUpdated={handleReloadAll}
+          onPrescriptionDispensed={handlePrescriptionDispensed}
           onShowToast={(msg) => setSuccessToast(msg)}
         />
       )}

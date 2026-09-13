@@ -62,6 +62,7 @@ interface PrescriptionsTabProps {
   userId?: string;
   onRefresh: () => Promise<void>;
   onStockUpdated: () => Promise<void>;
+  onPrescriptionDispensed?: (orderId: string, updatedMeds: PrescribedMedItem[]) => void;
   onShowToast: (message: string) => void;
 }
 
@@ -87,6 +88,7 @@ export default function PrescriptionsTab({
   userId,
   onRefresh,
   onStockUpdated,
+  onPrescriptionDispensed,
   onShowToast,
 }: PrescriptionsTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,6 +98,7 @@ export default function PrescriptionsTab({
   const [dispenseTarget, setDispenseTarget] = useState<PrescriptionOrder | null>(null);
   const [isDispensing, setIsDispensing] = useState(false);
   const [dispenseReason, setDispenseReason] = useState('');
+  const [skipStockDeduction, setSkipStockDeduction] = useState(false);
 
   // Stats
   const stats = useMemo(() => {
@@ -180,56 +183,58 @@ export default function PrescriptionsTab({
         throw new Error('ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่');
       }
 
-      for (const item of dispenseTarget.prescribed_medications) {
-        // Skip medication if it has already been marked as dispensed
-        if (item.dispensed) {
-          continue;
-        }
-
-        const med = medications.find(
-          (m) => m.id === item.medication_id || m.name.toLowerCase() === item.name.toLowerCase()
-        );
-
-        const targetMedId = med ? med.id : item.medication_id;
-        const currentStock = med ? med.stock : 0;
-        const newStock = Math.max(0, currentStock - item.quantity);
-
-        if (med) {
-          const { error: updateError } = await supabase
-            .from('medications')
-            .update({ stock: newStock, updated_at: new Date().toISOString() })
-            .eq('id', targetMedId);
-
-          if (updateError) {
-            const updateMsg = updateError.message || JSON.stringify(updateError);
-            console.error(`Failed to update stock for ${item.name}:`, updateMsg);
-            throw new Error(`ไม่สามารถอัปเดตสต็อกของ ${item.name}: ${updateMsg}`);
+      if (!skipStockDeduction) {
+        for (const item of dispenseTarget.prescribed_medications) {
+          // Skip medication if it has already been marked as dispensed
+          if (item.dispensed) {
+            continue;
           }
-        }
 
-        const reasonText = dispenseReason.trim()
-          ? `${dispenseReason.trim()} (จ่ายยาตามใบสั่งแพทย์: ${dispenseTarget.patient_name} บันทึก #${dispenseTarget.id.slice(0, 8)})`
-          : `จ่ายยาตามใบสั่งแพทย์: ${dispenseTarget.patient_name} (บันทึก #${dispenseTarget.id.slice(0, 8)})`;
-
-        const { error: logError } = await supabase.from('inventory_logs').insert({
-          medication_id: targetMedId,
-          pharmacist_id: effectiveUserId,
-          action: 'dispense',
-          quantity: item.quantity,
-          reason: reasonText,
-          idempotency_key: `dispense:${dispenseTarget.id}:${item.medication_id}`,
-        });
-
-        if (logError) {
-          const logErrMsg =
-            logError.message ||
-            logError.details ||
-            logError.code ||
-            'RLS policy or permission limitation';
-          console.warn(
-            `[PrescriptionsTab] Notice: inventory_logs insert skipped/failed for ${item.name}:`,
-            logErrMsg
+          const med = medications.find(
+            (m) => m.id === item.medication_id || m.name.toLowerCase() === item.name.toLowerCase()
           );
+
+          const targetMedId = med ? med.id : item.medication_id;
+          const currentStock = med ? med.stock : 0;
+          const newStock = Math.max(0, currentStock - item.quantity);
+
+          if (med) {
+            const { error: updateError } = await supabase
+              .from('medications')
+              .update({ stock: newStock, updated_at: new Date().toISOString() })
+              .eq('id', targetMedId);
+
+            if (updateError) {
+              const updateMsg = updateError.message || JSON.stringify(updateError);
+              console.error(`Failed to update stock for ${item.name}:`, updateMsg);
+              throw new Error(`ไม่สามารถอัปเดตสต็อกของ ${item.name}: ${updateMsg}`);
+            }
+          }
+
+          const reasonText = dispenseReason.trim()
+            ? `${dispenseReason.trim()} (จ่ายยาตามใบสั่งแพทย์: ${dispenseTarget.patient_name} บันทึก #${dispenseTarget.id.slice(0, 8)})`
+            : `จ่ายยาตามใบสั่งแพทย์: ${dispenseTarget.patient_name} (บันทึก #${dispenseTarget.id.slice(0, 8)})`;
+
+          const { error: logError } = await supabase.from('inventory_logs').insert({
+            medication_id: targetMedId,
+            pharmacist_id: effectiveUserId,
+            action: 'dispense',
+            quantity: item.quantity,
+            reason: reasonText,
+            idempotency_key: `dispense:${dispenseTarget.id}:${item.medication_id}`,
+          });
+
+          if (logError) {
+            const logErrMsg =
+              logError.message ||
+              logError.details ||
+              logError.code ||
+              'RLS policy or permission limitation';
+            console.warn(
+              `[PrescriptionsTab] Notice: inventory_logs insert skipped/failed for ${item.name}:`,
+              logErrMsg
+            );
+          }
         }
       }
 
@@ -242,24 +247,35 @@ export default function PrescriptionsTab({
         dispensed_by: item.dispensed_by || effectiveUserId,
       }));
 
+      // NOTE: medical_records table does NOT have an updated_at column in schema
       const { error: recordError } = await supabase
         .from('medical_records')
         .update({
           prescribed_medications: updatedMeds,
-          updated_at: nowIso,
         })
         .eq('id', dispenseTarget.id);
 
       if (recordError) {
-        console.warn(
-          '[PrescriptionsTab] Medical record update notice:',
+        console.error(
+          '[PrescriptionsTab] Medical record update failed:',
           recordError.message || recordError
+        );
+        throw new Error(
+          `ไม่สามารถบันทึกสถานะการจ่ายยาในประวัติการตรวจได้: ${recordError.message}`
         );
       }
 
-      onShowToast(`ตัดจ่ายยาสำหรับ ${dispenseTarget.patient_name} และอัปเดตสต็อกเรียบร้อยแล้ว`);
+      // Optimistic update
+      onPrescriptionDispensed?.(dispenseTarget.id, updatedMeds);
+
+      onShowToast(
+        skipStockDeduction
+          ? `บันทึกสถานะจ่ายยาสำหรับ ${dispenseTarget.patient_name} เรียบร้อยแล้ว (ไม่หักสต็อกซ้ำ)`
+          : `ตัดจ่ายยาสำหรับ ${dispenseTarget.patient_name} และอัปเดตสต็อกเรียบร้อยแล้ว`
+      );
       setDispenseTarget(null);
       setDispenseReason('');
+      setSkipStockDeduction(false);
 
       await onStockUpdated();
     } catch (err: unknown) {
@@ -807,6 +823,19 @@ export default function PrescriptionsTab({
                 className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
               />
             </div>
+
+            {/* Optional Skip Deduction */}
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs text-slate-700 bg-slate-50 hover:bg-slate-100/80 p-3 rounded-xl border border-slate-200 transition select-none">
+              <input
+                type="checkbox"
+                checked={skipStockDeduction}
+                onChange={(e) => setSkipStockDeduction(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+              />
+              <span className="font-medium">
+                บันทึกสถานะตัดจ่ายแล้วเท่านั้น (ไม่หักลดจำนวนยาในคลังซ้ำ)
+              </span>
+            </label>
 
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 pt-4">
