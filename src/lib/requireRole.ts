@@ -8,7 +8,7 @@ function canonicalRole(role: string): UserRole {
   return 'patient';
 }
 
-export async function requireRole(allowedRoles: UserRole[]) {
+export async function requireRole(allowedRoles: (UserRole | string)[]) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -31,9 +31,10 @@ export async function requireRole(allowedRoles: UserRole[]) {
   }
 
   const role = canonicalRole(profile.role);
-  if (!allowedRoles.includes(role)) {
+  const isAllowed = allowedRoles.includes(role) || allowedRoles.includes(profile.role);
+  if (!isAllowed) {
     redirect('/dashboard');
   }
 
-  return { user, role };
+  return { user, role, rawRole: profile.role as string };
 }

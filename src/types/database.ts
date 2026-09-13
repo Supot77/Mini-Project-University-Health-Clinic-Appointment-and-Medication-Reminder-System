@@ -194,6 +194,9 @@ export interface PrescribedMedication {
   frequency: string;
   duration_days: number;
   quantity: number;
+  dispensed?: boolean;
+  dispensed_at?: string | null;
+  dispensed_by?: string | null;
 }
 
 export interface MedicalRecord {
