@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Check,
   Loader2,
   Pencil,
   Plus,
@@ -12,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useShop } from '@/features/shop/context/ShopProvider';
+import Toast from '@/components/common/Toast';
 import type {
   DoctorAvailability,
   ScheduleDepartment,
@@ -19,8 +19,8 @@ import type {
 } from '@/types/schedule';
 
 const inputClass =
-  'h-11 w-full min-w-0 rounded-lg border border-brand-border-strong bg-transparent px-3.5 text-sm text-brand-ink placeholder:text-brand-body focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
-const textActionClass = 'inline-flex min-h-11 items-center gap-1.5 text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50';
+  'h-11 w-full min-w-0 rounded-lg border border-brand-border-soft bg-white px-3.5 text-sm text-brand-ink shadow-xs outline-none transition-[border-color,box-shadow] placeholder:text-brand-muted hover:border-brand-border focus:border-brand-strong focus:ring-4 focus:ring-brand-soft';
+const textActionClass = 'inline-flex min-h-11 items-center gap-1.5 text-sm font-medium transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50';
 
 type WorkspaceTab = 'departments' | 'doctors';
 
@@ -289,12 +289,12 @@ export default function DepartmentWorkspace() {
   return (
     <div className="min-w-0 space-y-6 sm:space-y-8">
       <header className="flex flex-wrap items-center justify-between gap-5">
-        <h1 className="text-3xl font-bold tracking-tight text-brand-ink sm:text-4xl">แผนกและแพทย์</h1>
+        <h1 className="relative pl-4 text-3xl font-bold tracking-tight text-brand-ink before:absolute before:inset-y-1 before:left-0 before:w-1 before:rounded-full before:bg-brand sm:text-4xl">แผนกและแพทย์</h1>
         <button
           type="button"
           disabled={isLoading}
           onClick={() => (activeTab === 'departments' ? openDepartmentForm() : openDoctorForm())}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-brand-button bg-brand-strong px-5 text-sm font-semibold text-white shadow-brand-button transition hover:-translate-y-0.5 hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {activeTab === 'departments' ? 'เพิ่มแผนก' : 'เพิ่มแพทย์'}
@@ -329,7 +329,7 @@ export default function DepartmentWorkspace() {
         ))}
       </div>
 
-      <section aria-label="ค้นหาและกรองรายการ" className="flex flex-wrap items-end gap-4">
+      <section aria-label="ค้นหาและกรองรายการ" className="flex flex-wrap items-end gap-4 border-y border-brand-border-soft bg-brand-surface/60 px-4 py-4">
         <label className="grid w-full gap-2 text-sm text-brand-body sm:w-80">
           <span>{activeTab === 'departments' ? 'ค้นหาแผนก' : 'ค้นหาแพทย์'}</span>
           <span className="relative">
@@ -356,25 +356,8 @@ export default function DepartmentWorkspace() {
           แสดงที่ปิดใช้
         </label>
       </section>
-      {/* Notifications Banner */}
+      <Toast message={notice} onDismiss={() => setNotice('')} />
       <div aria-live="polite" className="space-y-3 empty:hidden">
-        {notice && (
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-            <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
-              {notice}
-            </span>
-            <button
-              type="button"
-              onClick={() => setNotice('')}
-              className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100"
-              aria-label="ปิดแจ้งเตือน"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-
         {formError && !departmentDrawerOpen && !doctorDrawerOpen && (
           <div className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
             <span className="flex items-center gap-2">
@@ -398,7 +381,7 @@ export default function DepartmentWorkspace() {
         <section id="departments-panel" role="tabpanel" aria-labelledby="departments-tab" aria-busy={isLoading}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-brand-ink">รายชื่อแผนก</h2>
-            <span className="text-sm tabular-nums text-brand-body">{visibleDepartments.length} รายการ</span>
+            <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm font-medium tabular-nums text-brand-strong">{visibleDepartments.length} รายการ</span>
           </div>
           {isLoading ? (
             <ListLoading label="กำลังโหลดรายการแผนก" />
@@ -409,7 +392,7 @@ export default function DepartmentWorkspace() {
               {visibleDepartments.map((department) => {
                 const affiliatedDoctors = doctors.filter((doctor) => doctor.departmentId === department.id);
                 return (
-                  <article key={department.id} className="grid gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:gap-8">
+                  <article key={department.id} className="grid gap-5 py-6 transition-colors hover:bg-brand-surface/60 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:gap-8">
                     <div className="min-w-0">
                       <h3 className="break-words text-lg font-semibold text-brand-ink">{department.name}</h3>
                       {department.description && <p className="mt-2 text-sm leading-6 text-brand-body">{department.description}</p>}
@@ -458,7 +441,7 @@ export default function DepartmentWorkspace() {
         <section id="doctors-panel" role="tabpanel" aria-labelledby="doctors-tab" aria-busy={isLoading}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-brand-ink">รายชื่อแพทย์</h2>
-            <span className="text-sm tabular-nums text-brand-body">{visibleDoctors.length} คน</span>
+            <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm font-medium tabular-nums text-brand-strong">{visibleDoctors.length} คน</span>
           </div>
           {isLoading ? (
             <ListLoading label="กำลังโหลดรายชื่อแพทย์" />
@@ -466,7 +449,7 @@ export default function DepartmentWorkspace() {
             <EmptyPanel title="ไม่พบแพทย์" detail="ลองเปลี่ยนคำค้นหา แผนก หรือเลือก “แสดงที่ปิดใช้”" />
           ) : (
             <div className="border-y border-brand-border-soft">
-              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_140px] gap-6 border-b border-brand-border-soft py-4 text-sm text-brand-body lg:grid">
+              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_140px] gap-6 border-b border-brand-border-soft bg-brand-surface/60 px-3 py-4 text-sm text-brand-body lg:grid">
                 <span>แพทย์ / บัญชี</span><span>แผนก / ความเชี่ยวชาญ</span><span>สถานะ</span><span className="text-right">จัดการ</span>
               </div>
               <div className="divide-y divide-brand-border-soft">
@@ -480,7 +463,7 @@ export default function DepartmentWorkspace() {
                   const currentStatus = statusConfig[doctor.availability] ?? statusConfig.active;
                   const toggleLabel = doctor.availability === 'inactive' ? 'เปิดใช้' : doctor.hasHistory || slots.some((slot) => slot.doctorId === doctor.id) ? 'ปิดใช้' : 'ลบ';
                   return (
-                    <article key={doctor.id} className="grid gap-4 py-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_140px] lg:items-center lg:gap-6">
+                    <article key={doctor.id} className="grid gap-4 py-6 transition-colors hover:bg-brand-surface/60 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_140px_140px] lg:items-center lg:gap-6">
                       <div className="min-w-0">
                         <h3 className="break-words text-base font-semibold text-brand-ink">{doctor.fullName}</h3>
                         {doctor.email && <p className="mt-1 break-all text-sm text-brand-body">{doctor.email}</p>}
