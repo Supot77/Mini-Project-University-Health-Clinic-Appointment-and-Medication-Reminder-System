@@ -235,7 +235,7 @@ export default function StaffProfileDirectory() {
     <main className="dashboard-shell mx-auto flex max-w-7xl flex-col gap-10 pb-10">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-brand-ink sm:text-4xl">
+          <h1 className="relative pl-4 text-3xl font-bold tracking-tight text-brand-ink before:absolute before:inset-y-1 before:left-0 before:w-1 before:rounded-full before:bg-brand sm:text-4xl">
             บัญชีผู้ใช้งานทั้งหมด
           </h1>
           <p className="mt-2 text-sm text-brand-muted">
@@ -397,48 +397,58 @@ export default function StaffProfileDirectory() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-[5%]" />
+                <col className="w-[17%]" />
+                <col className="w-[24%]" />
+                <col className="w-[18%]" />
+                <col className="w-[17%]" />
+                <col className="w-[19%]" />
+              </colgroup>
               <thead className="border-b border-brand-border-soft text-xs font-semibold text-brand-muted">
                 <tr>
-                  <th className="w-16 py-4 pr-5">ลำดับ</th>
-                  <th className="py-4 pr-5">ชื่อ</th>
-                  <th className="py-4 pr-5">อีเมล</th>
-                  <th className="py-4 pr-5">เบอร์โทรศัพท์</th>
-                  <th className="py-4 pr-5">role</th>
-                  <th className="py-4">จัดการบัญชี</th>
+                  <th className="px-5 py-4 text-center">ลำดับ</th>
+                  <th className="px-5 py-4 text-center">ชื่อ</th>
+                  <th className="px-5 py-4 text-center">อีเมล</th>
+                  <th className="px-5 py-4 text-center">เบอร์โทรศัพท์</th>
+                  <th className="px-5 py-4 text-center">role</th>
+                  <th className="whitespace-nowrap px-5 py-4 text-center">จัดการบัญชี</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-border-soft">
                 {filteredProfiles.map((profile, index) => (
                   <tr
                     key={profile.id}
-                    className={`transition-colors ${profile.isActive ? "text-brand-body" : "text-brand-muted grayscale"}`}
+                    className={`transition-colors ${profile.isActive ? "text-brand-body" : "text-brand-muted"}`}
                   >
-                    <td className="py-5 pr-5 text-brand-muted">{index + 1}</td>
+                    <td className="px-5 py-5 text-center text-brand-muted">{index + 1}</td>
                     <td
-                      className={`py-5 pr-5 font-medium ${profile.isActive ? "text-brand-ink" : "line-through"}`}
+                      className={`px-5 py-5 text-center font-medium ${profile.isActive ? "text-brand-ink" : "line-through"}`}
                     >
-                      {displayValue(profile.fullName)}
+                      <span className="block truncate">
+                        {displayValue(profile.fullName)}
+                      </span>
                     </td>
-                    <td className="py-5 pr-5">
-                      <span className="inline-flex items-center gap-2">
+                    <td className="px-5 py-5 text-center">
+                      <span className="flex min-w-0 max-w-full items-center justify-center gap-2">
                         <Mail
-                          className="size-4 text-brand-muted"
+                          className="size-4 shrink-0 text-brand-muted"
                           aria-hidden="true"
                         />
-                        {displayValue(profile.email)}
+                        <span className="min-w-0 truncate">{displayValue(profile.email)}</span>
                       </span>
                     </td>
-                    <td className="py-5 pr-5">
-                      <span className="inline-flex items-center gap-2">
+                    <td className="px-5 py-5 text-center">
+                      <span className="flex min-w-0 max-w-full items-center justify-center gap-2">
                         <Phone
-                          className="size-4 text-brand-muted"
+                          className="size-4 shrink-0 text-brand-muted"
                           aria-hidden="true"
                         />
-                        {displayValue(profile.phone)}
+                        <span className="min-w-0 truncate">{displayValue(profile.phone)}</span>
                       </span>
                     </td>
-                    <td className="py-5 pr-5">
+                    <td className="px-5 py-5 text-center">
                       <span
                         className={`inline-flex items-center gap-1.5 text-xs font-semibold ${profile.isActive ? "text-brand-strong" : "text-brand-muted"}`}
                       >
@@ -452,14 +462,14 @@ export default function StaffProfileDirectory() {
                         {profile.isActive ? "ใช้งานอยู่" : "ระงับบัญชี"}
                       </span>
                     </td>
-                    <td className="py-5">
-                      <div className="flex items-center gap-2">
+                    <td className="px-5 py-5 text-center">
+                      <div className="flex flex-nowrap items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => openEdit(profile)}
                           aria-label="แก้ไขข้อมูลผู้ใช้"
                           title="แก้ไขข้อมูลผู้ใช้"
-                          className="inline-flex size-10 items-center justify-center rounded-lg border border-brand-border-strong bg-transparent text-brand-strong transition hover:border-brand-strong hover:bg-brand-soft"
+                          className={`inline-flex size-10 items-center justify-center rounded-lg border bg-transparent transition ${profile.isActive ? "border-brand-border-strong text-brand-strong hover:border-brand-strong hover:bg-brand-soft" : "border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-50"}`}
                         >
                           <Pencil className="size-4" aria-hidden="true" />
                         </button>
