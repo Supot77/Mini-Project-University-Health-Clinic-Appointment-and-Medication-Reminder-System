@@ -8,7 +8,7 @@ const isUuid = (val?: string | null): boolean =>
 
 import { 
   Pill, X, Check, Plus, CalendarIcon, 
-  Trash2, AlertCircle, RefreshCw, Sparkles, CheckCircle2,
+  Trash2, AlertCircle, RefreshCw, Sparkles,
   User, AlertTriangle, CheckCircle, Pencil
 } from 'lucide-react';
 import { useClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
@@ -23,6 +23,7 @@ import {
 } from '@/services/reminderService';
 import type { Medication, MedicationReminderWithMedication, Profile } from '@/types/database';
 import { getPatients, getProfile } from '@/services/authService';
+import Toast from '@/components/common/Toast';
 
 // รายชื่อผู้ป่วยตัวอย่างสำหรับคลินิก (ใช้เลือกผู้ป่วยเพื่อจ่ายยา)
 interface PatientOption {
@@ -245,9 +246,6 @@ export default function RemindersPage() {
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((current) => (current === msg ? null : current));
-    }, 3500);
   };
 
   // ดึงข้อมูลยาของผู้ป่วยที่เลือก
@@ -684,13 +682,7 @@ export default function RemindersPage() {
 
   return (
     <div className="w-full font-sans text-slate-800">
-      {/* Toast Alert */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
-          <span className="text-sm font-medium">{toastMessage}</span>
-        </div>
-      )}
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} variant="info" />
 
       <div className="w-full min-h-[calc(100vh-4rem)] bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto space-y-6">

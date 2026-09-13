@@ -2,7 +2,6 @@
 
 import {
   AlertTriangle,
-  CheckCircle2,
   Mail,
   Pencil,
   Phone,
@@ -25,6 +24,7 @@ import {
   type StaffProfileDirectoryItem,
 } from "@/services/dashboardService";
 import type { UserRole } from "@/types/database";
+import Toast from "@/components/common/Toast";
 
 const roleOrder: UserRole[] = ["patient", "medical", "staff_admin"];
 type ProfileSort = "name-th" | "name-en" | "registered-asc" | "registered-desc";
@@ -132,12 +132,6 @@ export default function StaffProfileDirectory() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadProfiles]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 3500);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
 
   const counts = useMemo(() => {
     const result: Record<UserRole, number> = {
@@ -723,25 +717,7 @@ export default function StaffProfileDirectory() {
         </div>
       )}
 
-      {toast && (
-        <div
-          role="status"
-          className="fixed bottom-6 right-6 z-[90] flex min-w-72 items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-2xl"
-        >
-          <span className="flex size-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-            <CheckCircle2 className="size-5" aria-hidden="true" />
-          </span>
-          <span className="flex-1">{toast}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label="ปิดการแจ้งเตือน"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </main>
   );
 }
