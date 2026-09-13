@@ -1,4 +1,4 @@
-// Persisted contract for migrations 01-03. Runtime still uses mock repositories.
+// Persisted contract for the Supabase schema and additive migrations.
 
 export const userRoles = [
   'patient',
@@ -129,6 +129,28 @@ export interface Department {
   updated_at: string;
 }
 
+export interface Service {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailyServiceOffering {
+  id: string;
+  service_id: string;
+  doctor_id: string;
+  offering_date: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Doctor {
   id: string; // FK → profiles.id
   specialty: string | null;
@@ -140,6 +162,7 @@ export interface Doctor {
 export interface AppointmentSlot {
   id: string;
   doctor_id: string; // FK → doctors.id
+  daily_service_offering_id?: string; // FK → daily_service_offerings.id; legacy fixtures may omit it
   slot_date: string; // DATE
   start_time: string; // TIME
   end_time: string; // TIME
@@ -152,11 +175,14 @@ export interface AppointmentSlot {
 
 export interface Appointment {
   id: string;
-  user_id: string; // FK → profiles.id (patient)
+  patient_id: string; // FK → profiles.id (patient)
+  user_id?: string; // Compatibility alias for existing mock data
   slot_id: string; // FK → appointment_slots.id
-  queue_number: number | null;
-  reason: string | null;
+  queue_number: number; // NOT NULL CHECK (queue_number > 0)
+  reason: string; // NOT NULL CHECK (length >= 1)
   status: AppointmentStatus;
+  cancel_requested_at?: string | null;
+  rejection_reason?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -172,16 +198,14 @@ export interface PrescribedMedication {
 
 export interface MedicalRecord {
   id: string;
-  appointment_id: string; // FK → appointments.id
+  appointment_id: string; // FK → appointments.id (UNIQUE)
   patient_id: string; // FK → profiles.id
   doctor_id: string; // FK → doctors.id
-  diagnosis: string | null;
-  treatment_notes: string | null;
-  prescribed_medications:
-    | PrescribedMedication[]
-    | null; // JSONB
+  diagnosis: string; // NOT NULL CHECK (length >= 1)
+  treatment_notes: string; // NOT NULL DEFAULT ''
+  prescribed_medications: PrescribedMedication[]; // JSONB array, NOT NULL DEFAULT '[]'
   created_at: string;
-  updated_at: string;
+  updated_at?: string; // Table does not have updated_at column in latest schema
 }
 
 export interface Medication {

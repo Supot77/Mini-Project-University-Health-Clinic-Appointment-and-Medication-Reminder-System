@@ -1,21 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
-  Ban,
-  CalendarDays,
-  Check,
+  ArrowRight,
   ChevronLeft,
   ChevronRight,
-  CircleDot,
-  Clock3,
-  Filter,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
   Users,
   X,
 } from 'lucide-react';
+import ScheduleSkeleton from './ScheduleSkeleton';
+import Toast from '@/components/common/Toast';
 import { useShop } from '@/features/shop/context/ShopProvider';
 import type { ScheduleSlot, ScheduleSlotStatus } from '@/types/schedule';
 import type { UserRole } from '@/types/database';
@@ -23,21 +22,30 @@ import type { UserRole } from '@/types/database';
 const inputClass =
   'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition-[border-color,box-shadow] focus:border-sky-500 focus:ring-4 focus:ring-sky-100';
 
+const filterClass = 'h-11 w-full rounded-lg border border-brand-border-strong bg-transparent px-3 text-sm text-brand-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
+const textButtonClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold text-brand-strong hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
+const slotStyles: Record<ScheduleSlotStatus, { label: string; marker: string; text: string }> = {
+  available: { label: 'เปิดรับ', marker: 'border-l-status-success', text: 'text-status-success' },
+  full: { label: 'เต็ม', marker: 'border-l-status-warning', text: 'text-status-warning' },
+  closed: { label: 'ปิดรอบ', marker: 'border-l-status-neutral', text: 'text-status-neutral' },
+};
+
 const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-function getBangkokToday(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+import {
+  deriveSlotStatus,
+  getBangkokCurrentTime,
+  getBangkokToday,
+  isSlotExpired,
+} from '@/features/shop/domain/rules';
+
+function getTodayDate(): string {
+  return getBangkokToday();
 }
 
-const TODAY_DATE = getBangkokToday();
-
 function getCurrentWeekMonday(refDateStr?: string): string {
-  const dateStr = refDateStr ?? TODAY_DATE;
+  const dateStr = refDateStr ?? getTodayDate();
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
   const day = date.getUTCDay();
@@ -50,6 +58,7 @@ type CalendarView = 'day' | 'week' | 'month';
 
 interface SlotDraft {
   doctorId: string;
+  serviceId: string;
   slotDate: string;
   startTime: string;
   endTime: string;
@@ -58,7 +67,10 @@ interface SlotDraft {
 
 const emptySlotDraft: SlotDraft = {
   doctorId: '',
-  slotDate: TODAY_DATE,
+  serviceId: '',
+  get slotDate() {
+    return getTodayDate();
+  },
   startTime: '08:30',
   endTime: '09:00',
   maxCapacity: 1,
@@ -82,6 +94,14 @@ function shiftClinicDate(isoDate: string, days: number) {
   return toClinicDate(date);
 }
 
+function shiftClinicMonth(isoDate: string, deltaMonths: number) {
+  const date = parseClinicDate(isoDate);
+  const targetYear = date.getUTCFullYear();
+  const targetMonth = date.getUTCMonth() + deltaMonths;
+  const targetDate = new Date(Date.UTC(targetYear, targetMonth, 1, 12, 0, 0));
+  return toClinicDate(targetDate);
+}
+
 function formatShortDate(isoDate: string) {
   const date = parseClinicDate(isoDate);
   return `${date.getUTCDate()} ${monthNames[date.getUTCMonth()]}`;
@@ -102,11 +122,44 @@ function addMinutesToTime(timeStr: string, minutes = 30): string {
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
 }
 
+export function getNextAvailableTimeSlot(
+  slots: ScheduleSlot[],
+  doctorId: string,
+  slotDate: string,
+): { startTime: string; endTime: string } {
+  if (!doctorId || !slotDate) {
+    return { startTime: '08:30', endTime: '09:00' };
+  }
+  const doctorDaySlots = slots.filter(
+    (s) => s.doctorId === doctorId && s.slotDate === slotDate,
+  );
+  if (doctorDaySlots.length === 0) {
+    return { startTime: '08:30', endTime: '09:00' };
+  }
+  const latestEndTime = doctorDaySlots.reduce((max, s) => (s.endTime > max ? s.endTime : max), '08:30');
+
+  // Skip lunch break 12:00–13:00
+  if (latestEndTime >= '12:00' && latestEndTime < '13:00') {
+    return { startTime: '13:00', endTime: '13:30' };
+  }
+  // If latestEndTime is already at or past closing time 16:30
+  if (latestEndTime >= '16:30') {
+    return { startTime: '16:00', endTime: '16:30' };
+  }
+  const nextEndTime = addMinutesToTime(latestEndTime, 30);
+  return {
+    startTime: latestEndTime,
+    endTime: nextEndTime > '16:30' ? '16:30' : nextEndTime,
+  };
+}
+
 export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; actorId: string }) {
   const {
     departments,
     doctors,
+    services = [],
     slots,
+    saveService: persistService,
     saveSlot: persistSlot,
     toggleSlot: persistSlotToggle,
     isLoading,
@@ -122,6 +175,7 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   const [isSaving, setIsSaving] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [serviceFilter, setServiceFilter] = useState('all');
   const [doctorFilter, setDoctorFilter] = useState<string>(() => {
     if (role === 'medical') {
       const match = doctors.find((d) => d.profileId === actorId || d.id === actorId);
@@ -129,12 +183,44 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     }
     return 'all';
   });
-  const [statusFilter, setStatusFilter] = useState<'all' | ScheduleSlotStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | ScheduleSlotStatus>('available');
   const [formOpen, setFormOpen] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [draft, setDraft] = useState<SlotDraft>(emptySlotDraft);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+  const [serviceFormOpen, setServiceFormOpen] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', description: '' });
+  const [serviceFormError, setServiceFormError] = useState('');
+
+  const [bangkokNow, setBangkokNow] = useState(() => ({
+    date: getBangkokToday(),
+    time: getBangkokCurrentTime(),
+  }));
+
+  useEffect(() => {
+    const updateTime = () => {
+      setBangkokNow({
+        date: getBangkokToday(),
+        time: getBangkokCurrentTime(),
+      });
+    };
+    const timer = setInterval(updateTime, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const resolvedSlots = useMemo(() => {
+    return slots.map((slot) => {
+      const status = deriveSlotStatus(slot.bookedCount, slot.maxCapacity, slot.status, {
+        slotDate: slot.slotDate,
+        startTime: slot.startTime,
+        currentDate: bangkokNow.date,
+        currentTime: bangkokNow.time,
+      });
+      return status !== slot.status ? { ...slot, status } : slot;
+    });
+  }, [slots, bangkokNow]);
 
   const openDepartments = useMemo(() => {
     return departments
@@ -159,6 +245,17 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     return openDepartments.some((d) => d.id === departmentFilter) ? departmentFilter : 'all';
   }, [departmentFilter, openDepartments]);
 
+  const activeServices = useMemo(() => services.filter((service) => service.isActive), [services]);
+  const openServices = useMemo(
+    () => activeServices.filter((service) => slots.some((slot) => slot.serviceId === service.id && slot.status !== 'closed')),
+    [activeServices, slots],
+  );
+
+  const effectiveServiceFilter = useMemo(() => {
+    if (serviceFilter === 'all') return 'all';
+    return openServices.some((service) => service.id === serviceFilter) ? serviceFilter : 'all';
+  }, [openServices, serviceFilter]);
+
   const canModifySlot = (slot: ScheduleSlot) => {
     if (role === 'staff_admin') return true;
     if (role === 'medical' && currentDoctor) return slot.doctorId === currentDoctor.id;
@@ -180,42 +277,37 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     const firstDate = parseClinicDate(first);
     const mondayOffset = (firstDate.getUTCDay() + 6) % 7;
     const gridStart = shiftClinicDate(first, -mondayOffset);
-    return Array.from({ length: 35 }, (_, index) => shiftClinicDate(gridStart, index));
+    const [year, month] = weekStart.slice(0, 7).split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const totalSlots = mondayOffset + daysInMonth > 35 ? 42 : 35;
+    return Array.from({ length: totalSlots }, (_, index) => shiftClinicDate(gridStart, index));
   }, [calendarView, weekDays, weekStart]);
 
   const filteredDoctors = useMemo(
     () =>
       doctors.filter(
-        (doctor) => effectiveDepartmentFilter === 'all' || doctor.departmentId === effectiveDepartmentFilter,
+        (doctor) =>
+          (effectiveDepartmentFilter === 'all' || doctor.departmentId === effectiveDepartmentFilter) &&
+          (effectiveServiceFilter === 'all' || resolvedSlots.some((slot) => slot.doctorId === doctor.id && slot.serviceId === effectiveServiceFilter)),
       ),
-    [effectiveDepartmentFilter, doctors],
+    [doctors, effectiveDepartmentFilter, effectiveServiceFilter, resolvedSlots],
   );
 
   const visibleSlots = useMemo(
     () =>
-      slots
+      resolvedSlots
         .filter((slot) => displayDays.includes(slot.slotDate))
         .filter((slot) => {
           const doctor = doctors.find((item) => item.id === slot.doctorId);
-          const matchesDepartment =
-            effectiveDepartmentFilter === 'all' || doctor?.departmentId === effectiveDepartmentFilter;
+          const matchesDepartment = effectiveDepartmentFilter === 'all' || doctor?.departmentId === effectiveDepartmentFilter;
+          const matchesService = effectiveServiceFilter === 'all' || slot.serviceId === effectiveServiceFilter;
           const matchesDoctor = doctorFilter === 'all' || slot.doctorId === doctorFilter;
           const matchesStatus = statusFilter === 'all' || slot.status === statusFilter;
-          return matchesDepartment && matchesDoctor && matchesStatus;
+          return matchesDepartment && matchesService && matchesDoctor && matchesStatus;
         })
         .sort((a, b) => `${a.slotDate}${a.startTime}`.localeCompare(`${b.slotDate}${b.startTime}`)),
-    [effectiveDepartmentFilter, doctorFilter, displayDays, doctors, slots, statusFilter],
+    [effectiveDepartmentFilter, effectiveServiceFilter, doctorFilter, displayDays, doctors, resolvedSlots, statusFilter],
   );
-
-  const weekSummary = useMemo(() => {
-    const weekSlots = slots.filter((slot) => displayDays.includes(slot.slotDate));
-    return {
-      total: weekSlots.length,
-      available: weekSlots.filter((slot) => slot.status === 'available').length,
-      booked: weekSlots.reduce((sum, slot) => sum + slot.bookedCount, 0),
-      closed: weekSlots.filter((slot) => slot.status === 'closed').length,
-    };
-  }, [displayDays, slots]);
 
   const openSlotForm = (slot?: ScheduleSlot, suggestedDate?: string) => {
     if (role === 'patient') return;
@@ -223,20 +315,43 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
       setFormError('คุณไม่มีสิทธิ์แก้ไขรอบตรวจของแพทย์ท่านอื่น');
       return;
     }
+    if (slot && isSlotExpired(slot.slotDate, slot.startTime, bangkokNow.date, bangkokNow.time)) {
+      setNotice('');
+      setFormError('ไม่สามารถแก้ไขรอบตรวจที่เลยเวลาเริ่มแล้ว');
+      return;
+    }
+    if (!slot && suggestedDate && suggestedDate < getTodayDate()) {
+      setNotice('');
+      setFormError('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้');
+      return;
+    }
     setFormError('');
     setNotice('');
     setEditingSlotId(slot?.id ?? null);
-    const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : '';
+    const defaultDoctorId = role === 'medical' && currentDoctor ? currentDoctor.id : (doctorFilter !== 'all' ? doctorFilter : '');
+    const today = getTodayDate();
+    const initialDate = suggestedDate && suggestedDate >= today ? suggestedDate : (weekDays[0] >= today ? weekDays[0] : today);
+    const initialTimes = !slot && defaultDoctorId && initialDate
+      ? getNextAvailableTimeSlot(slots, defaultDoctorId, initialDate)
+      : { startTime: '08:30', endTime: '09:00' };
     setDraft(
       slot
         ? {
             doctorId: slot.doctorId,
+            serviceId: slot.serviceId,
             slotDate: slot.slotDate,
             startTime: slot.startTime,
             endTime: slot.endTime,
             maxCapacity: slot.maxCapacity,
           }
-        : { ...emptySlotDraft, doctorId: defaultDoctorId, slotDate: suggestedDate ?? weekDays[0] },
+        : {
+            ...emptySlotDraft,
+            doctorId: defaultDoctorId,
+            serviceId: activeServices[0]?.id ?? '',
+            slotDate: initialDate,
+            startTime: initialTimes.startTime,
+            endTime: initialTimes.endTime,
+          },
     );
     setFormOpen(true);
   };
@@ -252,6 +367,10 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
 
   const saveSlot = async () => {
     if (role === 'patient') return;
+    if (!editingSlotId && draft.slotDate < getTodayDate()) {
+      setFormError('ไม่สามารถเพิ่มรอบตรวจของวันในอดีตได้');
+      return;
+    }
     try {
       setIsSaving(true);
       setFormError('');
@@ -272,10 +391,40 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
     }
   };
 
+  const openServiceForm = (service?: import('@/types/schedule').ScheduleService) => {
+    setServiceFormError('');
+    setEditingServiceId(service?.id ?? null);
+    setServiceDraft(service ? { code: service.code, name: service.name, description: service.description } : { code: '', name: '', description: '' });
+    setServiceFormOpen(true);
+  };
+
+  const saveService = async () => {
+    setServiceFormError('');
+    const result = await persistService({ ...serviceDraft }, editingServiceId ?? undefined);
+    if (!result.ok) {
+      setServiceFormError(result.error);
+      return;
+    }
+    setServiceFormOpen(false);
+    setEditingServiceId(null);
+    setServiceDraft({ code: '', name: '', description: '' });
+    setNotice(editingServiceId ? 'อัปเดตบริการแล้ว' : 'เพิ่มบริการแล้ว');
+  };
+
   const toggleClosed = async (slot: ScheduleSlot) => {
     if (role === 'patient' || !canModifySlot(slot)) {
       setFormError('คุณไม่มีสิทธิ์แก้ไขหรือปิดรอบตรวจ');
       return;
+    }
+    if (slot.status === 'closed') {
+      if (isSlotExpired(slot.slotDate, slot.startTime, bangkokNow.date, bangkokNow.time)) {
+        setFormError('ไม่สามารถเปิดรอบตรวจที่เลยเวลาเริ่มแล้ว');
+        return;
+      }
+      if (slot.bookedCount >= slot.maxCapacity) {
+        setFormError('ไม่สามารถเปิดรอบตรวจที่คนเต็มแล้ว');
+        return;
+      }
     }
     if (!window.confirm(slot.status === 'closed' ? 'เปิดรอบตรวจนี้อีกครั้ง?' : `ปิดรอบตรวจนี้? นัดเดิม ${slot.bookedCount} รายการจะยังคงอยู่`)) return;
     try {
@@ -315,50 +464,34 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
   }, [formOpen]);
 
   return (
-    <div className="schedule-shell flex flex-col gap-6">
-      <header className="order-1 overflow-hidden rounded-[28px] bg-white shadow-[0_16px_48px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80">
-        <div className="relative grid gap-6 px-6 py-7 sm:px-8 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="absolute inset-y-0 left-0 w-2 bg-sky-500" aria-hidden="true" />
-          <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-sky-700">
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-200 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                LIVE DATABASE
-              </span>
-              <span className="text-slate-400">ASIA/BANGKOK</span>
-              {isLoading && <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] text-sky-700">กำลังโหลด...</span>}
-            </div>
-            <h1 className="text-3xl font-bold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl">ตารางออกตรวจประจำสัปดาห์</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">เห็นกำลังให้บริการของแต่ละวัน ปรับรอบตรวจ และปิดรอบโดยไม่แตะจำนวนจองของระบบนัดหมาย</p>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              ['รอบทั้งหมด', weekSummary.total, 'text-slate-950'],
-              ['เปิดรับ', weekSummary.available, 'text-emerald-700'],
-              ['จองแล้ว', weekSummary.booked, 'text-sky-700'],
-              ['ปิดรอบ', weekSummary.closed, 'text-rose-700'],
-            ].map(([label, value, color]) => (
-              <div key={String(label)} className="min-w-20 rounded-2xl bg-slate-50 px-3 py-3 text-center ring-1 ring-slate-200/70">
-                <div className={`text-xl font-bold tabular-nums ${color}`}>{value}</div>
-                <div className="mt-1 text-[11px] text-slate-500">{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      <div className="order-3 space-y-2" aria-live="polite">
-        {notice && (
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            <span className="flex items-center gap-2">
-              <Check className="h-4 w-4" aria-hidden="true" />
-              {notice}
-            </span>
-            <button type="button" onClick={() => setNotice('')} className="min-h-11 min-w-11 rounded-lg p-2 hover:bg-emerald-100" aria-label="ปิดข้อความ">
-              <X className="h-4 w-4" aria-hidden="true" />
+    <div className="schedule-shell flex min-w-0 flex-col gap-6 sm:gap-8">
+      <header className="flex flex-wrap items-center justify-between gap-5">
+        <h1 className="text-3xl font-bold tracking-tight text-brand-ink sm:text-4xl">ตารางแพทย์</h1>
+        {role !== 'patient' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" disabled={isLoading} onClick={() => openSlotForm()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50">
+              <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจ
+            </button>
+            <button type="button" disabled={isLoading} onClick={() => openServiceForm()} className={`${textButtonClass} disabled:opacity-50`}>
+              <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มบริการ
             </button>
           </div>
         )}
+      </header>
+
+      {role === 'medical' && (
+        <div className="flex gap-6 border-b border-brand-border-soft" role="group" aria-label="ขอบเขตตารางแพทย์">
+          {([['my', 'ตารางของฉัน'], ['all', 'ภาพรวมคลินิก']] as const).map(([scope, label]) => (
+            <button key={scope} type="button" aria-pressed={medicalScope === scope} onClick={() => handleScopeChange(scope)} className={`min-h-11 border-b-2 px-1 pb-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong ${medicalScope === scope ? 'border-brand-strong text-brand-strong' : 'border-transparent text-brand-body hover:text-brand-strong'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Toast message={notice} onDismiss={() => setNotice('')} />
+
+      <div className="space-y-2 empty:hidden" aria-live="polite">
         {formError && !formOpen && (
           <div className="flex items-center justify-between gap-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-rose-200">
             <span className="flex items-center gap-2">
@@ -416,7 +549,20 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 ) : (
                   <select
                     value={draft.doctorId}
-                    onChange={(event) => setDraft((current) => ({ ...current, doctorId: event.target.value }))}
+                    onChange={(event) => {
+                      const newDoctorId = event.target.value;
+                      setDraft((current) => {
+                        const nextTimes = !editingSlotId && newDoctorId && current.slotDate
+                          ? getNextAvailableTimeSlot(slots, newDoctorId, current.slotDate)
+                          : { startTime: current.startTime, endTime: current.endTime };
+                        return {
+                          ...current,
+                          doctorId: newDoctorId,
+                          startTime: nextTimes.startTime,
+                          endTime: nextTimes.endTime,
+                        };
+                      });
+                    }}
                     className={inputClass}
                   >
                     <option value="">เลือกแพทย์</option>
@@ -435,11 +581,39 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 )}
               </label>
               <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-sm font-medium text-slate-700">บริการที่เปิดจอง</span>
+                <select
+                  value={draft.serviceId}
+                  onChange={(event) => setDraft((current) => ({ ...current, serviceId: event.target.value }))}
+                  className={inputClass}
+                >
+                  <option value="">เลือกบริการ</option>
+                  {activeServices.map((service) => (
+                    <option key={service.id} value={service.id}>{service.code} · {service.name}</option>
+                  ))}
+                </select>
+                {!activeServices.length && <span className="text-xs text-rose-600">ยังไม่มีบริการที่เปิดใช้งาน กด “เพิ่มบริการ” ก่อนสร้างรอบ</span>}
+              </label>
+              <label className="space-y-1.5 sm:col-span-2">
                 <span className="text-sm font-medium text-slate-700">วันที่</span>
                 <input
                   type="date"
+                  min={editingSlotId ? undefined : getTodayDate()}
                   value={draft.slotDate}
-                  onChange={(event) => setDraft((current) => ({ ...current, slotDate: event.target.value }))}
+                  onChange={(event) => {
+                    const newDate = event.target.value;
+                    setDraft((current) => {
+                      const nextTimes = !editingSlotId && current.doctorId && newDate
+                        ? getNextAvailableTimeSlot(slots, current.doctorId, newDate)
+                        : { startTime: current.startTime, endTime: current.endTime };
+                      return {
+                        ...current,
+                        slotDate: newDate,
+                        startTime: nextTimes.startTime,
+                        endTime: nextTimes.endTime,
+                      };
+                    });
+                  }}
                   className={inputClass}
                 />
               </label>
@@ -506,8 +680,9 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
                 type="button"
                 disabled={isSaving}
                 onClick={saveSlot}
-                className="min-h-11 rounded-xl bg-[#0a2540] px-5 text-sm font-semibold text-white hover:bg-[#123e67] active:scale-[0.98] disabled:opacity-50 shadow-xs"
+                className="min-h-11 rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 shadow-xs inline-flex items-center justify-center gap-2"
               >
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin text-white" aria-hidden="true" />}
                 {isSaving ? 'กำลังบันทึก...' : 'บันทึกรอบตรวจ'}
               </button>
             </div>
@@ -515,153 +690,140 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
         </div>
       )}
 
-
-      <section className="order-5 overflow-hidden rounded-2xl bg-white shadow-[0_5px_26px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/80" aria-label="ปฏิทินตารางตรวจ">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={jumpToToday}
-              className="flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-[0.98]"
-            >
-              <CalendarDays className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-              วันนี้
-            </button>
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
-              <button
-                type="button"
-                onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? -1 : calendarView === 'month' ? -28 : -7))}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:shadow-xs"
-                aria-label="ช่วงก่อนหน้า"
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              </button>
-              <div className="min-w-44 px-2 text-center">
-                <span className="text-xs font-bold tabular-nums text-slate-800">
-                  {calendarView === 'day'
-                    ? formatShortDate(weekStart)
-                    : calendarView === 'month'
-                      ? `${monthNames[parseClinicDate(weekStart).getUTCMonth()]} ${parseClinicDate(weekStart).getUTCFullYear() + 543}`
-                      : formatWeekRange(weekStart)}
-                </span>
+      {serviceFormOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="service-form-title"
+          onClick={(event) => { if (event.target === event.currentTarget) setServiceFormOpen(false); }}
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-slate-200/80">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-600">Service catalog</p>
+                <h2 id="service-form-title" className="mt-1 text-xl font-bold text-slate-950">{editingServiceId ? 'แก้ไขบริการ' : 'เพิ่มบริการใหม่'}</h2>
+                <p className="mt-1 text-xs text-slate-500">บริการนี้จะถูกเลือกไปเปิดรับจองในวันและรอบของหมอ</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setWeekStart((current) => shiftClinicDate(current, calendarView === 'day' ? 1 : calendarView === 'month' ? 28 : 7))}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:shadow-xs"
-                aria-label="ช่วงถัดไป"
-              >
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <button type="button" onClick={() => setServiceFormOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100" aria-label="ปิดแบบฟอร์มบริการ"><X className="h-5 w-5" aria-hidden="true" /></button>
+            </div>
+            <div className="space-y-4">
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">รหัสบริการ<input className={inputClass} value={serviceDraft.code} onChange={(event) => setServiceDraft((current) => ({ ...current, code: event.target.value }))} placeholder="เช่น GEN-CONSULT" /></label>
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">ชื่อบริการ<input className={inputClass} value={serviceDraft.name} onChange={(event) => setServiceDraft((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น ตรวจโรคทั่วไป" /></label>
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">คำอธิบาย<textarea rows={3} className={`${inputClass} h-auto py-3`} value={serviceDraft.description} onChange={(event) => setServiceDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+              {serviceFormError && <p className="text-sm font-medium text-rose-700" role="alert">{serviceFormError}</p>}
+            </div>
+            <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <button type="button" onClick={() => setServiceFormOpen(false)} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">ยกเลิก</button>
+              <button type="button" onClick={saveService} className="min-h-11 rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-brand-hover">บันทึกบริการ</button>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="relative">
-              <span className="sr-only">กรองแผนก</span>
-              <Filter className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
-              <select
-                value={effectiveDepartmentFilter}
-                onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }}
-                className="h-10 min-w-36 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-              >
-                <option value="all">ทุกแผนก</option>
-                {openDepartments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span className="sr-only">กรองแพทย์</span>
-              <select
-                value={doctorFilter}
-                onChange={(event) => setDoctorFilter(event.target.value)}
-                className="h-10 min-w-36 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-              >
-                <option value="all">แพทย์ทุกคน</option>
-                {filteredDoctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span className="sr-only">กรองสถานะ</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as 'all' | ScheduleSlotStatus)}
-                className="h-10 min-w-28 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-              >
-                <option value="all">ทุกสถานะ</option>
-                <option value="available">เปิดรับ</option>
-                <option value="full">เต็ม</option>
-                <option value="closed">ปิดรอบ</option>
-              </select>
-            </label>
-
-            <label>
-              <span className="sr-only">มุมมองปฏิทิน</span>
-              <select
-                value={calendarView}
-                onChange={(event) => setCalendarView(event.target.value as CalendarView)}
-                className="h-10 min-w-28 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-              >
-                <option value="day">วัน</option>
-                <option value="week">สัปดาห์</option>
-                <option value="month">เดือน</option>
-              </select>
-            </label>
-
-            {role === 'medical' && (
-              <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('my')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    medicalScope === 'my'
-                      ? 'bg-white text-sky-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  ตารางของฉัน
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('all')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    medicalScope === 'all'
-                      ? 'bg-white text-sky-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  ภาพรวมคลินิก
-                </button>
-              </div>
-            )}
-
-            {(role === 'medical' || role === 'staff_admin') && (
-              <button
-                type="button"
-                onClick={() => openSlotForm()}
-                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0a2540] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#123e67] active:scale-[0.98]"
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                เพิ่มรอบตรวจ
-              </button>
-            )}
-          </div>
         </div>
+      )}
 
+
+      <section className="min-w-0" aria-label="ปฏิทินตารางตรวจ" aria-busy={isLoading}>
+        {isLoading ? (
+          <ScheduleSkeleton />
+        ) : (
+          <>
+            <div className="mb-6 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWeekStart((current) =>
+                        calendarView === 'day'
+                          ? shiftClinicDate(current, -1)
+                          : calendarView === 'month'
+                          ? shiftClinicMonth(current, -1)
+                          : shiftClinicDate(current, -7),
+                      )
+                    }
+                    className={textButtonClass}
+                    aria-label="ช่วงก่อนหน้า"
+                  >
+                    <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                  <span className="text-sm font-semibold tabular-nums text-brand-ink sm:text-lg" aria-live="polite">
+                    {calendarView === 'day' ? formatShortDate(weekStart) : calendarView === 'month' ? `${monthNames[parseClinicDate(weekStart).getUTCMonth()]} ${parseClinicDate(weekStart).getUTCFullYear() + 543}` : formatWeekRange(weekStart)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWeekStart((current) =>
+                        calendarView === 'day'
+                          ? shiftClinicDate(current, 1)
+                          : calendarView === 'month'
+                          ? shiftClinicMonth(current, 1)
+                          : shiftClinicDate(current, 7),
+                      )
+                    }
+                    className={textButtonClass}
+                    aria-label="ช่วงถัดไป"
+                  >
+                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                  <button type="button" onClick={jumpToToday} className={textButtonClass}>วันนี้</button>
+                </div>
+                <label className="flex items-center gap-3 text-sm text-brand-body">
+                  <span>มุมมอง</span>
+                  <select aria-label="มุมมองปฏิทิน" value={calendarView} onChange={(event) => setCalendarView(event.target.value as CalendarView)} className={filterClass}>
+                    <option value="day">วัน</option>
+                    <option value="week">สัปดาห์</option>
+                    <option value="month">เดือน</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex flex-wrap items-end justify-between gap-5">
+                <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:grid-cols-4">
+                  <label className="col-span-2 grid gap-2 text-sm text-brand-body sm:col-span-1">
+                    <span>แผนก</span>
+                    <select aria-label="กรองแผนก" value={effectiveDepartmentFilter} onChange={(event) => { setDepartmentFilter(event.target.value); setDoctorFilter('all'); }} className={filterClass}>
+                      <option value="all">ทุกแผนก</option>
+                      {openDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="col-span-2 grid gap-2 text-sm text-brand-body sm:col-span-1">
+                    <span>บริการ</span>
+                    <select aria-label="กรองบริการ" value={effectiveServiceFilter} onChange={(event) => { setServiceFilter(event.target.value); setDoctorFilter('all'); }} className={filterClass}>
+                      <option value="all">ทุกบริการ</option>
+                      {openServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid min-w-0 gap-2 text-sm text-brand-body">
+                    <span>แพทย์</span>
+                    <select aria-label="กรองแพทย์" value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)} className={filterClass}>
+                      <option value="all">แพทย์ทุกคน</option>
+                      {filteredDoctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid min-w-0 gap-2 text-sm text-brand-body">
+                    <span>สถานะ</span>
+                    <select aria-label="กรองสถานะ" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | ScheduleSlotStatus)} className={filterClass}>
+                      <option value="all">ทุกสถานะ</option>
+                      <option value="available">เปิดรับ</option>
+                      <option value="full">เต็ม</option>
+                      <option value="closed">ปิดรอบ</option>
+                    </select>
+                  </label>
+                </div>
+                <p className="pb-3 text-sm tabular-nums text-brand-body">{visibleSlots.length} รอบตามตัวกรอง</p>
+              </div>
+            </div>
         {calendarView !== 'week' ? (
           <CalendarBoard
             view={calendarView}
             days={displayDays}
+            currentMonth={weekStart.slice(0, 7)}
             slots={visibleSlots}
             doctors={doctors}
             departments={departments}
+            services={services}
             canModifySlot={canModifySlot}
             canCreate={role !== 'patient'}
+            canBook={role === 'patient'}
             onCreate={openSlotForm}
             onEdit={openSlotForm}
             onToggle={toggleClosed}
@@ -670,88 +832,122 @@ export default function ScheduleWorkspace({ role, actorId }: { role: UserRole; a
         ) : (
           <>
             <div className="hidden lg:block">
-              <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
+              <div className="grid grid-cols-7 border-y border-brand-border-soft">
                 {weekDays.map((date) => {
                   const parsed = parseClinicDate(date);
-                  const isToday = date === TODAY_DATE;
+                  const isToday = date === getTodayDate();
                   return (
-                    <div key={date} className={`px-3 py-4 text-center ${isToday ? 'bg-sky-50' : ''}`}>
+                    <button
+                      type="button"
+                      key={date}
+                      onClick={() => handleDrillDownDay(date)}
+                      onDoubleClick={() => handleDrillDownDay(date)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          handleDrillDownDay(date);
+                        }
+                      }}
+                      aria-label={`เปิดตารางตรวจวันที่ ${formatShortDate(date)}`}
+                      className="cursor-pointer px-3 py-4 text-center hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+                      title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                    >
                       <div className={`text-xs font-semibold ${isToday ? 'text-sky-700' : 'text-slate-500'}`}>{dayNames[parsed.getUTCDay()]}</div>
                       <div className={`mx-auto mt-2 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold tabular-nums ${isToday ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
-              <div className="grid min-h-[460px] grid-cols-7 divide-x divide-slate-200">
+              <div className="grid min-h-[460px] grid-cols-7 divide-x divide-brand-border-soft border-b border-brand-border-soft">
                 {weekDays.map((date) => {
                   const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
                   return (
-                    <div key={date} className={`min-w-0 space-y-3 p-3 ${date === TODAY_DATE ? 'bg-sky-50/30' : ''}`}>
+                    <div
+                      key={date}
+                      onDoubleClick={() => handleDrillDownDay(date)}
+                      className="flex min-w-0 flex-col gap-7 px-3 py-6"
+                      title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                    >
                       {daySlots.map((slot) => (
                         <SlotCard
                           key={slot.id}
                           slot={slot}
                           doctors={doctors}
                           departments={departments}
+                          services={services}
                           canModify={canModifySlot(slot)}
                           onEdit={() => openSlotForm(slot)}
                           onToggleClosed={() => toggleClosed(slot)}
                         />
                       ))}
                       {daySlots.length === 0 && (
-                        role === 'patient' ? (
-                          <div className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-                            ไม่มีรอบตรวจ
+                        role === 'patient' || date < getTodayDate() ? (
+                          <div className="py-8 text-center text-sm text-brand-body">
+                            ไม่พบรอบตรวจ
                           </div>
                         ) : (
-                          <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
+                          <button type="button" onClick={() => openSlotForm(undefined, date)} className={textButtonClass}>
                             <Plus className="mb-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบ
                           </button>
                         )
                       )}
+                      <button type="button" onClick={() => handleDrillDownDay(date)} aria-label={`ดูรายวัน ${formatShortDate(date)}`} className={`${textButtonClass} mt-auto text-xs`}>
+                        ดูรายวัน <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <div className="space-y-4 p-4 lg:hidden">
+            <div className="divide-y divide-brand-border-soft border-y border-brand-border-soft lg:hidden">
               {weekDays.map((date) => {
                 const parsed = parseClinicDate(date);
                 const daySlots = visibleSlots.filter((slot) => slot.slotDate === date);
                 return (
-                  <article key={date} className="rounded-xl border border-slate-200 p-4">
-                    <div className="mb-3 flex items-center justify-between">
+                  <article
+                    key={date}
+                    onDoubleClick={() => handleDrillDownDay(date)}
+                    className="py-6"
+                    title={`ดับเบิ้ลคลิกเพื่อดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                  >
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-xs font-semibold text-sky-700">{dayNames[parsed.getUTCDay()]}</div>
                         <h2 className="font-bold text-slate-950">{formatShortDate(date)}</h2>
                       </div>
-                      {role !== 'patient' && (
+                      <button type="button" onClick={() => handleDrillDownDay(date)} aria-label={`ดูรายวัน ${formatShortDate(date)}`} className={textButtonClass}>
+                        ดูรายวัน <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      {role !== 'patient' && date >= getTodayDate() && (
                         <button type="button" onClick={() => openSlotForm(undefined, date)} className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-sky-700 hover:bg-sky-50">
                           <Plus className="h-4 w-4" aria-hidden="true" />เพิ่มรอบ
                         </button>
                       )}
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-6 sm:grid-cols-2">
                       {daySlots.map((slot) => (
                         <SlotCard
                           key={slot.id}
                           slot={slot}
                           doctors={doctors}
                           departments={departments}
+                          services={services}
                           canModify={canModifySlot(slot)}
                           onEdit={() => openSlotForm(slot)}
                           onToggleClosed={() => toggleClosed(slot)}
                         />
                       ))}
                       {daySlots.length === 0 && (
-                        <p className="rounded-xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-400 sm:col-span-2">ยังไม่มีรอบตรวจ</p>
+                        <p className="py-3 text-sm text-brand-body sm:col-span-2">ไม่พบรอบตรวจตามตัวกรอง</p>
                       )}
                     </div>
                   </article>
                 );
               })}
             </div>
+          </>
+        )}
           </>
         )}
       </section>
@@ -764,6 +960,7 @@ function SlotCard({
   slot,
   doctors,
   departments,
+  services,
   canModify = true,
   onEdit,
   onToggleClosed,
@@ -771,58 +968,51 @@ function SlotCard({
   slot: ScheduleSlot;
   doctors: import('@/types/schedule').ScheduleDoctor[];
   departments: import('@/types/schedule').ScheduleDepartment[];
+  services: import('@/types/schedule').ScheduleService[];
   canModify?: boolean;
   onEdit: () => void;
   onToggleClosed: () => void;
 }) {
   const doctor = doctors.find((item) => item.id === slot.doctorId);
   const department = departments.find((item) => item.id === doctor?.departmentId);
-  const statusConfig: Record<ScheduleSlotStatus, { label: string; card: string; pill: string; icon: typeof CircleDot }> = {
-    available: { label: 'เปิดรับ', card: 'border-emerald-200 bg-emerald-50/60', pill: 'bg-emerald-100 text-emerald-800', icon: CircleDot },
-    full: { label: 'เต็ม', card: 'border-sky-200 bg-sky-50/70', pill: 'bg-sky-100 text-sky-800', icon: Users },
-    closed: { label: 'ปิดรอบ', card: 'border-rose-200 bg-rose-50/60', pill: 'bg-rose-100 text-rose-800', icon: Ban },
-  };
-  const config = statusConfig[slot.status];
-  const StatusIcon = config.icon;
-  const occupancy = Math.min(100, Math.round((slot.bookedCount / slot.maxCapacity) * 100));
+  const service = services.find((item) => item.id === slot.serviceId);
+  const config = slotStyles[slot.status];
 
   return (
-    <article className={`rounded-xl border p-3 ${config.card}`}>
-      <div className="flex items-start justify-between gap-2">
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${config.pill}`}>
-          <StatusIcon className="h-3 w-3" aria-hidden="true" />
-          {config.label}
-        </span>
-        {canModify ? (
-          <div className="flex">
-            <button type="button" onClick={onEdit} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-white/70" aria-label={`แก้ไขรอบ ${slot.startTime}`}>
-              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-            <button type="button" onClick={onToggleClosed} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-white/70" aria-label={slot.status === 'closed' ? 'เปิดรอบตรวจ' : 'ปิดรอบตรวจ'}>
-              {slot.status === 'closed' ? <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
-            </button>
-          </div>
-        ) : (
-          <span className="rounded-md bg-slate-200/80 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-            ดูเท่านั้น
-          </span>
-        )}
-      </div>
-      <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-950"><Clock3 className="h-4 w-4 text-slate-500" aria-hidden="true" /><span className="tabular-nums">{slot.startTime}–{slot.endTime}</span></div>
-      <div className="mt-3 flex items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0a2540] text-[10px] font-bold text-white">{doctor?.initials ?? '?'}</div><div className="min-w-0"><div className="truncate text-xs font-bold text-slate-900">{doctor?.fullName ?? 'ไม่พบแพทย์'}</div><div className="truncate text-[10px] text-slate-500">{department?.name ?? 'ไม่พบแผนก'}</div></div></div>
-      <div className="mt-3"><div className="mb-1.5 flex items-center justify-between text-[10px] text-slate-500"><span>จองแล้ว</span><strong className="text-slate-700 tabular-nums">{slot.bookedCount}/{slot.maxCapacity}</strong></div><div className="h-1.5 overflow-hidden rounded-full bg-white/80"><div className={`h-full rounded-full ${slot.status === 'closed' ? 'bg-rose-400' : slot.status === 'full' ? 'bg-sky-500' : 'bg-emerald-500'}`} style={{ width: `${occupancy}%` }} /></div></div>
+    <article className={`min-w-0 rounded-xl border border-brand-border-soft border-l-4 bg-white px-4 py-4 shadow-xs transition-shadow hover:shadow-sm ${config.marker}`}>
+      <div className="text-sm font-bold tabular-nums text-brand-ink">{slot.startTime}–{slot.endTime}</div>
+      <h3 className="mt-2 break-words text-sm font-semibold leading-6 text-brand-ink">{service?.name ?? 'ไม่พบบริการ'}</h3>
+      <p className="mt-1 break-words text-sm leading-6 text-brand-body">{doctor?.fullName ?? 'ไม่พบแพทย์'}</p>
+      {department && <p className="text-xs leading-5 text-brand-body">{department.name}</p>}
+      <p className={`mt-2 text-sm font-semibold ${config.text}`}>
+        {config.label}{slot.status === 'available' && ` · ว่าง ${Math.max(0, slot.maxCapacity - slot.bookedCount)} ที่`}
+      </p>
+      <p className="mt-1 text-xs tabular-nums text-brand-body">จองแล้ว {slot.bookedCount}/{slot.maxCapacity}</p>
+      {canModify && (
+        <div className="mt-2 flex flex-wrap gap-x-3">
+          <button type="button" onClick={onEdit} className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-brand-strong hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong" aria-label={`แก้ไขรอบ ${slot.startTime}`}>
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />แก้ไข
+          </button>
+          <button type="button" onClick={onToggleClosed} className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-brand-body hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong" aria-label={slot.status === 'closed' ? 'เปิดรอบตรวจ' : 'ปิดรอบตรวจ'}>
+            {slot.status === 'closed' ? <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
+            {slot.status === 'closed' ? 'เปิดรอบ' : 'ปิดรอบ'}
+          </button>
+        </div>
+      )}
     </article>
   );
 }
-
 function CalendarBoard({
   view,
   days,
+  currentMonth,
   slots,
   doctors,
   departments,
+  services,
   canModifySlot,
   canCreate = true,
+  canBook = false,
   onCreate,
   onEdit,
   onToggle,
@@ -830,11 +1020,14 @@ function CalendarBoard({
 }: {
   view: CalendarView;
   days: string[];
+  currentMonth?: string;
   slots: ScheduleSlot[];
   doctors: import('@/types/schedule').ScheduleDoctor[];
   departments: import('@/types/schedule').ScheduleDepartment[];
+  services: import('@/types/schedule').ScheduleService[];
   canModifySlot: (slot: ScheduleSlot) => boolean;
   canCreate?: boolean;
+  canBook?: boolean;
   onCreate: (slot?: ScheduleSlot, suggestedDate?: string) => void;
   onEdit: (slot?: ScheduleSlot, suggestedDate?: string) => void;
   onToggle: (slot: ScheduleSlot) => void;
@@ -844,34 +1037,43 @@ function CalendarBoard({
     const date = days[0];
     return (
       <div aria-label="ปฏิทินรายวัน">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <div className="text-xs font-semibold text-sky-700">{dayNames[parseClinicDate(date).getUTCDay()]}</div>
-          <h2 className="mt-1 text-lg font-bold text-slate-950">{formatShortDate(date)}</h2>
+        <div className="border-y border-brand-border-soft bg-brand-surface/60 px-4 py-5">
+          <div className="text-xs font-semibold text-brand-strong">{dayNames[parseClinicDate(date).getUTCDay()]}</div>
+          <h2 className="mt-1 text-lg font-bold text-brand-ink">{formatShortDate(date)}</h2>
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-brand-border-soft">
           {slots.filter((slot) => slot.slotDate === date).map((slot) => (
-            <div key={slot.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
-              <div className="w-24 text-sm font-bold tabular-nums text-slate-700">{slot.startTime}–{slot.endTime}</div>
+            <div key={slot.id} className="flex flex-wrap items-center gap-4 py-6">
               <div className="min-w-0 flex-1">
                 <SlotCard
                   slot={slot}
                   doctors={doctors}
                   departments={departments}
+                  services={services}
                   canModify={canModifySlot(slot)}
                   onEdit={() => onEdit(slot)}
                   onToggleClosed={() => onToggle(slot)}
                 />
               </div>
+              {canBook && slot.status === 'available' && slot.bookedCount < slot.maxCapacity && slot.slotDate > getTodayDate() && (
+                <Link
+                  href={{ pathname: '/appointments', query: { slotId: slot.id } }}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-brand-ink px-4 text-sm font-semibold text-white shadow-xs hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-sky-600"
+                >
+                  จอง
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )}
             </div>
           ))}
           {slots.filter((slot) => slot.slotDate === date).length === 0 && (
-            canCreate ? (
-              <button type="button" onClick={() => onCreate(undefined, date)} className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
+            canCreate && date >= getTodayDate() ? (
+              <button type="button" onClick={() => onCreate(undefined, date)} className={`${textButtonClass} my-8`}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />เพิ่มรอบตรวจวันนี้
               </button>
             ) : (
-              <div className="m-5 flex min-h-28 w-[calc(100%-2.5rem)] items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-                ไม่มีรอบตรวจวันนี้
+              <div className="py-10 text-sm text-brand-body">
+                ไม่พบรอบตรวจตามตัวกรอง ลองเปลี่ยนวันหรือสถานะ
               </div>
             )
           )}
@@ -879,54 +1081,53 @@ function CalendarBoard({
       </div>
     );
   }
+
+  const monthDayHeaders = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
   return (
-    <div className="overflow-x-auto" aria-label={view === 'month' ? 'ปฏิทินรายเดือน' : 'ปฏิทินรายสัปดาห์'}>
+    <div className="overflow-x-auto" aria-label="ปฏิทินรายเดือน">
       <div className="min-w-[720px]">
-        <div className="grid grid-cols-7 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
-          {days.slice(0, 7).map((date) => {
-            const parsed = parseClinicDate(date);
-            return (
-              <div key={date} className="px-2 py-3 text-center">
-                <div className="text-[11px] font-semibold text-slate-500">{dayNames[parsed.getUTCDay()]}</div>
-                <div className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${date === TODAY_DATE ? 'bg-sky-600 text-white' : 'text-slate-950'}`}>{parsed.getUTCDate()}</div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-7 border-y border-brand-border-soft bg-brand-surface/60">
+          {monthDayHeaders.map((dayName) => (
+            <div key={dayName} className="py-3 text-center text-xs font-semibold text-brand-strong">
+              {dayName}
+            </div>
+          ))}
         </div>
-        <div className="grid grid-cols-7 divide-x divide-y divide-slate-200">
+        <div className="grid grid-cols-7 divide-x divide-y divide-brand-border-soft">
           {days.map((date) => {
             const daySlots = slots.filter((slot) => slot.slotDate === date);
-            const isToday = date === TODAY_DATE;
+            const isToday = date === getTodayDate();
+            const isCurrentMonth = currentMonth ? date.startsWith(currentMonth) : true;
             return (
               <div
                 key={date}
                 onDoubleClick={() => onSelectDay?.(date)}
-                className={`group min-h-36 min-w-0 p-2 transition-colors cursor-pointer select-none hover:bg-sky-50/40 ${
-                  isToday ? 'bg-sky-50/20' : ''
+                className={`group min-h-36 min-w-0 cursor-pointer select-none p-2 transition-colors hover:bg-brand-soft/40 ${
+                  isToday ? 'bg-brand-surface/50' : !isCurrentMonth ? 'bg-slate-50/40' : ''
                 }`}
                 title="ดับเบิ้ลคลิกเพื่อดูตารางตรวจรายวัน"
               >
                 <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                    ดับเบิ้ลคลิกดูวัน
-                  </span>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectDay?.(date);
                     }}
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition ${
+                    className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold focus-visible:outline-2 focus-visible:outline-brand-strong ${
                       isToday
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'text-slate-700 hover:bg-sky-100 hover:text-sky-800'
+                        ? 'bg-brand-strong text-white shadow-xs'
+                        : !isCurrentMonth
+                          ? 'text-slate-400 hover:bg-brand-soft hover:text-brand-ink'
+                          : 'text-brand-ink hover:bg-brand-soft hover:text-brand-strong'
                     }`}
                     title={`ดูตารางตรวจวันที่ ${formatShortDate(date)}`}
+                    aria-label={`ดูรายวัน ${formatShortDate(date)}`}
                   >
                     {parseClinicDate(date).getUTCDate()}
                   </button>
                 </div>
-                <div className="space-y-1">
+                <div className={`space-y-2 ${!isCurrentMonth ? 'opacity-60' : ''}`}>
                   {daySlots.map((slot) => (
                     <div
                       key={slot.id}
@@ -936,23 +1137,24 @@ function CalendarBoard({
                       <MiniSlot
                         slot={slot}
                         doctors={doctors}
+                        services={services}
                         canModify={canModifySlot(slot)}
                         onEdit={() => onEdit(slot)}
                       />
                     </div>
                   ))}
                 </div>
-                {canCreate && (
+                {canCreate && date >= getTodayDate() && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onCreate(undefined, date);
                     }}
-                    className="mt-1 flex min-h-7 w-full items-center justify-center rounded border border-dashed border-transparent text-[10px] text-slate-400 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 transition"
+                    className="mt-2 flex min-h-11 w-full items-center justify-center gap-1 text-xs text-brand-strong hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-brand-strong"
                     title="เพิ่มรอบตรวจ"
                   >
-                    <Plus className="h-3 w-3" aria-hidden="true" />
+                    <Plus className="h-3 w-3" aria-hidden="true" />เพิ่มรอบ
                   </button>
                 )}
               </div>
@@ -967,23 +1169,30 @@ function CalendarBoard({
 function MiniSlot({
   slot,
   doctors,
+  services,
   canModify = true,
   onEdit,
 }: {
   slot: ScheduleSlot;
   doctors: import('@/types/schedule').ScheduleDoctor[];
+  services: import('@/types/schedule').ScheduleService[];
   canModify?: boolean;
   onEdit: () => void;
 }) {
   const doctor = doctors.find((item) => item.id === slot.doctorId);
-  const colors = slot.status === 'closed' ? 'border-rose-500 bg-rose-50 text-rose-800' : slot.status === 'full' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-sky-500 bg-sky-50 text-sky-800';
+  const service = services.find((item) => item.id === slot.serviceId);
+  const config = slotStyles[slot.status];
+  const colors = `${config.marker} ${config.text}`;
   if (!canModify) {
     return (
       <div
-        className={`mb-1 block w-full truncate rounded border-l-2 px-2 py-1 text-left text-[10px] font-semibold opacity-75 cursor-default ${colors}`}
-        title={`${slot.startTime} ${doctor?.fullName ?? ''} (ดูเท่านั้น)`}
+        className={`block min-h-11 w-full rounded-lg border border-brand-border-soft border-l-4 bg-white px-3 py-2 text-left text-xs leading-5 shadow-xs ${colors}`}
+        title={`${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''} (ดูเท่านั้น)`}
       >
-        <span className="tabular-nums">{slot.startTime}</span> · {doctor?.fullName?.replace('นพ. ', '').replace('พญ. ', '') ?? 'ไม่พบแพทย์'} · {slot.bookedCount}/{slot.maxCapacity}
+        <span className="block font-semibold tabular-nums">{slot.startTime} · {config.label}</span>
+        <span className="block break-words text-brand-ink">{service?.name ?? 'ไม่พบบริการ'}</span>
+        <span className="block break-words text-brand-body">{doctor?.fullName ?? 'ไม่พบแพทย์'}</span>
+        <span className="block tabular-nums text-brand-body">จองแล้ว {slot.bookedCount}/{slot.maxCapacity}</span>
       </div>
     );
   }
@@ -991,10 +1200,15 @@ function MiniSlot({
     <button
       type="button"
       onClick={onEdit}
-      className={`mb-1 block w-full truncate rounded border-l-2 px-2 py-1 text-left text-[10px] font-semibold ${colors}`}
-      title={`${slot.startTime} ${doctor?.fullName ?? ''}`}
+      className={`block min-h-11 w-full rounded-lg border border-brand-border-soft border-l-4 bg-white px-3 py-2 text-left text-xs leading-5 shadow-xs transition-shadow hover:bg-brand-soft hover:shadow-sm focus-visible:outline-2 focus-visible:outline-brand-strong ${colors}`}
+      aria-label={`แก้ไขรอบ ${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''}`}
+      title={`${slot.startTime} ${service?.name ?? ''} ${doctor?.fullName ?? ''}`}
     >
-      <span className="tabular-nums">{slot.startTime}</span> · {doctor?.fullName?.replace('นพ. ', '').replace('พญ. ', '') ?? 'ไม่พบแพทย์'} · {slot.bookedCount}/{slot.maxCapacity}
+      <span className="block font-semibold tabular-nums">{slot.startTime} · {config.label}</span>
+      <span className="block break-words text-brand-ink">{service?.name ?? 'ไม่พบบริการ'}</span>
+      <span className="block break-words text-brand-body">{doctor?.fullName ?? 'ไม่พบแพทย์'}</span>
+      <span className="block tabular-nums text-brand-body">จองแล้ว {slot.bookedCount}/{slot.maxCapacity}</span>
+      <span className="block text-brand-strong">แก้ไข</span>
     </button>
   );
 }

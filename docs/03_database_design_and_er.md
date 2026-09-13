@@ -1,17 +1,31 @@
 # 03. แบบข้อมูลและ ER
 
-ปรับปรุง 7 กันยายน 2569 (2026-09-07) — เอกสารนี้ยึดตาม schema snapshot ล่าสุดที่ส่งมา ซึ่งมี 11 ตารางหลัก, 3 roles และฟิลด์ contract ที่ใช้งานอยู่จริงในแบบข้อมูล
+ปรับปรุง 9 กันยายน 2569 (2026-09-09) — reverse-engineer schema/runtime ให้แยก PAI active path ออกจากตารางนัด/ผลตรวจเดิม และเพิ่ม catalog บริการกับ daily offering โดยคง departments เป็นข้อมูลความถนัดของแพทย์
 
-> ไฟล์ schema snapshot จาก Supabase เป็นข้อมูลอ้างอิง ไม่ควรรันตรง ๆ เพราะไม่มีลำดับ Foreign Key ที่รับประกันได้ ให้ใช้ `supabase/migrations/01_schema.sql` สำหรับฐานใหม่ หรือ `supabase/migrate_existing_schema_preserve_data.sql` สำหรับฐานเดิมที่ต้องรักษาข้อมูล
+> ไฟล์ schema snapshot จาก Supabase เป็นข้อมูลอ้างอิง ไม่ควรรันตรง ๆ เพราะไม่มีลำดับ Foreign Key ที่รับประกันได้ ให้ใช้ migration ตามลำดับ รวม `supabase/migrations/13_services_and_daily_offerings.sql` สำหรับฐานที่มี schema เดิมแล้ว
 
 ## สถานะและขอบเขต
 
-- Runtime ปัจจุบันใช้ mock repository และข้อมูลสังเคราะห์ ไม่เรียกฐานข้อมูลจริง
-- Schema ปัจจุบันมี 11 ตาราง: `profiles`, `departments`, `doctors`, `appointment_slots`, `appointments`, `medical_records`, `medications`, `inventory_logs`, `medication_reminders`, `medication_logs`, `notifications`
+- Runtime หลักใช้ Supabase ผ่าน database repository; mock repository ใช้เฉพาะ automated tests/offline demo ที่ระบุชัด
+- Base schema เดิมมี 11 ตาราง; migration เพิ่ม `services`, `daily_service_offerings`, `pai_appointments`, `pai_medical_records` และ `broadcasts` ตามลำดับของ migration ที่ถูกใช้จริง จึงไม่ควรสรุปจำนวนตารางเดียวโดยไม่ระบุ migration target
+- Active appointment/record runtime ใช้ `pai_appointments` และ `pai_medical_records`; `appointments` และ `medical_records` เดิมยังเป็น compatibility/legacy path ของ service เก่า
 - บทบาทใน `profiles.role` เหลือ 3 ค่าเท่านั้น: `patient`, `medical`, `staff_admin`
 - `medical` ครอบคลุมแพทย์และเภสัชกร; `staff_admin` ครอบคลุมเจ้าหน้าที่และแอดมิน
-- ตาราง normalized รุ่นเก่า เช่น `reschedule_proposals`, `prescription_items`, `dispensing_items`, `stock_reservations`, `email_jobs` และ `broadcasts` ไม่อยู่ใน scope ปัจจุบัน
-- คอลัมน์ compatibility ที่ยังอยู่ใน 11 ตารางไม่ใช่หลักฐานว่าเปิดใช้ workflow เก่าแล้ว
+- ตาราง normalized รุ่นเก่า เช่น `reschedule_proposals`, `prescription_items`, `dispensing_items`, `stock_reservations` และ `email_jobs` ไม่อยู่ใน scope ปัจจุบัน; `broadcasts` ใน migration `03_normalized_transactions.sql` เป็นของเก่า แต่ migration `09_broadcast_rpc.sql` มี Broadcast path แยกที่ต้องตรวจ target จริง
+- คอลัมน์ compatibility ที่ยังอยู่ใน base/legacy tables ไม่ใช่หลักฐานว่าเปิดใช้ workflow เก่าแล้ว
+
+## แผนที่ข้อมูลจาก code path ปัจจุบัน
+
+| เส้นทาง | ตาราง/ฟังก์ชันหลัก | ข้อสรุปจาก repository |
+| --- | --- | --- |
+| Schedule | `services` → `daily_service_offerings` → `appointment_slots` | `DatabaseShopRepository` รองรับการอ่าน/เขียน; UI ยังมี mock composition บางคำสั่ง |
+| Appointment | `pai_appointments`, `pai_workspace`, `pai_book_appointment`, `pai_transition_appointment` | route `/appointments` ใช้เส้นทางนี้; ไม่เขียน `appointments` เดิม |
+| Medical record | `pai_medical_records`, `pai_save_record` | route `/records` ใช้เส้นทางนี้; หนึ่งผลตรวจต่อนัดด้วย UNIQUE |
+| Pharmacy | `medications`, `inventory_logs`, `medicationService`, `/pharmacy` | เส้นทางแยกจาก PAI และมี mock/local-storage fallback; ยังไม่ยืนยัน integration แบบครบวงจร |
+| Reminder/notification | `medication_reminders`, `medication_logs`, `notifications` และ service ที่เกี่ยวข้อง | มี direct Supabase service; reminders/dashboard บางส่วนยัง fallback ไป mock |
+| Broadcast | `broadcasts`/RPC และ `notifications` | มี migration/RPC แยก; ต้องตรวจว่าฐานเป้าหมาย apply แล้ว |
+
+ตารางนี้คือ as-built map ไม่ใช่การเปลี่ยน target requirement ใน [08](08_system_rules_and_acceptance.md), [09](09_implementation_plan.md) หรือ [10](10_team_decisions.md)
 
 ## RLS สำหรับค้นหาผู้ป่วย
 
@@ -34,7 +48,7 @@ CREATE POLICY "Staff admin and medical can view profiles"
 | --- | --- | --- | --- |
 | 1 | ผู้ป่วย | `patient` | โปรไฟล์ นัด รายการเตือน และข้อมูลของตน |
 | 2 | แพทย์/เภสัชกร | `medical` | ตรวจรักษา บันทึกผล และจัดการยาตามหน้าที่ |
-| 3 | เจ้าหน้าที่/แอดมิน | `staff_admin` | จัดการบัญชี แผนก slot นัดหมาย รายการเตือน Dashboard และ Broadcast |
+| 3 | เจ้าหน้าที่/แอดมิน | `staff_admin` | จัดการบัญชี แผนก บริการ daily offering slot นัดหมาย รายการเตือน Dashboard และ Broadcast |
 
 นักศึกษา/บุคลากรเป็น `patient_type` ไม่ใช่ role เพิ่ม และผู้ใช้หนึ่งบัญชีมี role เดียว
 
@@ -43,16 +57,21 @@ CREATE POLICY "Staff admin and medical can view profiles"
 | ตาราง | หน้าที่และความสัมพันธ์ | ข้อจำกัดหลัก |
 | --- | --- | --- |
 | `profiles` | บัญชีผู้ใช้ ขยายจาก `auth.users` | role ต้องเป็น 3 ค่า canonical |
-| `departments` | แผนกการรักษา | ปิดใช้งานด้วย `is_active` โดยไม่ลบประวัติ |
+| `departments` | กลุ่มความถนัด/สาขางานของแพทย์ | ปิดใช้งานด้วย `is_active` โดยไม่ใช้เป็นหน่วยที่ผู้ป่วยจอง |
+| `services` | catalog บริการที่เปิดให้ผู้ป่วยจอง | `code` ไม่ซ้ำ; ปิดใช้งานด้วย `is_active` |
 | `doctors` | รายละเอียดแพทย์ที่เป็นบัญชี `medical` | ผูกกับ `profiles` และ `departments` |
-| `appointment_slots` | รอบเวลาตรวจของแพทย์ | status คือ `available`, `full`, `closed` |
-| `appointments` | การนัดของผู้ป่วยกับ slot | ผูกผู้ป่วยและ slot; ไม่มี auto-reschedule/auto-no-show |
-| `medical_records` | ผลตรวจและรายการยาแบบ JSONB | ผูกนัด ผู้ป่วย และแพทย์ |
+| `daily_service_offerings` | บริการของแพทย์ที่เปิดในวันนั้น | unique ต่อ `service_id`, `doctor_id`, `offering_date` |
+| `appointment_slots` | รอบเวลาตรวจของบริการในวันนั้น | ต้องอ้าง `daily_service_offering_id`; status คือ `available`, `full`, `closed` |
+| `pai_appointments` | การนัด active ของผู้ป่วยกับ slotใน PAI runtime | ใช้ RPC; unique active booking ต่อผู้ป่วย/slot; ไม่มี auto-reschedule/auto-no-show |
+| `pai_medical_records` | ผลตรวจ active ของ PAI runtime | ผูกกับ `pai_appointments`; `appointment_id` UNIQUE; รายการยาเป็น JSONB |
+| `appointments` | ตารางนัดเดิมของ service/compatibility path | ไม่ใช่ตารางที่ active PAI route เขียน |
+| `medical_records` | ผลตรวจเดิมและรายการยาแบบ JSONB | ไม่ใช่ตารางที่ active PAI route เขียน |
 | `medications` | Catalog และยอดคลังยา | ยอด stock ใช้ประกอบการจ่ายยา |
 | `inventory_logs` | ประวัติรับเข้า ปรับยอด และจ่ายยา | เก็บผู้ทำรายการและจำนวน |
 | `medication_reminders` | รายการเตือนยาของผู้ป่วย | ไม่มี worker หรือ email อัตโนมัติ |
 | `medication_logs` | ผลการบันทึกกินยาแต่ละรายการ | ผู้ป่วยกดบันทึกเอง ไม่เปลี่ยนตามเวลา |
 | `notifications` | กล่องข้อความรายผู้ใช้ | ผู้รับเป็นเจ้าของข้อมูลของตน |
+| `broadcasts` | ประวัติคำสั่ง Broadcast ของ migration/RPC ปัจจุบัน | ต้องแยกจาก table ชื่อเดียวกันใน normalized migration เก่า และต้องตรวจ target ก่อนใช้งาน |
 
 ข้อมูลตัวอย่างล่าสุดที่ส่งมามี 4 แผนกใน `departments` และ 8 รายการยาใน `medications`; การปรับ schema ไม่ลบหรือเปลี่ยนข้อมูลสองตารางนี้
 
@@ -62,12 +81,18 @@ CREATE POLICY "Staff admin and medical can view profiles"
 erDiagram
     profiles ||--o{ appointments : books
     profiles ||--o{ medical_records : owns
+    profiles ||--o{ pai_appointments : books_active
+    profiles ||--o{ pai_medical_records : owns_active
     profiles ||--o{ notifications : receives
     profiles ||--o| doctors : has_doctor_detail
     departments ||--o{ doctors : groups
-    doctors ||--o{ appointment_slots : owns
-    appointment_slots ||--o{ appointments : holds
-    appointments ||--o| medical_records : produces
+    services ||--o{ daily_service_offerings : catalogs
+    doctors ||--o{ daily_service_offerings : provides
+    daily_service_offerings ||--o{ appointment_slots : opens
+    appointment_slots ||--o{ pai_appointments : holds_active
+    pai_appointments ||--o| pai_medical_records : produces_active
+    appointment_slots ||--o{ appointments : holds_legacy
+    appointments ||--o| medical_records : produces_legacy
     medications ||--o{ inventory_logs : changes
     medications ||--o{ medication_reminders : supports
     medication_reminders ||--o{ medication_logs : schedules
@@ -126,12 +151,39 @@ erDiagram
 
 เภสัชกรใช้ role `medical` ได้โดยไม่จำเป็นต้องมีแถวใน `doctors`
 
-### 4. `appointment_slots`
+### 4A. `services`
+
+| ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสบริการ |
+| `code` | `text` | ไม่ได้ | — | UNIQUE | รหัสบริการที่ staff ใช้อ้างอิง |
+| `name` | `text` | ไม่ได้ | — | CHECK ไม่เป็นค่าว่าง | ชื่อบริการที่ผู้ป่วยเห็น |
+| `description` | `text` | ได้ | — | — | รายละเอียดบริการ |
+| `is_active` | `boolean` | ไม่ได้ | `true` | — | เปิด/ปิดบริการสำหรับการสร้าง offering ใหม่ |
+| `created_by` | `uuid` | ได้ | — | FK → `profiles.id` | ผู้สร้าง |
+| `created_at`, `updated_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้าง/แก้ไข |
+
+### 4B. `daily_service_offerings`
+
+| ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสบริการของแพทย์ในวันนั้น |
+| `service_id` | `uuid` | ไม่ได้ | — | FK → `services.id` | บริการที่เปิดให้จอง |
+| `doctor_id` | `uuid` | ไม่ได้ | — | FK → `doctors.id` | แพทย์ผู้ให้บริการ |
+| `offering_date` | `date` | ไม่ได้ | — | — | วันที่เปิดบริการ |
+| `is_active` | `boolean` | ไม่ได้ | `true` | — | เปิด/ปิดการจองของ offering |
+| `created_by` | `uuid` | ได้ | — | FK → `profiles.id` | ผู้สร้าง |
+| `created_at`, `updated_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้าง/แก้ไข |
+
+มี UNIQUE `(service_id, doctor_id, offering_date)` และ composite FK ที่บังคับให้ slot ใช้ doctor/date เดียวกับ offering
+
+### 4C. `appointment_slots`
 
 | ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
 | --- | --- | --- | --- | --- | --- |
 | `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสรอบตรวจ |
 | `doctor_id` | `uuid` | ไม่ได้ | — | FK → `doctors.id` | แพทย์เจ้าของรอบ |
+| `daily_service_offering_id` | `uuid` | ไม่ได้ | — | FK → `daily_service_offerings(id, doctor_id, offering_date)` | บริการของแพทย์ในวันนั้น |
 | `slot_date` | `date` | ไม่ได้ | — | — | วันที่ตรวจ |
 | `start_time` | `time` | ไม่ได้ | — | — | เวลาเริ่ม |
 | `end_time` | `time` | ไม่ได้ | — | — | เวลาสิ้นสุด; domain rule ต้องมากกว่าเวลาเริ่ม |
@@ -141,7 +193,38 @@ erDiagram
 | `created_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้าง slot |
 | `updated_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาปรับปรุงล่าสุด |
 
-### 5. `appointments`
+### 4D. `pai_appointments` (active PAI runtime)
+
+| ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสนัด active |
+| `patient_id` | `uuid` | ไม่ได้ | — | FK → `profiles.id` | ผู้ป่วยเจ้าของนัด |
+| `slot_id` | `uuid` | ไม่ได้ | — | FK → `appointment_slots.id` | slot ที่เลือก |
+| `queue_number` | `integer` | ไม่ได้ | — | CHECK: `> 0` | เลขคิวใน slot |
+| `reason` | `text` | ไม่ได้ | — | CHECK: 1–2000 ตัวอักษร | อาการหรือเหตุผลที่ผู้ป่วยกรอก |
+| `status` | `text` | ไม่ได้ | `pending` | CHECK: `pending`, `confirmed`, `in_progress`, `completed`, `cancelled`, `rejected`, `no_show` | สถานะที่ RPC อนุญาต |
+| `cancel_requested_at` | `timestamptz` | ได้ | — | — | เวลาที่ผู้ป่วยส่งคำขอยกเลิก |
+| `rejection_reason` | `text` | ได้ | — | CHECK: ถ้ามีต้อง 1–2000 ตัวอักษร | เหตุผลที่ staff ปฏิเสธ |
+| `created_at`, `updated_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้าง/แก้ไข |
+
+มี partial unique index ป้องกันการจอง active ซ้ำของผู้ป่วยใน slot เดียว และ RPC จะรวม `booked_count` เดิมกับจำนวน PAI active เพื่อเช็กความจุ โดยไม่อัปเดตแถว slot เดิม
+
+### 4E. `pai_medical_records` (active PAI runtime)
+
+| ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `uuid` | ไม่ได้ | `gen_random_uuid()` | PK | รหัสผลตรวจ active |
+| `appointment_id` | `uuid` | ไม่ได้ | — | UNIQUE; FK → `pai_appointments.id` | นัดต้นทาง; หนึ่งผลตรวจต่อนัด |
+| `patient_id` | `uuid` | ไม่ได้ | — | FK → `profiles.id` | ผู้ป่วยเจ้าของผลตรวจ |
+| `doctor_id` | `uuid` | ไม่ได้ | — | FK → `doctors.id` | แพทย์เจ้าของนัด |
+| `diagnosis` | `text` | ไม่ได้ | — | CHECK: 1–5000 ตัวอักษร | ผลวินิจฉัย |
+| `treatment_notes` | `text` | ไม่ได้ | `''` | CHECK: ไม่เกิน 5000 ตัวอักษร | คำแนะนำ/บันทึกการรักษา |
+| `prescribed_medications` | `jsonb` | ไม่ได้ | `[]` | CHECK: JSON array | รายการยาที่สั่ง; RPC ตรวจยา active, จำนวน, วิธีใช้ และรายการซ้ำ |
+| `created_at` | `timestamptz` | ไม่ได้ | `now()` | — | เวลาสร้างผลตรวจ |
+
+`pai_save_record` อนุญาตเฉพาะ `medical` ที่เป็นเจ้าของนัดและนัดอยู่ `in_progress`; ถ้าขอจบตรวจต้องมี record ก่อน ตารางนี้ยังไม่ใช่ dispense/inventory transaction
+
+### 5. `appointments` (legacy/compatibility path)
 
 | ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
 | --- | --- | --- | --- | --- | --- |
@@ -156,7 +239,7 @@ erDiagram
 
 `no_show` คงไว้ตาม schema ล่าสุดเพื่อรองรับข้อมูลเดิม แต่ไม่มี auto-no-show ใน scope manual
 
-### 6. `medical_records`
+### 6. `medical_records` (legacy/compatibility path)
 
 | ฟิลด์ | Type | NULL | Default | Key / constraint | ความหมาย |
 | --- | --- | --- | --- | --- | --- |
@@ -255,11 +338,14 @@ erDiagram
 
 | ความสัมพันธ์ | กติกา |
 | --- | --- |
-| `profiles` → `appointments` | ผู้ป่วยหนึ่งบัญชีมีนัดของตนได้หลายรายการ |
-| `profiles` → `medical_records` | ผู้ป่วยเห็นผลตรวจของตนตามสิทธิ์ |
+| `profiles` → `pai_appointments` | ผู้ป่วยหนึ่งบัญชีมีนัด active ของตนได้หลายรายการ; อ่านผ่าน PAI policy/RPC |
+| `profiles` → `pai_medical_records` | ผู้ป่วยเห็นผลตรวจ active ของตนเมื่อสถานะนัด `completed` |
 | `profiles` → `notifications` | ข้อความเป็นของผู้รับรายบัญชี |
-| `departments` → `doctors` → `appointment_slots` | แผนกจัดกลุ่มแพทย์ และแพทย์เป็นเจ้าของ slot |
-| `appointment_slots` → `appointments` → `medical_records` | slot รองรับการจอง และนัดเป็นต้นทางของผลตรวจ |
+| `departments` → `doctors` | แผนกใช้บอกความถนัด/สาขางานของแพทย์ |
+| `services` → `daily_service_offerings` → `appointment_slots` | catalog บริการถูกเปิดให้แพทย์ในวันนั้น แล้วจึงสร้างเวลาจอง |
+| `doctors` → `daily_service_offerings` | แพทย์เป็นผู้ให้บริการในวันนั้น |
+| `appointment_slots` → `pai_appointments` → `pai_medical_records` | active PAI path: slot รองรับการจอง และนัดเป็นต้นทางของผลตรวจ |
+| `appointment_slots` → `appointments` → `medical_records` | legacy/compatibility path; ไม่ใช่ route นัดหมายหลักที่ reverse-engineer พบ |
 | `medications` → `inventory_logs` | ยาหนึ่งรายการมีประวัติคลังหลายรายการ |
 | `medications` → `medication_reminders` → `medication_logs` | ยานำไปสร้างรายการเตือน และผู้ป่วยบันทึกผลแต่ละรายการ |
 
@@ -267,17 +353,18 @@ erDiagram
 
 ## ลำดับชีวิตของข้อมูล
 
-1. `staff_admin` เตรียมแผนก แพทย์ และ slot
-2. `patient` เลือก slot จนเกิด `appointments`
-3. `staff_admin` หรือ `medical` จัดการสถานะนัดตามสิทธิ์ที่กำหนด
-4. `medical` บันทึก `medical_records` และรายการยาใน JSONB
-5. งานเภสัชกรใน role `medical` ตรวจ stock และบันทึก `inventory_logs`
-6. `staff_admin` จัดทำ `medication_reminders`; `patient` บันทึก `medication_logs`
-7. คำสั่ง Broadcast สร้าง `notifications` ให้ผู้รับ โดยไม่มีตาราง Broadcast ถาวร
+1. `medical` หรือ `staff_admin` เตรียม catalog บริการ; แผนกใช้จัดกลุ่มความถนัดของแพทย์
+2. `medical` หรือ `staff_admin` เปิด `daily_service_offerings` ของบริการ+แพทย์+วันที่ แล้วสร้าง slot
+3. `patient` เลือกบริการ/วันที่/แพทย์/slot จนเกิด `pai_appointments` ผ่าน `pai_book_appointment`
+4. `staff_admin` หรือ `medical` จัดการสถานะนัดตามสิทธิ์ที่กำหนด
+5. `medical` บันทึก `pai_medical_records` และรายการยาใน JSONB ผ่าน `pai_save_record`
+6. งานเภสัชกรใน role `medical` ตรวจ stock และบันทึก `inventory_logs`
+7. `staff_admin` จัดทำ `medication_reminders`; `patient` บันทึก `medication_logs`
+8. คำสั่ง Broadcast ผ่าน RPC อาจบันทึก `broadcasts` และสร้าง `notifications` ให้ผู้รับ; ต้องตรวจ migration `09_broadcast_rpc.sql` บน target จริง
 
 ## ตารางและ workflow ที่ไม่ใช้
 
-ไม่ใช้ตารางหรือ flow สำหรับ `reschedule_proposals`, `prescription_items`, `dispensing_events`, `dispensing_items`, `stock_reservations`, `prescription_changes`, `medication_log_changes`, `email_jobs`, `broadcasts`, worker, retry, email/Web Push, การแบ่งจ่าย, กันยา, ยาค้าง, การคืนยา และการชำระเงิน
+ไม่ใช้ตารางหรือ flow สำหรับ `reschedule_proposals`, `prescription_items`, `dispensing_events`, `dispensing_items`, `stock_reservations`, `prescription_changes`, `medication_log_changes`, `email_jobs`, worker, retry, email/Web Push, การแบ่งจ่าย, กันยา, ยาค้าง, การคืนยา และการชำระเงิน. `broadcasts` ใน migration normalized รุ่นเก่าไม่ใช้ แต่ Broadcast path ใน `09_broadcast_rpc.sql` เป็นเส้นทางแยกที่ต้องตรวจ target จริง
 
 ฟิลด์ compatibility ที่ยังเห็นใน schema เช่น `dispensing_item_id`, `email_pause_until`, `revision` และ `broadcast_id` มีไว้รองรับข้อมูลเดิมเท่านั้น ไม่ควรนำไปสร้าง workflow ใหม่โดยไม่มี requirement เพิ่ม
 
@@ -290,8 +377,15 @@ erDiagram
 3. `supabase/migrations/06_consolidate_roles.sql`
 4. `supabase/migrations/07_add_contract_fields.sql`
 5. `supabase/migrations/08_allow_medical_patient_search.sql`
+6. `supabase/migrations/09_broadcast_rpc.sql` ถ้าต้องใช้ Broadcast path ปัจจุบัน
+7. `supabase/migrations/13_services_and_daily_offerings.sql`
+8. `supabase/migrations/13_pai_manual_appointments_records.sql`
+9. `supabase/migrations/14_pai_restrict_new_objects.sql`
+10. `supabase/migrations/15_pai_rejection_reason.sql`
+11. `supabase/migrations/16_pai_workspace_rejection_reason.sql`
+12. `supabase/migrations/17_allow_public_view_services_and_slots.sql` ตาม policy ที่ทีมอนุมัติ
 
-ไม่ต้องรัน `03_normalized_transactions.sql`, `04_broadcast_notification_type.sql` หรือ `05_simplify_broadcast_recipients.sql` เพราะเป็น migration ของแบบ normalized รุ่นเก่า
+ไม่ต้องรัน `03_normalized_transactions.sql`, `04_broadcast_notification_type.sql` หรือ `05_simplify_broadcast_recipients.sql` เพราะเป็น migration ของแบบ normalized รุ่นเก่า. ไฟล์สองชุดขึ้นต้นด้วย `13_` จึงต้องตรวจ migration history/target ก่อน push ไม่สรุปจากชื่อไฟล์อย่างเดียว
 
 ### ฐานข้อมูลเดิมที่มีข้อมูล
 
@@ -299,6 +393,16 @@ erDiagram
 2. รัน `supabase/migrate_existing_schema_preserve_data.sql`
 3. ถ้า legacy table มีข้อมูล สคริปต์จะหยุดและ rollback; ต้อง archive/export ก่อนจึงค่อยตัดสินใจลบ
 4. ตรวจสอบ role และจำนวนข้อมูลใน `profiles`, `departments`, `medications`
+
+### เพิ่มบริการและ offering ในฐานเดิม
+
+หลังตรวจ target และสำรองข้อมูลแล้ว ให้รัน migration ใหม่ด้วยคำสั่ง:
+
+```bash
+supabase db push
+```
+
+Migration `13_services_and_daily_offerings.sql` จะเพิ่ม `services`, `daily_service_offerings`, เพิ่ม `appointment_slots.daily_service_offering_id`, backfill slot เดิมด้วยบริการ legacy ตาม department และเปิด RLS ให้ผู้ป่วยอ่านเฉพาะรายการ active ส่วนการรันกับฐาน remote ต้องทำบน development/staging ที่ยืนยันแล้วเท่านั้น
 
 ### กรณี reset ทั้งฐาน
 

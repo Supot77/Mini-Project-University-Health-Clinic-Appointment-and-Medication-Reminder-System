@@ -74,7 +74,7 @@ export function createClinicRepositories(
           .filter(
             (item) =>
               !patientId ||
-              item.user_id === patientId,
+              (item.patient_id || item.user_id) === patientId,
           )
           .map((appointment) => {
             const slot =
@@ -96,7 +96,7 @@ export function createClinicRepositories(
               patient:
                 tables.profiles.find(
                   (item) =>
-                    item.id === appointment.user_id,
+                    item.id === (appointment.patient_id || appointment.user_id),
                 ),
 
               slot: slot && {
@@ -431,6 +431,33 @@ export function createClinicRepositories(
         }),
 
       delete: (id: string) => database.deleteById('medication_reminders', id),
+
+      create: async (input: {
+        patient_id?: string;
+        user_id?: string;
+        medication_id: string;
+        reminder_times: string[];
+        start_date: string;
+        end_date?: string | null;
+        status?: MedicationReminderStatus;
+      }) => {
+        const revision = database.getRevision();
+        return database.transaction(revision, (draft) => {
+          const reminder = {
+            id: `reminder-${crypto.randomUUID()}`,
+            user_id: input.user_id || input.patient_id || 'profile-peter-parker',
+            medication_id: input.medication_id,
+            reminder_times: input.reminder_times,
+            start_date: input.start_date,
+            end_date: input.end_date ?? null,
+            status: input.status ?? 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          draft.medication_reminders.push(reminder);
+          return mockResult.ok(reminder);
+        });
+      },
     },
 
     notifications: {
@@ -732,7 +759,7 @@ export function createClinicRepositories(
         const isDoctorActor = Boolean(actor && tables.doctors.some((doctor) => doctor.id === actor.id));
         const scopedAppointments = activeAppointments.filter((appointment) => {
           if (!actor) return false;
-          if (role === 'patient') return appointment.user_id === actor.id;
+          if (role === 'patient') return (appointment.patient_id || appointment.user_id) === actor.id;
           if (role === 'medical' && isDoctorActor) return slotsById.get(appointment.slot_id)?.doctor_id === actor.id;
           return true;
         });
@@ -788,8 +815,8 @@ export function createClinicRepositories(
               tables.departments.length,
               'department-workload',
               'แผนกที่ให้บริการ',
-              'ดูภาระงานแยกตามแผนก',
-              '/schedules',
+              'จัดการและดูภาระงานแผนก',
+              '/departments',
               'violet',
             ),
 
@@ -797,8 +824,8 @@ export function createClinicRepositories(
               tables.profiles.length,
               'accounts',
               'บัญชีทั้งหมด',
-              'สรุปรวมโดยไม่แสดงข้อมูลผู้ป่วย',
-              '/profile',
+              'คลิกเพื่อดูรายชื่อและบทบาทบัญชีทั้งหมด',
+              '/staff/accounts',
               'blue',
             ),
           ],
@@ -1043,7 +1070,7 @@ export function createClinicRepositories(
                 tables.profiles.find(
                   (profile) =>
                     profile.id ===
-                    appointment.user_id,
+                    (appointment.patient_id || appointment.user_id),
                 );
 
               return {

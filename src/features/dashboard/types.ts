@@ -83,7 +83,7 @@ export interface BroadcastHistoryItem {
 }
 
 export const roleLabels: Record<UserRole, string> = {
-  patient: 'ผู้ใช้งาน',
+  patient: 'ผู้ป่วย',
   staff_admin: 'เจ้าหน้าที่',
   medical: 'บุคลากรทางการแพทย์',
 };

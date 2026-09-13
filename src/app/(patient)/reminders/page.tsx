@@ -1,29 +1,41 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Pill,
+  X,
+  Check,
+  Plus,
+  Trash2,
+  AlertCircle,
+  AlertTriangle,
+  Pencil,
+  Search,
+  Clock
+} from 'lucide-react';
+import { useClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  getReminders,
+  createReminder,
+  updateReminder,
+  deleteReminder,
+  getAvailableMedications
+} from '@/services/reminderService';
+import type { Medication, MedicationReminderWithMedication, Profile } from '@/types/database';
+import { getPatients, getProfile } from '@/services/authService';
+
 
 const isUuid = (val?: string | null): boolean =>
   typeof val === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-import { 
-  Pill, X, Check, Plus, CalendarIcon, 
-  Trash2, AlertCircle, RefreshCw, Sparkles, CheckCircle2,
-  User, AlertTriangle, CheckCircle, Pencil
-} from 'lucide-react';
-import { useClinicMockDatabase } from '@/features/mock-database/ClinicMockProvider';
-import { useAuth } from '@/hooks/useAuth';
-import { 
-  getReminders, 
-  createReminder, 
-  updateReminder, 
-  deleteReminder, 
-  getAvailableMedications, 
-  seedSampleReminders
-} from '@/services/reminderService';
-import type { Medication, MedicationReminderWithMedication } from '@/types/database';
+const inputClass =
+  'h-11 w-full min-w-0 rounded-lg border border-brand-border-strong bg-white px-3.5 text-sm text-brand-ink placeholder:text-brand-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong';
+const textActionClass =
+  'inline-flex min-h-11 items-center gap-1.5 text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50 cursor-pointer';
 
-// รายชื่อผู้ป่วยตัวอย่างสำหรับคลินิก (ใช้เลือกผู้ป่วยเพื่อจ่ายยา)
+// รายชื่อผู้ป่วยตัวอย่างสำหรับคลินิก (ใช้ fallback เมื่อไม่มีข้อมูลในตาราง profiles)
 interface PatientOption {
   id: string;
   name: string;
@@ -69,13 +81,13 @@ function formatTimeToThai(time: string) {
 
 // Helper แปลง Reminder Model เป็น UI Item
 function mapReminderToDisplay(reminder: MedicationReminderWithMedication): MedicationDisplayItem {
-  const times = reminder.reminder_times.map((t) => formatTimeToThai(t));
+  const times = (reminder.reminder_times || []).map((t) => formatTimeToThai(t));
   const med = reminder.medication;
   const desc = med?.description ? ` (${med.description})` : '';
   const dosage = (med as unknown as { dosage?: string })?.dosage ?? `1 ${med?.type ?? 'เม็ด'}`;
   const instruction = reminder.status === 'paused'
     ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
-    : `รับทาน ครั้งละ ${dosage} · วันละ ${reminder.reminder_times.length} ครั้ง${desc}`;
+    : `รับทาน ครั้งละ ${dosage} · วันละ ${(reminder.reminder_times || []).length} ครั้ง${desc}`;
 
   return {
     id: reminder.id,
@@ -94,42 +106,114 @@ function mapReminderToDisplay(reminder: MedicationReminderWithMedication): Medic
 }
 
 export default function RemindersPage() {
-  const { user, role } = useAuth();
+  const { user, role, isLoading: authLoading } = useAuth();
   const { repositories } = useClinicMockDatabase();
 
   const [selectedPatientOverride, setSelectedPatientOverride] = useState<string | null>(null);
+  const [dbPatients, setDbPatients] = useState<PatientOption[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
+
+  // ตรวจสอบสิทธิ์: อนุญาตเฉพาะบุคลากรทางการแพทย์หรือผู้ดูแลระบบคลินิกเท่านั้นที่สามารถจ่ายยา/แก้ไข/ลบยาได้
+  const effectiveRole = (currentUserProfile?.role || user?.role || role || '').toString().toLowerCase().trim();
+  const canManageMedication = !authLoading && ['medical', 'staff_admin', 'doctor', 'pharmacist', 'staff', 'admin'].includes(effectiveRole);
+  const isPatient = !canManageMedication;
+
+  // ดึงข้อมูลโปรไฟล์ของผู้ใช้ปัจจุบัน (สำหรับผู้ป่วย เพื่อนำข้อมูลการแพ้ยา/รหัสนักศึกษามาแสดง)
+  useEffect(() => {
+    if (user && isUuid(user.id)) {
+      getProfile(user.id)
+        .then((p) => {
+          if (p) setCurrentUserProfile(p);
+        })
+        .catch((e) => console.warn('Could not fetch user profile:', e));
+    }
+  }, [user]);
+
+  // โหลดรายชื่อผู้ป่วยจากฐานข้อมูล Supabase (ตาราง profiles โดย role = 'patient')
+  const loadPatients = useCallback(async () => {
+    try {
+      const patients = await getPatients();
+      if (patients && patients.length > 0) {
+        const mapped: PatientOption[] = patients.map((p) => ({
+          id: p.id,
+          name: p.full_name || 'ไม่ระบุชื่อ',
+          studentId: p.student_id || '-',
+          allergies: p.allergies || null,
+          phone: p.phone || undefined,
+          gender: undefined,
+        }));
+        setDbPatients(mapped);
+        return;
+      }
+    } catch (err) {
+      console.warn('Could not fetch patients from Supabase profiles:', err);
+    }
+
+    // Fallback: หากยังไม่ต่อ DB หรือใช้ mock repository
+    try {
+      const { data: mockProfiles } = await repositories.profiles.list();
+      if (mockProfiles && mockProfiles.length > 0) {
+        const patientProfiles = mockProfiles.filter((p) => p.role === 'patient');
+        if (patientProfiles.length > 0) {
+          const mapped: PatientOption[] = patientProfiles.map((p) => ({
+            id: p.id,
+            name: p.full_name || 'ไม่ระบุชื่อ',
+            studentId: p.student_id || '-',
+            allergies: p.allergies || null,
+            phone: p.phone || undefined,
+            gender: undefined,
+          }));
+          setDbPatients(mapped);
+          return;
+        }
+      }
+    } catch (mockErr) {
+      console.warn('Could not fetch patients from mock repository:', mockErr);
+    }
+
+    setDbPatients(CLINIC_PATIENTS);
+  }, [repositories.profiles]);
+
+  useEffect(() => {
+    if (canManageMedication) {
+      const frame = requestAnimationFrame(() => {
+        void loadPatients();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [canManageMedication, loadPatients]);
 
   // คำนวณผู้ป่วยที่เลือกอย่างปลอดภัยและสอดคล้องกับบทบาท
   const selectedPatientId = useMemo(() => {
-    if (role === 'patient') {
-      return (user && isUuid(user.id)) ? user.id : 'profile-peter-parker';
+    if (!canManageMedication) {
+      return (user && isUuid(user.id)) ? user.id : (user?.id || 'profile-peter-parker');
     }
     if (selectedPatientOverride) {
       return selectedPatientOverride;
     }
-    if (user && isUuid(user.id)) {
-      return user.id;
+    if (dbPatients.length > 0) {
+      return dbPatients[0].id;
     }
-    return 'profile-peter-parker';
-  }, [role, user, selectedPatientOverride]);
+    return CLINIC_PATIENTS[0].id;
+  }, [canManageMedication, user, selectedPatientOverride, dbPatients]);
 
   const [medicationList, setMedicationList] = useState<MedicationDisplayItem[]>([]);
   const [availableMeds, setAvailableMeds] = useState<Medication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDbConnected, setIsDbConnected] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // ค้นหาและกรองสถานะรายการยา
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'paused'>('all');
 
   // Modal State: จ่ายยา / เพิ่มยาใหม่
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedMedId, setSelectedMedId] = useState('');
   const [selectedTimes, setSelectedTimes] = useState<string[]>(['08:00', '18:00']);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().split('T')[0];
-  });
+  const [endDate, setEndDate] = useState('');
 
   // Modal State: แก้ไขตัวยาที่จ่ายไปแล้ว
   const [editingItem, setEditingItem] = useState<MedicationDisplayItem | null>(null);
@@ -141,44 +225,79 @@ export default function RemindersPage() {
   // Modal State: ยืนยันการลบรายการยา
   const [deletingItem, setDeletingItem] = useState<MedicationDisplayItem | null>(null);
 
-  // รายชื่อผู้ป่วยทั้งหมด (รวมผู้ใช้ปัจจุบันถ้ามี)
-  const allPatients = useMemo(() => {
-    if (user) {
-      const currentPatientOpt: PatientOption = {
-        id: user.id,
-        name: user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
-        studentId: (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+  const showNotice = (msg: string) => {
+    setNotice(msg);
+    setTimeout(() => {
+      setNotice((curr) => (curr === msg ? '' : curr));
+    }, 4000);
+  };
+
+  const showError = (msg: string) => {
+    setErrorMessage(msg);
+    setTimeout(() => {
+      setErrorMessage((curr) => (curr === msg ? '' : curr));
+    }, 5000);
+  };
+
+  // รายชื่อผู้ป่วยทั้งหมด (แยกตามสิทธิ์)
+  const allPatients = useMemo<PatientOption[]>(() => {
+    if (!canManageMedication) {
+      if (user) {
+        return [{
+          id: user.id,
+          name: currentUserProfile?.full_name || user.full_name || user.email || 'ฉัน (บัญชีปัจจุบัน)',
+          studentId: currentUserProfile?.student_id || (user as unknown as { student_id?: string }).student_id || 'บัญชีฉัน',
+          allergies: currentUserProfile?.allergies || (user as unknown as { allergies?: string | null }).allergies || null,
+          phone: currentUserProfile?.phone || (user as unknown as { phone?: string }).phone,
+        }];
+      }
+      return [{
+        id: 'profile-peter-parker',
+        name: 'ผู้ป่วย',
+        studentId: '-',
         allergies: null,
-      };
+      }];
+    }
 
-      if (role === 'patient') {
-        return [currentPatientOpt];
-      }
-
-      if (!CLINIC_PATIENTS.some((p) => p.id === user.id)) {
-        return [currentPatientOpt, ...CLINIC_PATIENTS];
-      }
+    if (dbPatients.length > 0) {
+      return dbPatients;
     }
     return CLINIC_PATIENTS;
-  }, [user, role]);
+  }, [canManageMedication, user, currentUserProfile, dbPatients]);
 
   // ข้อมูลผู้ป่วยที่เลือก
   const currentPatient = useMemo(() => {
     return allPatients.find(p => p.id === selectedPatientId) || allPatients[0];
   }, [allPatients, selectedPatientId]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((current) => (current === msg ? null : current));
-    }, 3500);
-  };
+  // คำนวณจำนวนยาตามสถานะ
+  const activeCount = useMemo(() => medicationList.filter((m) => m.isActive).length, [medicationList]);
+  const pausedCount = useMemo(() => medicationList.filter((m) => !m.isActive).length, [medicationList]);
+
+  // กรองรายการยาตามคำค้นหาและสถานะ
+  const filteredMedications = useMemo(() => {
+    return medicationList.filter((med) => {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        med.name.toLowerCase().includes(q) ||
+        (med.category && med.category.toLowerCase().includes(q)) ||
+        med.dosageInstruction.toLowerCase().includes(q);
+
+      const matchesStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'active' && med.isActive) ||
+        (filterStatus === 'paused' && !med.isActive);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [medicationList, searchQuery, filterStatus]);
 
   // ดึงข้อมูลยาของผู้ป่วยที่เลือก
   const loadData = useCallback(async (patientId: string) => {
     setIsLoading(true);
     try {
-      // 1. ดึงรายการยาจาก Supabase medications (พร้อม fallback)
+      // 1. ดึงรายการยา
       let meds: Medication[] = [];
       try {
         meds = await getAvailableMedications();
@@ -190,45 +309,54 @@ export default function RemindersPage() {
         meds = (mockMeds || []) as Medication[];
       }
       setAvailableMeds(meds);
-      setIsDbConnected(true);
 
-      // 2. ถ้า patientId เป็น UUID ให้ดึงจาก Supabase reminders
+      // 2. โหลดรายการยาจาก Supabase (กรณี patientId เป็น UUID)
+      let dbReminders: MedicationReminderWithMedication[] = [];
       if (isUuid(patientId)) {
         try {
-          const dbReminders = await getReminders(patientId);
-          if (dbReminders && dbReminders.length > 0) {
-            setMedicationList(dbReminders.map(mapReminderToDisplay));
-            setIsLoading(false);
-            return;
-          }
+          dbReminders = await getReminders(patientId);
         } catch (dbErr) {
           console.warn('Could not fetch reminders from Supabase for patient:', patientId, dbErr);
         }
       }
 
-      // 3. Fallback: ดึงจาก mock repository ตาม patientId
-      const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
-      if (mockData && mockData.length > 0) {
-        setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-      } else {
-        setMedicationList([]);
-      }
-    } catch (err) {
-      console.error('Error loading reminders data:', err);
+      // 3. โหลดรายการยาจาก Mock repository
+      let mockReminders: unknown[] = [];
       try {
-        const { data: mockMeds } = await repositories.medications.list();
-        if (mockMeds && mockMeds.length > 0) {
-          setAvailableMeds(mockMeds as Medication[]);
-        }
         const { data: mockData } = await repositories.reminders.listWithMedication(patientId);
         if (mockData) {
-          setMedicationList(mockData.map((item) => mapReminderToDisplay(item as MedicationReminderWithMedication)));
-        } else {
-          setMedicationList([]);
+          mockReminders = mockData;
         }
-      } catch (fallbackErr) {
-        console.error('Fallback error:', fallbackErr);
+      } catch (mockErr) {
+        console.warn('Could not fetch reminders from mock repo:', mockErr);
       }
+
+      // 4. แปลงข้อมูลและเติมรายละเอียดตัวยาจาก meds
+      const mappedDb = (dbReminders || []).map(mapReminderToDisplay);
+      const mappedMock = (mockReminders as MedicationReminderWithMedication[] || []).map((item) => {
+        const display = mapReminderToDisplay(item);
+        if (display.name === 'ยาไม่ระบุชื่อ' && item.medication_id) {
+          const found = meds.find((m) => m.id === item.medication_id);
+          if (found) {
+            display.name = found.name;
+            display.category = found.category;
+            display.stockInfo = `เหลือ ${found.stock ?? 30} ${found.type ?? 'เม็ด'}`;
+            const dosage = (found as unknown as { dosage?: string })?.dosage ?? `1 ${found?.type ?? 'เม็ด'}`;
+            display.dosageInstruction = item.status === 'paused'
+              ? `รับทาน ครั้งละ ${dosage} · ยาหยุดชั่วคราว`
+              : `รับทาน ครั้งละ ${dosage} · วันละ ${(item.reminder_times || []).length} ครั้ง`;
+          }
+        }
+        return display;
+      });
+
+      const uniqueMap = new Map<string, MedicationDisplayItem>();
+      for (const item of [...mappedDb, ...mappedMock]) {
+        uniqueMap.set(item.id, item);
+      }
+      setMedicationList(Array.from(uniqueMap.values()));
+    } catch (err) {
+      console.error('Error loading reminders data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -258,17 +386,16 @@ export default function RemindersPage() {
       })
     );
 
-    showToast(
-      nextActive 
-        ? `เปิดการแจ้งเตือน "${item.name}" เรียบร้อย 🔔` 
-        : `ปิดการแจ้งเตือน "${item.name}" ชั่วคราวแล้ว ⏸️`
+    showNotice(
+      nextActive
+        ? `เปิดการแจ้งเตือน "${item.name}" แล้ว`
+        : `หยุดการแจ้งเตือน "${item.name}" ชั่วคราวแล้ว`
     );
 
-    // ตรวจสอบว่าเป็น UUID ของ Supabase หรือเป็น ID จาก mock repository
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const isReminderUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
     try {
-      if (isUuid) {
+      if (isReminderUuid) {
         await updateReminder(id, { status: nextActive ? 'active' : 'paused' });
       } else {
         await repositories.reminders.updateStatus(id, nextActive ? 'active' : 'paused');
@@ -285,74 +412,59 @@ export default function RemindersPage() {
 
   // เปิด Modal ยืนยันการลบรายการเตือนยา
   const handleDeleteClick = (item: MedicationDisplayItem) => {
+    if (isPatient) {
+      showError('บัญชีนี้อยู่ในบทบาทผู้ป่วย ไม่มีสิทธิ์ลบรายการยา');
+      return;
+    }
     setDeletingItem(item);
   };
 
   // ยืนยันการลบรายการเตือนยาจริง
   const confirmDelete = async () => {
-    if (!deletingItem) return;
+    if (isPatient || !deletingItem) return;
     const { id, name } = deletingItem;
     setDeletingItem(null);
 
-    // ลบออกจากรายการใน UI ทันที
     setMedicationList((prev) => prev.filter((m) => m.id !== id));
-    showToast(`ลบการแจ้งเตือน "${name}" เรียบร้อยแล้ว 🗑️`);
+    showNotice(`ลบรายการยา "${name}" เรียบร้อยแล้ว`);
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const isReminderUuid = isUuid(id);
     try {
-      if (isUuid) {
+      if (isReminderUuid) {
         await deleteReminder(id);
       } else {
         await repositories.reminders.delete(id);
       }
+      await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not delete reminder from database/mock:', err);
       try {
         await repositories.reminders.delete(id);
+        await loadData(selectedPatientId);
       } catch {
         // ignore
       }
     }
   };
 
-  // เพิ่มยาตัวอย่างลงฐานข้อมูล Supabase อัตโนมัติ
-  const handleSeedSample = async () => {
-    setIsSaving(true);
-    try {
-      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
-      if (!targetUserId) {
-        showToast('กรุณาเข้าสู่ระบบด้วยบัญชีจริงเพื่อบันทึกข้อมูลลงฐานข้อมูล');
-        return;
-      }
-      const seeded = await seedSampleReminders(targetUserId);
-      if (seeded && seeded.length > 0) {
-        setMedicationList(seeded.map(mapReminderToDisplay));
-        showToast(`บันทึกชุดยาตัวอย่าง ${seeded.length} รายการให้ ${currentPatient.name} สำเร็จ`);
-      } else {
-        await loadData(selectedPatientId);
-      }
-    } catch (err) {
-      console.error('Error seeding sample medications:', err);
-      alert('เกิดข้อผิดพลาดในการโหลดตัวอย่างยาลงฐานข้อมูล');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // บันทึกการจ่ายยาและเพิ่มการเตือนยาใหม่
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPatient) {
+      showError('บัญชีนี้อยู่ในบทบาทผู้ป่วย ไม่มีสิทธิ์สั่งจ่ายยา');
+      return;
+    }
     if (!selectedMedId) {
-      alert('กรุณาเลือกตัวยาที่ต้องการจ่าย');
+      showError('กรุณาเลือกตัวยาที่ต้องการจ่าย');
       return;
     }
     if (selectedTimes.length === 0) {
-      alert('กรุณาเลือกรอบเวลาอย่างน้อย 1 ช่วงเวลา');
+      showError('กรุณาเลือกรอบเวลาอย่างน้อย 1 ช่วงเวลา');
       return;
     }
 
     const chosenMed = availableMeds.find(m => m.id === selectedMedId);
-    
+
     // ตรวจสอบการแพ้ยา (Allergy Warning)
     if (currentPatient.allergies && chosenMed) {
       const allergyLower = currentPatient.allergies.toLowerCase();
@@ -367,70 +479,53 @@ export default function RemindersPage() {
     }
 
     setIsSaving(true);
-    try {
-      const targetUserId = (user && isUuid(user.id)) ? user.id : (isUuid(selectedPatientId) ? selectedPatientId : null);
-      
-      if (targetUserId) {
-        const created = await createReminder({
-          user_id: targetUserId,
-          medication_id: selectedMedId,
-          reminder_times: selectedTimes.sort(),
-          start_date: startDate,
-          end_date: endDate || null,
-        });
+    let savedToSupabase = false;
 
-        if (created) {
-          setMedicationList((prev) => [mapReminderToDisplay(created), ...prev]);
-          showToast(`จ่ายยาและบันทึก "${created.medication?.name ?? 'ยา'}" ให้ ${currentPatient.name} สำเร็จ`);
-          setIsAddModalOpen(false);
-          setSelectedMedId('');
-          setSelectedTimes(['08:00', '18:00']);
-          return;
+    try {
+      const isTargetUserUuid = isUuid(selectedPatientId);
+      const isMedUuid = isUuid(selectedMedId);
+
+      if (isTargetUserUuid && isMedUuid) {
+        try {
+          const created = await createReminder({
+            user_id: selectedPatientId,
+            medication_id: selectedMedId,
+            reminder_times: [...selectedTimes].sort(),
+            start_date: startDate,
+            end_date: endDate || null,
+          });
+
+          if (created) {
+            savedToSupabase = true;
+            showNotice(`จ่ายยา "${created.medication?.name ?? chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อยแล้ว`);
+          }
+        } catch (dbErr: unknown) {
+          console.warn('Supabase createReminder error:', dbErr);
         }
       }
 
-      // Fallback UI เมื่อเป็น mock user หรือไม่มี target user id ใน Supabase
-      const med = availableMeds.find((m) => m.id === selectedMedId);
-      const newItem: MedicationDisplayItem = {
-        id: `reminder-local-${Date.now()}`,
-        medicationId: selectedMedId,
-        name: med?.name ?? 'ยาที่เลือก',
-        category: med?.category,
-        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
-        times: selectedTimes.sort().map(formatTimeToThai),
-        rawTimes: selectedTimes.sort(),
-        startDate: startDate,
-        endDate: endDate || null,
-        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
-        nextDoseMinutes: 15,
-        isActive: true,
-      };
-      setMedicationList((prev) => [newItem, ...prev]);
-      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
+      if (!savedToSupabase) {
+        await repositories.reminders.create({
+          patient_id: selectedPatientId,
+          medication_id: selectedMedId,
+          reminder_times: [...selectedTimes].sort(),
+          start_date: startDate,
+          end_date: endDate || null,
+          status: 'active',
+        });
+        showNotice(`จ่ายยา "${chosenMed?.name ?? 'ยา'}" ให้ ${currentPatient.name} เรียบร้อยแล้ว`);
+      }
+
       setIsAddModalOpen(false);
       setSelectedMedId('');
       setSelectedTimes(['08:00', '18:00']);
-    } catch (err) {
-      console.error('Error creating reminder in Supabase:', err);
-      // Fallback UI
-      const med = availableMeds.find((m) => m.id === selectedMedId);
-      const newItem: MedicationDisplayItem = {
-        id: `reminder-local-${Date.now()}`,
-        medicationId: selectedMedId,
-        name: med?.name ?? 'ยาที่เลือก',
-        category: med?.category,
-        dosageInstruction: `รับทาน ครั้งละ 1 ${med?.type ?? 'เม็ด'} · วันละ ${selectedTimes.length} ครั้ง`,
-        times: selectedTimes.sort().map(formatTimeToThai),
-        rawTimes: selectedTimes.sort(),
-        startDate: startDate,
-        endDate: endDate || null,
-        stockInfo: `เหลือ ${med?.stock ?? 20} ${med?.type ?? 'เม็ด'}`,
-        nextDoseMinutes: 15,
-        isActive: true,
-      };
-      setMedicationList((prev) => [newItem, ...prev]);
-      showToast(`จ่ายยา "${newItem.name}" ให้ ${currentPatient.name} เรียบร้อย`);
-      setIsAddModalOpen(false);
+      setStartDate(new Date().toISOString().split('T')[0]);
+      setEndDate('');
+      await loadData(selectedPatientId);
+    } catch (err: unknown) {
+      console.error('Error handling add submit:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      showError(`เกิดข้อผิดพลาดในการทำรายการ: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -443,8 +538,11 @@ export default function RemindersPage() {
   };
 
   const openEditModal = (item: MedicationDisplayItem) => {
+    if (isPatient) {
+      showError('บัญชีนี้อยู่ในบทบาทผู้ป่วย ไม่มีสิทธิ์แก้ไขรายการยา');
+      return;
+    }
     setEditingItem(item);
-    // ค้นหาตัวยาที่ตรงกันใน availableMeds จาก id หรือเทียบจากชื่อยา
     const cleanItemName = item.name.toLowerCase().trim();
     const matched = availableMeds.find(
       (m) =>
@@ -467,14 +565,17 @@ export default function RemindersPage() {
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
+    if (!canManageMedication || !editingItem) {
+      if (isPatient) showError('บัญชีนี้อยู่ในบทบาทผู้ป่วย ไม่มีสิทธิ์แก้ไขรายการยา');
+      return;
+    }
 
     if (!editMedId) {
-      alert('กรุณาเลือกตัวยา');
+      showError('กรุณาเลือกตัวยา');
       return;
     }
     if (editTimes.length === 0) {
-      alert('กรุณาเลือกรอบเวลาอย่างน้อย 1 ช่วงเวลา');
+      showError('กรุณาเลือกรอบเวลาอย่างน้อย 1 ช่วงเวลา');
       return;
     }
 
@@ -529,10 +630,11 @@ export default function RemindersPage() {
       })
     );
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingItem.id);
+    const isReminderUuid = isUuid(editingItem.id);
+    const isMedUuid = isUuid(chosenMed.id);
 
     try {
-      if (isUuid) {
+      if (isReminderUuid && isMedUuid) {
         await updateReminder(editingItem.id, {
           medication_id: chosenMed.id,
           reminder_times: sortedTimes,
@@ -547,10 +649,22 @@ export default function RemindersPage() {
           end_date: editEndDate || null,
         });
       }
-      showToast(`แก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว ✏️`);
+      showNotice(`บันทึกการแก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว`);
+      await loadData(selectedPatientId);
     } catch (err) {
       console.warn('Could not persist updated reminder to Supabase/mock:', err);
-      showToast(`บันทึกการแก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว`);
+      try {
+        await repositories.reminders.update(editingItem.id, {
+          medication_id: chosenMed.id,
+          reminder_times: sortedTimes,
+          start_date: editStartDate,
+          end_date: editEndDate || null,
+        });
+      } catch {
+        // ignore
+      }
+      showNotice(`บันทึกการแก้ไขข้อมูลยา "${chosenMed.name}" เรียบร้อยแล้ว`);
+      await loadData(selectedPatientId);
     } finally {
       setIsSaving(false);
       setEditingItem(null);
@@ -558,303 +672,415 @@ export default function RemindersPage() {
   };
 
   return (
-    <div className="w-full font-sans text-slate-800">
-      {/* Toast Alert */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
-          <span className="text-sm font-medium">{toastMessage}</span>
-        </div>
-      )}
+    <div className="w-full min-h-[calc(100vh-4rem)] bg-brand-surface py-8 sm:py-10 px-4 sm:px-6 lg:px-8 font-sans text-brand-body selection:bg-brand-soft selection:text-brand-ink">
+      <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+        {/* Header Title & Primary Action */}
+        <header className="flex flex-wrap items-center justify-between gap-5">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-brand-ink sm:text-4xl">
+              รายการยาและการแจ้งเตือน
+            </h1>
+            <p className="mt-1 text-sm text-brand-muted">
+              ตารางเวลาทานยา ข้อมูลการใช้ยา และการแจ้งเตือนสำหรับผู้ป่วย
+            </p>
+          </div>
 
-      <div className="w-full min-h-[calc(100vh-4rem)] bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto space-y-6">
-          
-          {/* Header Title, Clinic Info & Patient Selector */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200">
-            <div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium flex-wrap">
-                <span>คลินิกมหาวิทยาลัยวลัยลักษณ์</span>
-                <span>•</span>
-                <span className="text-blue-600 font-semibold">ระบบจ่ายยาและเตือนยา</span>
-                <span>•</span>
-                <span className="inline-flex items-center gap-1.5 text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md text-[11px] font-medium shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                  {isDbConnected ? 'Supabase Live Connected' : 'กำลังเชื่อมต่อฐานข้อมูล...'}
+          {canManageMedication && (
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong disabled:opacity-50 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              สั่งจ่ายยา / เพิ่มยา
+            </button>
+          )}
+        </header>
+
+        {/* Notifications Banner */}
+        <div aria-live="polite" className="space-y-3 empty:hidden">
+          {notice && (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+              <span className="flex items-center gap-2">
+                <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                {notice}
+              </span>
+              <button
+                type="button"
+                onClick={() => setNotice('')}
+                className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                aria-label="ปิดแจ้งเตือน"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
+              <span className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+                {errorMessage}
+              </span>
+              <button
+                type="button"
+                onClick={() => setErrorMessage('')}
+                className="rounded-lg p-1 text-rose-700 hover:bg-rose-100 cursor-pointer"
+                aria-label="ปิดข้อความแจ้งเตือน"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Patient Meta & Selector */}
+        <section aria-label="ข้อมูลผู้ป่วย" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-brand-border-soft text-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-brand-soft text-brand-strong font-bold text-sm flex items-center justify-center border border-brand-border-soft shrink-0">
+              {currentPatient.name.charAt(0)}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-brand-ink">{currentPatient.name}</span>
+              <span className="text-xs text-brand-muted tabular-nums">
+                รหัสนักศึกษา: {currentPatient.studentId}
+              </span>
+              {currentPatient.phone && (
+                <span className="text-xs text-brand-muted">
+                  · โทร: {currentPatient.phone}
                 </span>
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900 mt-1">
-                ข้อมูลยาที่ต้องทาน
-              </h1>
-            </div>
-
-              {/* --- 1. แถบเลือกผู้ป่วย (Patient Selector เอาไว้จ่ายยา) --- */}
-              {role !== 'patient' ? (
-                <div className="flex items-center gap-3 bg-white border border-slate-200 p-2 rounded-2xl shadow-2xs">
-                  <div className="flex items-center gap-2 px-2 text-slate-600">
-                    <User size={18} className="text-blue-600 shrink-0" />
-                    <span className="text-xs font-bold whitespace-nowrap">ผู้ป่วย:</span>
-                  </div>
-                  <select
-                    value={selectedPatientId}
-                    onChange={(e) => setSelectedPatientOverride(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition cursor-pointer"
-                  >
-                    {allPatients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.studentId}) {p.allergies ? `[⚠️ ${p.allergies}]` : ''}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button 
-                    onClick={() => void loadData(selectedPatientId)} 
-                    title="รีเฟรชข้อมูลผู้ป่วย"
-                    disabled={isLoading}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
-                  >
-                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-2xs">
-                  <User size={16} className="text-blue-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-700">{user?.full_name || 'บัญชีของคุณ'}</span>
-                  <button 
-                    onClick={() => void loadData(selectedPatientId)} 
-                    title="รีเฟรชข้อมูลยา"
-                    disabled={isLoading}
-                    className="ml-1 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
-                  >
-                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                  </button>
-                </div>
               )}
             </div>
+          </div>
 
-            {/* แถบแจ้งเตือนข้อมูลผู้ป่วยและการแพ้ยา */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 font-bold flex items-center justify-center text-sm">
-                  {currentPatient.name.charAt(0)}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 text-sm sm:text-base">{currentPatient.name}</span>
-                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">รหัสนักศึกษา: {currentPatient.studentId}</span>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
-                    <span>โทร: {currentPatient.phone || '080-000-0000'}</span>
-                    <span>เพศ: {currentPatient.gender || 'ไม่ระบุ'}</span>
-                  </div>
-                </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {canManageMedication ? (
+              <label className="flex items-center gap-2 text-sm text-brand-body">
+                <span className="text-xs font-semibold text-brand-ink whitespace-nowrap">ผู้ป่วย:</span>
+                <select
+                  value={selectedPatientId}
+                  onChange={(e) => setSelectedPatientOverride(e.target.value)}
+                  className="h-10 rounded-lg border border-brand-border-strong bg-white px-3 text-xs text-brand-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+                >
+                  {allPatients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.studentId}) {p.allergies ? `[⚠️ ${p.allergies}]` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-brand-body">
+                <span className="font-medium text-brand-ink">ผู้ป่วย:</span>
+                <span>{user?.full_name || 'บัญชีของคุณ'}</span>
               </div>
+            )}
 
-              {currentPatient.allergies ? (
-                <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2 rounded-xl text-xs font-semibold">
-                  <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-                  <span>{currentPatient.allergies}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-medium">
-                  <CheckCircle size={14} className="text-emerald-600" />
-                  <span>ไม่มีประวัติแพ้ยา</span>
-                </div>
-              )}
-            </div>
+            {currentPatient.allergies && (
+              <div className="inline-flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 px-3.5 py-1.5 text-xs font-semibold">
+                <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+                <span>{currentPatient.allergies}</span>
+              </div>
+            )}
+          </div>
+        </section>
 
-            {/* รายการยาและการแจ้งเตือน (Reminders View) */}
-            {/* Summary & Action Bar */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                   <div className="flex items-center gap-3">
-                      <div className="bg-blue-100 text-blue-600 p-2.5 rounded-full">
-                         <CalendarIcon size={20} />
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-800">ยาทั้งหมด {medicationList.length} รายการ</div>
-                        <div className="text-xs text-slate-500">
-                          กำลังแจ้งเตือน {medicationList.filter(m => m.isActive).length} รายการ · หยุดชั่วคราว {medicationList.filter(m => !m.isActive).length} รายการ
-                        </div>
-                      </div>
-                   </div>
+        {/* Status Tabs (Left) & Search (Right) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border-soft pb-1.5">
+          {/* Status Tabs (Accessible Underline Tabs with Hover Box Affordance) */}
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="tablist"
+            aria-label="เลือกกรองสถานะการเตือนยา"
+          >
+            {([
+              ['all', 'ทั้งหมด', medicationList.length],
+              ['active', 'เปิดเตือน', activeCount],
+              ['paused', 'หยุดชั่วคราว', pausedCount],
+            ] as const).map(([tab, label, count]) => {
+              const isSelected = filterStatus === tab;
+              return (
+                <button
+                  key={tab}
+                  id={`${tab}-tab`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  aria-controls="reminders-panel"
+                  tabIndex={isSelected ? 0 : -1}
+                  onClick={() => setFilterStatus(tab)}
+                  onKeyDown={(e) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+                    e.preventDefault();
+                    const tabs: ('all' | 'active' | 'paused')[] = ['all', 'active', 'paused'];
+                    const currentIndex = tabs.indexOf(tab);
+                    let nextTab: 'all' | 'active' | 'paused';
+                    if (e.key === 'Home') nextTab = 'all';
+                    else if (e.key === 'End') nextTab = 'paused';
+                    else if (e.key === 'ArrowRight') nextTab = tabs[(currentIndex + 1) % tabs.length];
+                    else nextTab = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+                    setFilterStatus(nextTab);
+                    document.getElementById(`${nextTab}-tab`)?.focus();
+                  }}
+                  className={`group relative inline-flex min-h-11 items-center gap-2.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong cursor-pointer ${
+                    isSelected
+                      ? 'bg-brand-soft text-brand-strong font-bold shadow-2xs'
+                      : 'text-brand-body hover:bg-brand-soft/70 hover:text-brand-ink'
+                  }`}
+                >
+                  <span>{label}</span>
+                  <span
+                    className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors ${
+                      isSelected
+                        ? 'bg-brand-strong text-white shadow-2xs'
+                        : 'bg-white border border-brand-border-soft text-brand-muted group-hover:border-brand-border-strong group-hover:text-brand-ink'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                  {/* Active & Hover Underline indicator */}
+                  <span
+                    className={`absolute -bottom-[7px] left-2 right-2 h-0.5 rounded-full transition-all duration-150 ${
+                      isSelected
+                        ? 'bg-brand-strong'
+                        : 'bg-transparent group-hover:bg-brand-border-strong/70'
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+              );
+            })}
+          </div>
 
-                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                     {medicationList.length === 0 && (
-                       <button 
-                         onClick={() => void handleSeedSample()}
-                         disabled={isSaving}
-                         className="bg-white border border-blue-200 text-blue-700 hover:bg-blue-100/50 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-2xs flex items-center gap-2 disabled:opacity-50"
-                       >
-                         <Sparkles size={16} /> โหลดตัวอย่างยาลง Supabase
-                       </button>
-                     )}
-                     <button 
-                       onClick={() => setIsAddModalOpen(true)}
-                       className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center justify-center gap-2 flex-1 sm:flex-initial"
-                     >
-                        จ่ายยา / เพิ่มยา <Plus size={16} />
-                     </button>
-                   </div>
-                </div>
-
-                {/* --- List ยา จาก Supabase --- */}
-                {isLoading ? (
-                  <div className="space-y-4 py-6">
-                    {[1, 2, 3].map((idx) => (
-                      <div key={idx} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm animate-pulse flex items-center justify-between">
-                        <div className="flex gap-4 items-center">
-                          <div className="w-12 h-12 bg-slate-100 rounded-xl"></div>
-                          <div className="space-y-2">
-                            <div className="h-5 w-48 bg-slate-200 rounded"></div>
-                            <div className="h-3 w-32 bg-slate-100 rounded"></div>
-                          </div>
-                        </div>
-                        <div className="h-6 w-16 bg-slate-100 rounded-full"></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : medicationList.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center space-y-4">
-                    <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
-                      <Pill size={28} />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-slate-800">ยังไม่มีรายการยาสำหรับ {currentPatient.name}</h3>
-                      <p className="text-sm text-slate-500 mt-1">
-                        คลิกปุ่ม &quot;จ่ายยา / เพิ่มยา&quot; เพื่อสั่งจ่ายยาและตั้งรอบเตือนยาให้ผู้ป่วยรายนี้
-                      </p>
-                    </div>
-                    <div className="flex justify-center gap-3 pt-2">
-                      <button 
-                        onClick={() => void handleSeedSample()}
-                        disabled={isSaving}
-                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-sm px-4 py-2 rounded-lg border border-blue-200 transition"
-                      >
-                        <Sparkles size={16} className="inline mr-1" /> สร้างชุดยาตัวอย่างใน Supabase
-                      </button>
-                      <button 
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition"
-                      >
-                        <Plus size={16} className="inline mr-1" /> จ่ายยาใหม่
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {medicationList.map((med) => (
-                      <div key={med.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow">
-                         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                            
-                            {/* ซ้าย: ข้อมูลยา (ฉลากยา) */}
-                            <div className="flex gap-4 w-full md:w-auto">
-                               <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 shrink-0">
-                                  <Pill className="text-blue-600" size={28} />
-                               </div>
-
-                               <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-bold text-lg text-slate-800 leading-tight">{med.name}</h3>
-                                    {med.category && (
-                                      <span className="text-[11px] font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                                        {med.category}
-                                      </span>
-                                    )}
-                                    {!med.isActive && (
-                                      <span className="text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md">
-                                        หยุดชั่วคราว
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-slate-600 text-sm mb-3">{med.dosageInstruction}</p>
-                                  
-                                  {/* Time Chips */}
-                                  <div className="flex flex-wrap gap-2">
-                                     {med.times.map((time, i) => (
-                                        <span key={i} className="flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-md">
-                                           <Check size={12} /> {time}
-                                        </span>
-                                     ))}
-                                  </div>
-                               </div>
-                            </div>
-
-                            {/* ขวา: Toggle & สถานะ & ปุ่มแก้ไข & ปุ่มลบ */}
-                            <div className="flex flex-col md:flex-row items-end md:items-center gap-3 min-w-[160px] mt-2 md:mt-0 pt-4 md:pt-0 border-t md:border-t-0 border-slate-100">
-                               <div className="flex flex-col items-end gap-1">
-                                 <span className="text-xs text-slate-400 font-medium">{med.stockInfo}</span>
-                                 <div className="flex items-center gap-3">
-                                    <ToggleSwitch active={Boolean(med.isActive)} onToggle={() => handleToggle(med.id)} />
-                                 </div>
-                               </div>
-
-                               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
-                                 <button 
-                                   type="button"
-                                   onClick={() => openEditModal(med)}
-                                   title="แก้ไขข้อมูลยานี้"
-                                   className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition cursor-pointer"
-                                 >
-                                   <Pencil size={15} />
-                                   <span className="hidden sm:inline">แก้ไข</span>
-                                 </button>
-                                 <button 
-                                   type="button"
-                                   onClick={() => handleDeleteClick(med)}
-                                   title="ลบรายการยานี้"
-                                   className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
-                                 >
-                                   <Trash2 size={15} />
-                                   <span className="hidden sm:inline">ลบ</span>
-                                 </button>
-                               </div>
-                            </div>
-                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          {/* Search Input on the Right */}
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-muted" aria-hidden="true" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหารายการยา..."
+              className="h-10 w-full min-w-0 rounded-lg border border-brand-border-strong bg-white pl-9 pr-8 text-sm text-brand-ink placeholder:text-brand-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+              aria-label="ค้นหารายการยา"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand-ink p-1 cursor-pointer"
+                title="ล้างคำค้นหา"
+                aria-label="ล้างคำค้นหา"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* --- Modal: จ่ายยาและเพิ่มการแจ้งเตือนยา (เชื่อม Supabase) --- */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-              <div>
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <Pill className="text-blue-600" size={20} />
-                  <span>จ่ายยาและเพิ่มการแจ้งเตือนยา</span>
+        {/* Data Stream (Tab Panel) */}
+        <section id="reminders-panel" role="tabpanel" aria-labelledby={`${filterStatus}-tab`} aria-busy={isLoading}>
+          {isLoading ? (
+            <div className="space-y-3.5 sm:space-y-4">
+              {[1, 2, 3].map((idx) => (
+                <div key={idx} className="rounded-xl border border-brand-border-soft bg-white p-5 animate-pulse flex items-center justify-between">
+                  <div className="flex gap-4 items-center">
+                    <div className="w-11 h-11 bg-brand-soft rounded-xl"></div>
+                    <div className="space-y-2.5">
+                      <div className="h-4 w-48 bg-brand-soft rounded"></div>
+                      <div className="h-3 w-32 bg-brand-surface rounded"></div>
+                    </div>
+                  </div>
+                  <div className="h-6 w-16 bg-brand-soft rounded-full"></div>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  สั่งจ่ายยาให้ผู้ป่วย: <span className="font-bold text-slate-800">{currentPatient.name}</span> ({currentPatient.studentId})
+              ))}
+            </div>
+          ) : medicationList.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-brand-border-strong p-10 text-center space-y-4 bg-white/40">
+              <div className="w-12 h-12 rounded-full bg-brand-soft text-brand-strong mx-auto flex items-center justify-center">
+                <Pill size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-brand-ink">
+                  {isPatient ? 'คุณยังไม่มีรายการยาในระบบ' : `ยังไม่มีรายการยาสำหรับ ${currentPatient.name}`}
+                </h3>
+                <p className="text-xs sm:text-sm text-brand-muted mt-1 max-w-md mx-auto">
+                  {isPatient
+                    ? 'เมื่อแพทย์หรือเภสัชกรสั่งจ่ายยา ข้อมูลยาและเวลาทานยาจะแสดงที่นี่'
+                    : 'คลิกปุ่ม "สั่งจ่ายยา / เพิ่มยา" เพื่อสั่งจ่ายยาและตั้งรอบเตือนให้ผู้ป่วยรายนี้'}
                 </p>
               </div>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              {canManageMedication && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover cursor-pointer"
+                  >
+                    <Plus size={16} /> สั่งจ่ายยาใหม่
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : filteredMedications.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-brand-border-strong bg-white/60 p-10 text-center space-y-3">
+              <p className="text-sm font-semibold text-brand-ink">
+                ไม่พบรายการยาที่ตรงกับเงื่อนไข
+              </p>
+              <p className="text-xs text-brand-muted">
+                ลองปรับคำค้นหา หรือเลือกดูสถานะทั้งหมด
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterStatus('all');
+                }}
+                className="text-xs font-semibold text-brand-strong hover:underline cursor-pointer"
+              >
+                ล้างคำค้นหาและตัวกรอง
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3.5 sm:space-y-4">
+              {filteredMedications.map((med) => (
+                <article
+                  key={med.id}
+                  className={`rounded-xl border bg-white p-4 sm:p-5 shadow-2xs transition-all duration-150 hover:shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 ${
+                    med.isActive
+                      ? 'border-brand-border-soft hover:border-brand-border-strong'
+                      : 'border-brand-border-soft/70 bg-slate-50/60 opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  {/* ข้อมูลยา */}
+                  <div className="flex items-start gap-3.5 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-brand-soft border border-brand-border-soft text-brand-strong flex items-center justify-center shrink-0 mt-0.5">
+                      <Pill size={22} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-base sm:text-lg text-brand-ink leading-snug">
+                          {med.name}
+                        </h3>
+                        {med.category && (
+                          <span className="text-[11px] font-medium bg-brand-page text-brand-body px-2.5 py-0.5 rounded-full border border-brand-border-soft">
+                            {med.category}
+                          </span>
+                        )}
+                        {!med.isActive && (
+                          <span className="text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                            หยุดชั่วคราว
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-brand-body text-xs sm:text-sm mt-1.5 leading-relaxed">
+                        {med.dosageInstruction}
+                      </p>
+
+                      {/* Time Chips */}
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {med.times.map((time, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong bg-brand-soft border border-brand-border-soft px-2.5 py-0.5 rounded-full"
+                          >
+                            <Clock size={12} className="text-brand-strong shrink-0" />
+                            <span>{time}</span>
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* ระยะเวลาทานยา */}
+                      <div className="flex items-center gap-2 mt-2.5 text-xs text-brand-muted">
+                        <span>เริ่ม: {med.startDate || 'วันนี้'}</span>
+                        <span>•</span>
+                        <span className={med.endDate ? 'text-brand-body' : 'text-status-success font-medium flex items-center gap-1.5'}>
+                          {!med.endDate && <span className="w-1.5 h-1.5 rounded-full bg-status-success inline-block"></span>}
+                          {med.endDate ? `สิ้นสุด: ${med.endDate}` : 'ทานต่อเนื่องจนกว่าจะมีการเปลี่ยนแปลง'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ขวา: Toggle & Stock & Actions */}
+                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-brand-border-soft">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-brand-muted font-medium bg-brand-surface border border-brand-border-soft px-2.5 py-1 rounded-lg">
+                        {med.stockInfo}
+                      </span>
+                      <ToggleSwitch active={Boolean(med.isActive)} onToggle={() => handleToggle(med.id)} />
+                    </div>
+
+                    {canManageMedication && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(med)}
+                          className={`${textActionClass} text-brand-strong`}
+                          aria-label={`แก้ไข ${med.name}`}
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                          แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteClick(med)}
+                          className={`${textActionClass} text-status-critical`}
+                          aria-label={`ลบ ${med.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          ลบ
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* --- Modal: จ่ายยาและเพิ่มการแจ้งเตือนยา --- */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-ink/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-brand-hero border border-brand-border-soft animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-brand-border-soft pb-4 mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-brand-ink">
+                  สั่งจ่ายยาและตั้งเวลาเตือน
+                </h2>
+                <p className="text-xs text-brand-muted mt-0.5">
+                  สำหรับผู้ป่วย: <span className="font-semibold text-brand-ink">{currentPatient.name}</span> ({currentPatient.studentId})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-brand-muted hover:text-brand-ink p-1 rounded-lg transition cursor-pointer"
+                aria-label="ปิดหน้าต่าง"
+              >
                 <X size={20} />
               </button>
             </div>
 
-            {/* แจ้งเตือนการแพ้ยาใน Modal */}
             {currentPatient.allergies && (
-              <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs flex items-center gap-2 font-medium">
-                <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+              <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl text-xs flex items-center gap-2 font-medium">
+                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
                 <span>คำเตือน: ผู้ป่วยมีประวัติ {currentPatient.allergies}</span>
               </div>
             )}
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
-              {/* เลือกตัวยาจาก Supabase */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  เลือกตัวยา (จากคลังยา Supabase) *
+                <label className="block text-xs font-semibold text-brand-ink mb-1.5">
+                  เลือกตัวยา *
                 </label>
                 <select
                   required
                   value={selectedMedId}
                   onChange={(e) => setSelectedMedId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  className={inputClass}
                 >
                   <option value="">-- กรุณาเลือกยา --</option>
                   {availableMeds.map((med) => (
@@ -864,15 +1090,14 @@ export default function RemindersPage() {
                   ))}
                 </select>
                 {availableMeds.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                    <AlertCircle size={12} /> ไม่พบรายการยาในตาราง medications
+                  <p className="text-xs text-status-warning mt-1 flex items-center gap-1">
+                    <AlertCircle size={12} /> ไม่พบรายการยาในระบบ
                   </p>
                 )}
               </div>
 
-              {/* เลือกรอบเวลา */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
+                <label className="block text-xs font-semibold text-brand-ink mb-2">
                   รอบเวลาที่ต้องทาน *
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -888,14 +1113,14 @@ export default function RemindersPage() {
                         key={slot.time}
                         type="button"
                         onClick={() => toggleTimeSelection(slot.time)}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium transition text-left ${
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition text-left cursor-pointer ${
                           isSelected
-                            ? 'border-blue-600 bg-blue-50 text-blue-700'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                            ? 'border-brand-strong bg-brand-soft text-brand-strong font-semibold'
+                            : 'border-brand-border-soft bg-white text-brand-body hover:border-brand-border-strong'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded flex items-center justify-center border ${
-                          isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'
+                          isSelected ? 'bg-brand-strong border-brand-strong text-white' : 'border-brand-border-strong bg-white'
                         }`}>
                           {isSelected && <Check size={12} />}
                         </div>
@@ -906,10 +1131,9 @@ export default function RemindersPage() {
                 </div>
               </div>
 
-              {/* วันที่เริ่มและสิ้นสุด */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-brand-ink mb-1">
                     วันที่เริ่มต้น
                   </label>
                   <input
@@ -917,37 +1141,39 @@ export default function RemindersPage() {
                     required
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-brand-ink mb-1">
                     วันที่สิ้นสุด (ไม่บังคับ)
                   </label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass}
                   />
+                  <p className="text-[11px] text-brand-muted mt-1">
+                    {endDate ? `สิ้นสุดวันที่ ${endDate}` : 'ปล่อยว่างเพื่อให้ทานต่อเนื่อง'}
+                  </p>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-brand-border-soft">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                  className="px-4 py-2 text-xs font-medium text-brand-muted hover:text-brand-ink hover:bg-brand-soft rounded-lg transition cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 cursor-pointer"
                 >
-                  {isSaving ? 'กำลังบันทึกลง Supabase...' : 'ยืนยันจ่ายยาและตั้งเตือน'}
+                  {isSaving ? 'กำลังบันทึก...' : 'บันทึกการจ่ายยา'}
                 </button>
               </div>
             </form>
@@ -957,46 +1183,44 @@ export default function RemindersPage() {
 
       {/* --- Modal: แก้ไขตัวยาที่จ่ายไปแล้ว --- */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-ink/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-brand-hero border border-brand-border-soft animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-brand-border-soft pb-4 mb-4">
               <div>
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <Pencil className="text-blue-600" size={20} />
-                  <span>แก้ไขข้อมูลยาที่จ่ายแล้ว</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  แก้ไขข้อมูลยาของผู้ป่วย: <span className="font-bold text-slate-800">{currentPatient.name}</span> ({currentPatient.studentId})
+                <h2 className="text-lg font-bold text-brand-ink">
+                  แก้ไขข้อมูลยาที่จ่ายแล้ว
+                </h2>
+                <p className="text-xs text-brand-muted mt-0.5">
+                  สำหรับผู้ป่วย: <span className="font-semibold text-brand-ink">{currentPatient.name}</span> ({currentPatient.studentId})
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setEditingItem(null)} 
-                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                onClick={() => setEditingItem(null)}
+                className="text-brand-muted hover:text-brand-ink cursor-pointer p-1 rounded-lg transition"
+                aria-label="ปิดหน้าต่าง"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* แจ้งเตือนการแพ้ยาใน Modal */}
             {currentPatient.allergies && (
-              <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs flex items-center gap-2 font-medium">
-                <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+              <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl text-xs flex items-center gap-2 font-medium">
+                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
                 <span>คำเตือน: ผู้ป่วยมีประวัติ {currentPatient.allergies}</span>
               </div>
             )}
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
-              {/* เลือกตัวยา */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-brand-ink mb-1.5">
                   เลือกตัวยา *
                 </label>
                 <select
                   required
                   value={editMedId}
                   onChange={(e) => setEditMedId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  className={inputClass}
                 >
                   <option value="">-- กรุณาเลือกยา --</option>
                   {!availableMeds.some((m) => m.id === editMedId) && editingItem.name && (
@@ -1012,9 +1236,8 @@ export default function RemindersPage() {
                 </select>
               </div>
 
-              {/* เลือกรอบเวลา */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
+                <label className="block text-xs font-semibold text-brand-ink mb-2">
                   รอบเวลาที่ต้องทาน *
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -1030,14 +1253,14 @@ export default function RemindersPage() {
                         key={slot.time}
                         type="button"
                         onClick={() => toggleEditTimeSelection(slot.time)}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium transition text-left cursor-pointer ${
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition text-left cursor-pointer ${
                           isSelected
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                            ? 'border-brand-strong bg-brand-soft text-brand-strong font-semibold'
+                            : 'border-brand-border-soft bg-white text-brand-body hover:border-brand-border-strong'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded flex items-center justify-center border ${
-                          isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'
+                          isSelected ? 'bg-brand-strong border-brand-strong text-white' : 'border-brand-border-strong bg-white'
                         }`}>
                           {isSelected && <Check size={12} />}
                         </div>
@@ -1048,10 +1271,9 @@ export default function RemindersPage() {
                 </div>
               </div>
 
-              {/* วันที่เริ่มและสิ้นสุด */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-brand-ink mb-1">
                     วันที่เริ่มต้น
                   </label>
                   <input
@@ -1059,35 +1281,37 @@ export default function RemindersPage() {
                     required
                     value={editStartDate}
                     onChange={(e) => setEditStartDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-brand-ink mb-1">
                     วันที่สิ้นสุด (ไม่บังคับ)
                   </label>
                   <input
                     type="date"
                     value={editEndDate}
                     onChange={(e) => setEditEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={inputClass}
                   />
+                  <p className="text-[11px] text-brand-muted mt-1">
+                    {editEndDate ? `สิ้นสุดวันที่ ${editEndDate}` : 'ปล่อยว่างเพื่อให้ทานต่อเนื่อง'}
+                  </p>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-brand-border-soft">
                 <button
                   type="button"
                   onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-medium text-brand-muted hover:text-brand-ink hover:bg-brand-soft rounded-lg transition cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-5 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
                 </button>
@@ -1099,46 +1323,46 @@ export default function RemindersPage() {
 
       {/* --- Modal: ยืนยันการลบรายการยา --- */}
       {deletingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-rose-600 mb-3">
-              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0 border border-rose-100">
-                <Trash2 size={20} className="text-rose-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-ink/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-brand-hero border border-brand-border-soft animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-status-critical mb-3">
+              <div className="w-10 h-10 rounded-full bg-status-critical-bg flex items-center justify-center shrink-0 border border-red-200 text-status-critical">
+                <Trash2 size={20} className="text-status-critical" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">ยืนยันการลบรายการเตือนยา</h3>
-                <p className="text-xs text-slate-500">การดำเนินการนี้ไม่สามารถเรียกคืนได้</p>
+                <h3 className="text-base font-bold text-brand-ink">ยืนยันการลบรายการเตือนยา</h3>
+                <p className="text-xs text-brand-muted">การดำเนินการนี้ไม่สามารถเรียกคืนได้</p>
               </div>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100 my-4 space-y-1.5">
+            <div className="bg-brand-surface rounded-xl p-3.5 border border-brand-border-soft my-4 space-y-1.5">
               <div className="flex items-center gap-2">
-                <Pill size={16} className="text-blue-600 shrink-0" />
-                <span className="text-sm font-bold text-slate-800">{deletingItem.name}</span>
+                <Pill size={16} className="text-brand-strong shrink-0" />
+                <span className="text-sm font-bold text-brand-ink">{deletingItem.name}</span>
                 {deletingItem.category && (
-                  <span className="text-[10px] font-medium bg-white text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                  <span className="text-[10px] font-medium bg-white text-brand-muted px-2 py-0.5 rounded border border-brand-border-soft">
                     {deletingItem.category}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-600 pl-6">{deletingItem.dosageInstruction}</p>
-              <p className="text-xs text-slate-500 pl-6">
-                ผู้ป่วย: <span className="font-semibold text-slate-700">{currentPatient.name}</span> ({currentPatient.studentId})
+              <p className="text-xs text-brand-body pl-6">{deletingItem.dosageInstruction}</p>
+              <p className="text-xs text-brand-muted pl-6">
+                ผู้ป่วย: <span className="font-semibold text-brand-ink">{currentPatient.name}</span> ({currentPatient.studentId})
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-brand-border-soft">
               <button
                 type="button"
                 onClick={() => setDeletingItem(null)}
-                className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                className="px-4 py-2 text-xs font-medium text-brand-muted hover:text-brand-ink hover:bg-brand-soft rounded-lg transition cursor-pointer"
               >
                 ยกเลิก
               </button>
               <button
                 type="button"
                 onClick={() => void confirmDelete()}
-                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition shadow-sm cursor-pointer flex items-center gap-1.5"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-status-critical hover:bg-red-700 px-4 text-sm font-semibold text-white cursor-pointer"
               >
                 <Trash2 size={14} />
                 <span>ยืนยันลบรายการ</span>
@@ -1155,19 +1379,19 @@ export default function RemindersPage() {
 
 function ToggleSwitch({ active, onToggle }: { active: boolean; onToggle?: () => void }) {
   return (
-    <button 
+    <button
       type="button"
       onClick={(e) => {
         e.stopPropagation();
         onToggle?.();
       }}
-      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-        active ? 'bg-blue-600' : 'bg-slate-300'
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong ${
+        active ? 'bg-brand-strong' : 'bg-slate-300'
       }`}
       aria-label="เปิด/ปิดการแจ้งเตือนยา"
     >
       <span
-        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
           active ? 'translate-x-5' : 'translate-x-0'
         }`}
       />

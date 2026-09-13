@@ -3,7 +3,9 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 import { signIn } from '@/services/authService';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 function LoginForm() {
   const router = useRouter();
@@ -13,6 +15,9 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const isLoading = isSubmitting || isRedirecting;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,23 +26,46 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
+      setIsSubmitting(false);
+      setIsRedirecting(true);
 
       const redirect = searchParams.get('redirect');
       router.push(redirect || '/profile');
       router.refresh();
     } catch (err) {
+      setIsSubmitting(false);
+      setIsRedirecting(false);
       setError(
         err instanceof Error
           ? err.message
           : 'เข้าสู่ระบบไม่สำเร็จ ตรวจสอบ email/password อีกครั้ง'
       );
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-8 border border-zinc-100">
+    <div className="bg-white rounded-2xl shadow-xl p-8 border border-zinc-100 relative overflow-hidden">
+      {isRedirecting && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 text-center z-20 animate-in fade-in duration-200"
+        >
+          <div className="relative mb-4 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full border-4 border-sky-100 border-t-sky-500 animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-3 h-3 rounded-full bg-sky-500 animate-ping opacity-75" />
+            </div>
+          </div>
+          <h2 className="text-base font-bold text-zinc-900">
+            เข้าสู่ระบบสำเร็จ
+          </h2>
+          <p className="text-sm text-zinc-500 mt-1 max-w-xs">
+            กำลังนำทางไปยังหน้าโปรไฟล์ กรุณารอสักครู่...
+          </p>
+        </div>
+      )}
+
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-zinc-900">
           เข้าสู่ระบบ
@@ -63,10 +91,11 @@ function LoginForm() {
           <input
             type="email"
             required
+            disabled={isLoading}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="example@wu.ac.th"
-            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition disabled:bg-zinc-50 disabled:text-zinc-400"
           />
         </div>
 
@@ -78,19 +107,25 @@ function LoginForm() {
           <input
             type="password"
             required
+            disabled={isLoading}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition disabled:bg-zinc-50 disabled:text-zinc-400"
           />
         </div>
 
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="w-full py-3 bg-sky-500 text-white font-semibold rounded-xl hover:bg-sky-600 transition disabled:opacity-60"
+          disabled={isLoading}
+          className="w-full py-3 bg-sky-500 text-white font-semibold rounded-xl hover:bg-sky-600 transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
         >
-          {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-white" aria-hidden="true" />}
+          {isRedirecting
+            ? 'กำลังนำทางไปหน้าโปรไฟล์...'
+            : isSubmitting
+            ? 'กำลังเข้าสู่ระบบ...'
+            : 'เข้าสู่ระบบ'}
         </button>
 
         <p className="text-center text-sm text-zinc-500">
@@ -109,7 +144,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center p-8">กำลังโหลด...</div>}>
+    <Suspense fallback={<LoadingSpinner center label="กำลังโหลดหน้าเข้าสู่ระบบ..." />}>
       <LoginForm />
     </Suspense>
   );

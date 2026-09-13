@@ -12,6 +12,9 @@ const contractFieldsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migr
 const patientSearchRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/08_allow_medical_patient_search.sql'), 'utf8');
 const doctorProfilesRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/10_allow_view_doctor_profiles.sql'), 'utf8');
 const departmentsRlsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/11_allow_public_view_departments.sql'), 'utf8');
+const staffDirectoryUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/12_staff_profile_directory.sql'), 'utf8');
+const serviceOfferingMigration = readFileSync(resolve(process.cwd(), 'supabase/migrations/13_services_and_daily_offerings.sql'), 'utf8');
+const publicServicesSlotsUpgrade = readFileSync(resolve(process.cwd(), 'supabase/migrations/17_allow_public_view_services_and_slots.sql'), 'utf8');
 
 const normalizedTables = [
   'reschedule_proposals',
@@ -92,6 +95,15 @@ describe('normalized transaction migration', () => {
     expect(departmentsRlsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
   });
 
+  it('exposes the account directory only through an active staff_admin RPC', () => {
+    expect(staffDirectoryUpgrade).toContain('CREATE OR REPLACE FUNCTION public.get_staff_profile_directory()');
+    expect(staffDirectoryUpgrade).toContain("actor.role = 'staff_admin'");
+    expect(staffDirectoryUpgrade).toContain('actor.is_active IS DISTINCT FROM false');
+    expect(staffDirectoryUpgrade).toContain('JOIN auth.users AS account');
+    expect(staffDirectoryUpgrade).toContain('GRANT EXECUTE ON FUNCTION public.get_staff_profile_directory() TO authenticated');
+    expect(staffDirectoryUpgrade).not.toMatch(/^\s*(DROP|TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
+  });
+
   it('creates every approved transaction table and enables default-deny RLS', () => {
     for (const table of normalizedTables) {
       expect(migration).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${table} \\(`));
@@ -134,5 +146,29 @@ describe('normalized transaction migration', () => {
     expect(migration).toContain("NOT (audience ? 'userIds')");
     expect(broadcastRecipientUpgrade).toContain('SET broadcast_id = recipient.broadcast_id');
     expect(broadcastRecipientUpgrade).toContain('DROP TABLE IF EXISTS public.broadcast_recipients');
+  });
+
+  it('models services and daily offerings as the bookable unit', () => {
+    expect(serviceOfferingMigration).toContain('CREATE TABLE IF NOT EXISTS public.services');
+    expect(serviceOfferingMigration).toContain('CREATE TABLE IF NOT EXISTS public.daily_service_offerings');
+    expect(serviceOfferingMigration).toContain('ADD COLUMN IF NOT EXISTS daily_service_offering_id uuid');
+    expect(serviceOfferingMigration).toContain('UNIQUE (service_id, doctor_id, offering_date)');
+    expect(serviceOfferingMigration).toContain('FOREIGN KEY (daily_service_offering_id, doctor_id, slot_date)');
+    expect(serviceOfferingMigration).toContain('ALTER TABLE public.services ENABLE ROW LEVEL SECURITY');
+    expect(serviceOfferingMigration).toContain('ALTER TABLE public.daily_service_offerings ENABLE ROW LEVEL SECURITY');
+    expect(serviceOfferingMigration).toContain('CREATE POLICY "Authenticated users can view active service slots"');
+    expect(serviceOfferingMigration).toContain('offering.is_active');
+    expect(serviceOfferingMigration).toContain('service.is_active');
+    expect(serviceOfferingMigration).not.toMatch(/service_role|\.env\.local/i);
+  });
+
+  it('allows public and unauthenticated users to view active services, offerings, and slots', () => {
+    expect(publicServicesSlotsUpgrade).toContain('DROP POLICY IF EXISTS "Authenticated users can view services"');
+    expect(publicServicesSlotsUpgrade).toContain('CREATE POLICY "Anyone can view active services"');
+    expect(publicServicesSlotsUpgrade).toContain('CREATE POLICY "Anyone can view active daily service offerings"');
+    expect(publicServicesSlotsUpgrade).toContain('CREATE POLICY "Anyone can view active service slots"');
+    expect(publicServicesSlotsUpgrade).toContain('is_active');
+    expect(publicServicesSlotsUpgrade).not.toMatch(/^\s*(TRUNCATE|DELETE|UPDATE|INSERT)\b/im);
+    expect(publicServicesSlotsUpgrade).not.toMatch(/service_role|\.env\.local/i);
   });
 });

@@ -2,12 +2,14 @@ import {
   MedicalAppointmentWorkspace,
   PatientAppointmentWorkspace,
   StaffAppointmentWorkspace,
-} from '@/features/pai/appointments/RoleAppointmentWorkspaces';
+} from '@/features/appointments';
 import { requireRole } from '@/lib/requireRole';
 
-export default async function AppointmentsPage() {
+export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const { role } = await requireRole(['patient', 'medical', 'staff_admin']);
-  if (role === 'patient') return <PatientAppointmentWorkspace />;
+  const params = await searchParams;
+  const initialSlotId = typeof params.slotId === 'string' ? params.slotId : undefined;
+  if (role === 'patient') return <PatientAppointmentWorkspace initialSlotId={initialSlotId} />;
   if (role === 'medical') return <MedicalAppointmentWorkspace />;
   return <StaffAppointmentWorkspace />;
 }

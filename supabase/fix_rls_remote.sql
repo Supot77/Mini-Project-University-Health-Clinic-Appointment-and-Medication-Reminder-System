@@ -36,6 +36,11 @@ DROP POLICY IF EXISTS "Staff/Doctor can view all appointments" ON public.appoint
 DROP POLICY IF EXISTS "Staff/Medical can view all appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Staff can update any appointment" ON public.appointments;
 DROP POLICY IF EXISTS "Staff/Medical can update any appointment" ON public.appointments;
+DROP POLICY IF EXISTS "Patients can view own appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Patients can create appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Patients can update own appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Staff admin and medical can view appointments" ON public.appointments;
+DROP POLICY IF EXISTS "Staff admin and medical can update appointments" ON public.appointments;
 DROP POLICY IF EXISTS "Doctors can view and create medical records" ON public.medical_records;
 DROP POLICY IF EXISTS "Medical can view and create medical records" ON public.medical_records;
 DROP POLICY IF EXISTS "Authenticated users can view medications" ON public.medications;
@@ -75,8 +80,12 @@ CREATE POLICY "Anyone can view slots"
   FOR SELECT
   USING (true);
 
+CREATE POLICY "Patients can view own appointments" ON public.appointments FOR SELECT USING (patient_id = auth.uid());
+CREATE POLICY "Patients can create appointments" ON public.appointments FOR INSERT WITH CHECK (patient_id = auth.uid());
+CREATE POLICY "Patients can update own appointments" ON public.appointments FOR UPDATE USING (patient_id = auth.uid());
 CREATE POLICY "Staff/Doctor can view all appointments" ON public.appointments FOR SELECT USING (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Staff can update any appointment" ON public.appointments FOR UPDATE USING (public.get_user_role() IN ('staff_admin', 'medical'));
+CREATE POLICY "Staff admin and medical can create appointments" ON public.appointments FOR INSERT WITH CHECK (public.get_user_role() IN ('staff_admin', 'medical'));
 CREATE POLICY "Doctors can view and create medical records" ON public.medical_records FOR ALL USING (public.get_user_role() = 'medical');
 
 -- เปิดให้อ่านข้อมูลยาได้โดยไม่ต้อง Login (Public Read)
@@ -102,11 +111,68 @@ CREATE POLICY "Anyone can view doctors"
   ON public.doctors FOR SELECT
   USING (true);
 
--- เปิดให้อ่านแผนกได้ทั่วไป (Public Read) เพื่อให้ตารางตรวจแสดงชื่อแผนกแม้ยังไม่ล็อกอิน
-DROP POLICY IF EXISTS "Authenticated users can view departments" ON public.departments;
-DROP POLICY IF EXISTS "Anyone can view departments" ON public.departments;
-CREATE POLICY "Anyone can view departments"
-  ON public.departments FOR SELECT
-  USING (true);
+-- เปิดให้เจ้าหน้าที่คลินิก/แพทย์ (medical, staff_admin) จัดการข้อมูลการเตือนยาและการจ่ายยาให้ผู้ป่วยได้
+DROP POLICY IF EXISTS "Users can view own reminders" ON public.medication_reminders;
+DROP POLICY IF EXISTS "Users can manage own reminders" ON public.medication_reminders;
+DROP POLICY IF EXISTS "Staff and medical can manage medication reminders" ON public.medication_reminders;
+CREATE POLICY "Staff and medical can manage medication reminders"
+  ON public.medication_reminders
+  FOR ALL
+  TO authenticated
+  USING (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR user_id = auth.uid()
+  )
+  WITH CHECK (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR user_id = auth.uid()
+  );
+
+DROP POLICY IF EXISTS "Users can view own medication logs" ON public.medication_logs;
+DROP POLICY IF EXISTS "Users can manage own medication logs" ON public.medication_logs;
+DROP POLICY IF EXISTS "Staff and medical can manage medication logs" ON public.medication_logs;
+CREATE POLICY "Staff and medical can manage medication logs"
+  ON public.medication_logs
+  FOR ALL
+  TO authenticated
+  USING (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR EXISTS (
+      SELECT 1 FROM public.medication_reminders
+      WHERE id = medication_logs.reminder_id AND user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    public.get_user_role() IN ('staff_admin', 'medical')
+    OR EXISTS (
+      SELECT 1 FROM public.medication_reminders
+      WHERE id = medication_logs.reminder_id AND user_id = auth.uid()
+    )
+  );
+
+-- 4. เพิ่มตัวอย่างยาลงในตาราง medications (กรณีที่ยังไม่มีข้อมูลยา)
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Paracetamol 500mg', 'เม็ด', 'ยาแก้ปวดลดไข้', 500, 50, 'ยาแก้ปวดและลดไข้ทั่วไป'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Paracetamol 500mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Amoxicillin 500mg', 'แคปซูล', 'ยาปฏิชีวนะ', 200, 30, 'ยาปฏิชีวนะกลุ่มเพนิซิลลิน'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Amoxicillin 500mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Omeprazole 20mg', 'แคปซูล', 'ยาระบบทางเดินอาหาร', 300, 40, 'ยาลดกรดในกระเพาะอาหาร'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Omeprazole 20mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Loratadine 10mg', 'เม็ด', 'ยาแก้แพ้', 150, 20, 'ยาแก้แพ้ ลดอาการคัดจมูก'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Loratadine 10mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Ibuprofen 400mg', 'เม็ด', 'ยาแก้ปวดลดไข้', 250, 30, 'ยาแก้ปวด ลดไข้ ต้านการอักเสบ'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Ibuprofen 400mg');
+
+INSERT INTO public.medications (name, type, category, stock, min_stock, description)
+SELECT 'Cetirizine 10mg', 'เม็ด', 'ยาแก้แพ้', 200, 25, 'ยาแก้แพ้ ลดอาการคันและผื่น'
+WHERE NOT EXISTS (SELECT 1 FROM public.medications WHERE name = 'Cetirizine 10mg');
 
 
