@@ -878,17 +878,17 @@ export default function RemindersPage() {
         {/* Data Stream (Tab Panel) */}
         <section id="reminders-panel" role="tabpanel" aria-labelledby={`${filterStatus}-tab`} aria-busy={isLoading}>
           {isLoading ? (
-            <div className="border-y border-brand-border-soft divide-y divide-brand-border-soft py-2">
+            <div className="space-y-3.5 sm:space-y-4">
               {[1, 2, 3].map((idx) => (
-                <div key={idx} className="py-5 px-3 animate-pulse flex items-center justify-between">
+                <div key={idx} className="rounded-xl border border-brand-border-soft bg-white p-5 animate-pulse flex items-center justify-between">
                   <div className="flex gap-4 items-center">
-                    <div className="w-10 h-10 bg-brand-soft rounded-lg"></div>
-                    <div className="space-y-2">
-                      <div className="h-4 w-44 bg-brand-soft rounded"></div>
-                      <div className="h-3 w-28 bg-brand-surface rounded"></div>
+                    <div className="w-11 h-11 bg-brand-soft rounded-xl"></div>
+                    <div className="space-y-2.5">
+                      <div className="h-4 w-48 bg-brand-soft rounded"></div>
+                      <div className="h-3 w-32 bg-brand-surface rounded"></div>
                     </div>
                   </div>
-                  <div className="h-6 w-14 bg-brand-soft rounded-full"></div>
+                  <div className="h-6 w-16 bg-brand-soft rounded-full"></div>
                 </div>
               ))}
             </div>
@@ -920,7 +920,7 @@ export default function RemindersPage() {
               )}
             </div>
           ) : filteredMedications.length === 0 ? (
-            <div className="py-12 text-center space-y-3 border-y border-brand-border-soft">
+            <div className="rounded-xl border border-dashed border-brand-border-strong bg-white/60 p-10 text-center space-y-3">
               <p className="text-sm font-semibold text-brand-ink">
                 ไม่พบรายการยาที่ตรงกับเงื่อนไข
               </p>
@@ -939,57 +939,61 @@ export default function RemindersPage() {
               </button>
             </div>
           ) : (
-            <div className="border-y border-brand-border-soft divide-y divide-brand-border-soft">
+            <div className="space-y-3.5 sm:space-y-4">
               {filteredMedications.map((med) => (
                 <article 
                   key={med.id} 
-                  className="py-5 px-1 sm:px-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                  className={`rounded-xl border bg-white p-4 sm:p-5 shadow-2xs transition-all duration-150 hover:shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 ${
+                    med.isActive 
+                      ? 'border-brand-border-soft hover:border-brand-border-strong' 
+                      : 'border-brand-border-soft/70 bg-slate-50/60 opacity-80 hover:opacity-100'
+                  }`}
                 >
                   {/* ข้อมูลยา */}
-                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-brand-soft border border-brand-border-soft text-brand-strong flex items-center justify-center shrink-0 mt-0.5">
-                      <Pill size={20} />
+                  <div className="flex items-start gap-3.5 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-brand-soft border border-brand-border-soft text-brand-strong flex items-center justify-center shrink-0 mt-0.5">
+                      <Pill size={22} />
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-base sm:text-lg text-brand-ink leading-snug">
+                        <h3 className="font-bold text-base sm:text-lg text-brand-ink leading-snug">
                           {med.name}
                         </h3>
                         {med.category && (
-                          <span className="text-[11px] font-medium bg-brand-page text-brand-body px-2 py-0.5 rounded-full border border-brand-border-soft">
+                          <span className="text-[11px] font-medium bg-brand-page text-brand-body px-2.5 py-0.5 rounded-full border border-brand-border-soft">
                             {med.category}
                           </span>
                         )}
                         {!med.isActive && (
-                          <span className="text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <span className="text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full">
                             หยุดชั่วคราว
                           </span>
                         )}
                       </div>
 
-                      <p className="text-brand-body text-xs sm:text-sm mt-1">
+                      <p className="text-brand-body text-xs sm:text-sm mt-1.5 leading-relaxed">
                         {med.dosageInstruction}
                       </p>
 
                       {/* Time Chips */}
-                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      <div className="flex flex-wrap gap-1.5 mt-3">
                         {med.times.map((time, i) => (
                           <span 
                             key={i} 
-                            className="inline-flex items-center gap-1 text-xs font-medium text-brand-strong bg-brand-soft border border-brand-border-soft px-2.5 py-0.5 rounded-full"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-strong bg-brand-soft border border-brand-border-soft px-2.5 py-0.5 rounded-full"
                           >
-                            <Clock size={11} className="text-brand-strong shrink-0" />
+                            <Clock size={12} className="text-brand-strong shrink-0" />
                             <span>{time}</span>
                           </span>
                         ))}
                       </div>
 
                       {/* ระยะเวลาทานยา */}
-                      <div className="flex items-center gap-2 mt-2 text-[11px] text-brand-muted">
+                      <div className="flex items-center gap-2 mt-2.5 text-xs text-brand-muted">
                         <span>เริ่ม: {med.startDate || 'วันนี้'}</span>
                         <span>•</span>
-                        <span className={med.endDate ? 'text-brand-body' : 'text-status-success font-medium flex items-center gap-1'}>
+                        <span className={med.endDate ? 'text-brand-body' : 'text-status-success font-medium flex items-center gap-1.5'}>
                           {!med.endDate && <span className="w-1.5 h-1.5 rounded-full bg-status-success inline-block"></span>}
                           {med.endDate ? `สิ้นสุด: ${med.endDate}` : 'ทานต่อเนื่องจนกว่าจะมีการเปลี่ยนแปลง'}
                         </span>
@@ -1000,7 +1004,9 @@ export default function RemindersPage() {
                   {/* ขวา: Toggle & Stock & Actions */}
                   <div className="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-brand-border-soft">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-brand-muted font-medium">{med.stockInfo}</span>
+                      <span className="text-xs text-brand-muted font-medium bg-brand-surface border border-brand-border-soft px-2.5 py-1 rounded-lg">
+                        {med.stockInfo}
+                      </span>
                       <ToggleSwitch active={Boolean(med.isActive)} onToggle={() => handleToggle(med.id)} />
                     </div>
 
