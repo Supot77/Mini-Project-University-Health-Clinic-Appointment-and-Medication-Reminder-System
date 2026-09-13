@@ -280,6 +280,7 @@ describe('PharmacyContent Role Permissions & Lock Behavior', () => {
     expect(skipCheckbox).toBeChecked();
 
     // Click confirm button
+    // Click confirm button directly without checkbox
     const confirmBtn = screen.getByRole('button', { name: /ยืนยันการตัดสต็อกจ่ายยา/ });
     await act(async () => {
       fireEvent.click(confirmBtn);

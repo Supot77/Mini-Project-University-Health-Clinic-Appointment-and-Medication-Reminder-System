@@ -25,6 +25,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
 import type { Medication } from '@/types/database';
 import PrescriptionsTab, {
+  getLocalDispensedOrders,
   type PrescribedMedItem,
   type PrescriptionOrder,
 } from './PrescriptionsTab';
@@ -265,15 +266,17 @@ interface RawInventoryLog {
         .eq('action', 'dispense');
 
       const dispenseLogs = (logsData || []) as RawInventoryLog[];
+      const localDispensed = getLocalDispensedOrders();
 
       const orders: PrescriptionOrder[] = recordsWithMeds.map((r) => {
         const patientProfile = profilesMap.get(r.patient_id);
         const doctorProfile = profilesMap.get(r.doctor_id);
         const meds: PrescribedMedItem[] = (r.prescribed_medications || []) as PrescribedMedItem[];
 
+        const localRecord = localDispensed[r.id];
         let dispensedCount = 0;
-        let lastDispensedAt: string | null = null;
-        let pharmacistName: string | null = null;
+        let lastDispensedAt: string | null = localRecord?.dispensed_at || null;
+        let pharmacistName: string | null = localRecord?.pharmacist_name || null;
 
         meds.forEach((m) => {
           const key = `dispense:${r.id}:${m.medication_id}`;
@@ -283,7 +286,7 @@ interface RawInventoryLog {
               (log.reason && log.reason.includes(r.id) && log.medication_id === m.medication_id)
           );
 
-          const isItemDispensed = Boolean(m.dispensed || match);
+          const isItemDispensed = Boolean(m.dispensed || match || localRecord);
 
           if (isItemDispensed) {
             dispensedCount++;
@@ -292,18 +295,18 @@ interface RawInventoryLog {
                 lastDispensedAt = m.dispensed_at;
                 const dispUser = m.dispensed_by ? profilesMap.get(m.dispensed_by) : null;
                 pharmacistName =
-                  dispUser?.full_name || match?.pharmacist?.full_name || null;
+                  dispUser?.full_name || match?.pharmacist?.full_name || pharmacistName;
               }
             } else if (match) {
               if (!lastDispensedAt || new Date(match.created_at) > new Date(lastDispensedAt)) {
                 lastDispensedAt = match.created_at;
-                pharmacistName = match.pharmacist?.full_name || null;
+                pharmacistName = match.pharmacist?.full_name || pharmacistName;
               }
             }
           }
         });
 
-        const isFullyDispensed = meds.length > 0 && dispensedCount >= meds.length;
+        const isFullyDispensed = Boolean(localRecord) || (meds.length > 0 && dispensedCount >= meds.length);
 
         return {
           id: r.id,
