@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, FileClock, LogOut, Settings, ShieldCheck, Stethoscope, UserRound, X } from 'lucide-react';
+import { FileClock, LogOut, Settings, ShieldCheck, Stethoscope, UserRound, X } from 'lucide-react';
 import { useEffect } from 'react';
 import type { UserRole } from '@/types/database';
 

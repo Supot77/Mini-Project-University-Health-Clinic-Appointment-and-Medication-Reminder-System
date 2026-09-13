@@ -82,7 +82,7 @@ CREATE POLICY "Staff/Admin can manage slots"
 -- ========================================
 CREATE POLICY "Patients can view own appointments"
   ON public.appointments FOR SELECT
-  USING (user_id = auth.uid());
+  USING (patient_id = auth.uid());
 
 CREATE POLICY "Staff/Medical can view all appointments"
   ON public.appointments FOR SELECT
@@ -92,11 +92,11 @@ CREATE POLICY "Staff/Medical can view all appointments"
 
 CREATE POLICY "Patients can create appointments"
   ON public.appointments FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (patient_id = auth.uid());
 
 CREATE POLICY "Patients can update own appointments"
   ON public.appointments FOR UPDATE
-  USING (user_id = auth.uid());
+  USING (patient_id = auth.uid());
 
 CREATE POLICY "Staff/Medical can update any appointment"
   ON public.appointments FOR UPDATE

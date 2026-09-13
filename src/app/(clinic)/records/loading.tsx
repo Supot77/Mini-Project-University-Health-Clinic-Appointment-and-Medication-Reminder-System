@@ -1,1 +1,1 @@
-export { default } from '@/features/pai/components/PaiPageLoading';
+export { ClinicPageLoading as default } from '@/features/clinic-care';

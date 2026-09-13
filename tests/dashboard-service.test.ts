@@ -26,6 +26,7 @@ const { database, supabaseMock } = vi.hoisted(() => {
 vi.mock('@/utils/supabase/client', () => ({ createClient: () => supabaseMock }));
 
 import {
+  deleteStaffProfile,
   getBroadcastHistory,
   getDashboardView,
   getStaffProfileDirectory,
@@ -122,6 +123,15 @@ describe('Supabase Broadcast service', () => {
     }]);
     expect(supabaseMock.rpc).toHaveBeenCalledWith('get_staff_profile_directory');
   });
+
+  it('requests permanent deletion through the protected staff RPC', async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: null });
+
+    await expect(deleteStaffProfile('suspended-1')).resolves.toBeUndefined();
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('staff_admin_delete_profile', {
+      p_profile_id: 'suspended-1',
+    });
+  });
 });
 
 describe('Supabase dashboard service', () => {
@@ -142,7 +152,7 @@ describe('Supabase dashboard service', () => {
       max_capacity: 10, status: 'available',
     }];
     database.appointments = [{
-      id: 'appointment-1', user_id: 'patient-1', slot_id: 'slot-1', queue_number: 1, status: 'confirmed',
+      id: 'appointment-1', patient_id: 'patient-1', user_id: 'patient-1', slot_id: 'slot-1', queue_number: 1, status: 'confirmed',
     }];
     database.notifications = [
       { id: 'notification-patient', user_id: 'patient-1', type: 'broadcast', title: 'ประกาศ', message: 'ข้อความ', read_at: null, deleted_at: null, created_at: '2026-09-08T03:00:00.000Z' },

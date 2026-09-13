@@ -2,16 +2,23 @@
 
 import { useState } from 'react';
 import { ClipboardCheck, FileHeart, Pill, Search, Stethoscope } from 'lucide-react';
-import { inputClass, primaryButtonClass, secondaryButtonClass } from '../components/PaiPageHeader';
-import PaiPageLoading from '../components/PaiPageLoading';
-import type { PaiRepository, PaiSnapshot, RecordInput } from './contract';
-import { usePaiWorkspace } from './usePaiWorkspace';
-import WorkspaceShell from './WorkspaceShell';
+import {
+  ClinicPageLoading,
+  ClinicSelect,
+  ClinicWorkspaceShell,
+  inputClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  type ClinicRepository,
+  type ClinicSnapshot,
+  type RecordInput,
+  useClinicWorkspace,
+} from '@/features/clinic-care';
 
 type Prescription = RecordInput['prescriptions'][number];
 type PrescriptionDraft = Prescription & { meal: string; times: string };
 function RecordEditor({ data, busy, selectedId, save }: {
-  data: PaiSnapshot; busy: boolean; selectedId?: string; save: (input: RecordInput) => Promise<boolean>;
+  data: ClinicSnapshot; busy: boolean; selectedId?: string; save: (input: RecordInput) => Promise<boolean>;
 }) {
   const pending = data.appointments.filter((a) => a.status === 'in_progress' && !a.has_record);
   const [appointmentId, setAppointmentId] = useState(pending.find((a) => a.id === selectedId)?.id ?? pending[0]?.id ?? '');
@@ -35,7 +42,7 @@ function RecordEditor({ data, busy, selectedId, save }: {
     <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><FileHeart className="h-5 w-5" aria-hidden="true" /></span><div><h2 className="font-semibold text-slate-950">บันทึกผลตรวจและรายการยา</h2><p className="mt-1 text-xs text-slate-500">ข้อมูลจะส่งต่อให้ผู้ป่วยและจุดจ่ายยาตามสิทธิ์</p></div></div>
     <p className="px-5 pt-5 text-sm text-slate-500 sm:px-6">ตรวจทานก่อนบันทึก ผลตรวจและใบสั่งยาแก้ไขไม่ได้หลังบันทึก ผู้ป่วยเห็นเมื่อจบตรวจ</p>
     <fieldset disabled={busy} className="space-y-4 p-5 sm:p-6">
-      <label className="block text-sm font-medium text-slate-700">คิวที่กำลังตรวจ<select required value={chosen?.id ?? ''} onChange={(e) => { setAppointmentId(e.target.value); setDiagnosis(''); setAdvice(''); setItems([]); }} className={inputClass}><option value="">เลือกคิว</option>{pending.map((a) => <option key={a.id} value={a.id}>คิว {a.queue_number ?? '—'} · {a.patient}</option>)}</select></label>
+      <label className="block text-sm font-medium text-slate-700">คิวที่กำลังตรวจ<ClinicSelect value={chosen?.id ?? ''} onChange={(value) => { setAppointmentId(value); setDiagnosis(''); setAdvice(''); setItems([]); }} placeholder="เลือกคิว" ariaLabel="คิวที่กำลังตรวจ" options={pending.map((a) => ({ value: a.id, label: `คิว ${a.queue_number ?? '—'} · ${a.patient}` }))} /></label>
       {chosen && <p className="break-words text-sm">อาการ: {chosen.reason || 'ไม่ได้ระบุ'}</p>}
       <label className="block text-sm font-medium text-slate-700">ผลวินิจฉัย<textarea required maxLength={5000} rows={3} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} className={inputClass} /></label>
       <label className="block text-sm font-medium text-slate-700">คำแนะนำการรักษา<textarea maxLength={5000} rows={3} value={advice} onChange={(e) => setAdvice(e.target.value)} className={inputClass} /></label>
@@ -43,11 +50,11 @@ function RecordEditor({ data, busy, selectedId, save }: {
       {items.length === 0 && <p className="text-sm text-slate-500">ไม่มีรายการยา สามารถบันทึกผลตรวจโดยไม่สั่งยาได้</p>}
       {items.map((item, index) => <fieldset key={index} className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
         <legend className="px-2 text-sm font-medium">ยารายการที่ {index + 1}</legend>
-        <label className="text-sm sm:col-span-2">ยา<select required className={inputClass} value={item.medication_id} onChange={(e) => { const m = data.medications.find((v) => v.id === e.target.value); update(index, { medication_id: m?.id ?? '', name: m?.name ?? '' }); }}><option value="">เลือกยาจากคลัง</option>{data.medications.map((m) => <option key={m.id} value={m.id} disabled={items.some((v, i) => i !== index && v.medication_id === m.id)}>{m.name} · {m.type}</option>)}</select></label>
+        <label className="text-sm sm:col-span-2">ยา<ClinicSelect value={item.medication_id} onChange={(value) => { const m = data.medications.find((v) => v.id === value); update(index, { medication_id: m?.id ?? '', name: m?.name ?? '' }); }} placeholder="เลือกยาจากคลัง" ariaLabel={`ยารายการที่ ${index + 1}`} options={data.medications.map((m) => ({ value: m.id, label: `${m.name} · ${m.type}`, disabled: items.some((v, i) => i !== index && v.medication_id === m.id) }))} /></label>
         <label className="text-sm">จำนวนที่สั่ง<input type="number" required min={1} max={100000} step={1} className={inputClass} value={item.quantity} onChange={(e) => update(index, { quantity: Number(e.target.value) })} /></label>
         <label className="text-sm">ระยะเวลา (วัน)<input type="number" required min={1} max={365} step={1} className={inputClass} value={item.duration_days} onChange={(e) => update(index, { duration_days: Number(e.target.value) })} /></label>
         <label className="text-sm">ขนาดยาต่อครั้ง (ระบุหน่วย)<input required maxLength={500} placeholder="เช่น 2 เม็ด หรือ 5 มล." className={inputClass} value={item.dosage} onChange={(e) => update(index, { dosage: e.target.value })} /></label>
-        <label className="text-sm">การใช้ยากับอาหาร<select required className={inputClass} value={item.meal} onChange={(e) => update(index, { meal: e.target.value })}><option value="">เลือกวิธีใช้</option><option>ก่อนอาหาร</option><option>หลังอาหาร</option><option>พร้อมอาหาร</option><option>ไม่ขึ้นกับมื้ออาหาร</option></select></label>
+        <label className="text-sm">การใช้ยากับอาหาร<ClinicSelect value={item.meal} onChange={(value) => update(index, { meal: value })} placeholder="เลือกวิธีใช้" ariaLabel="การใช้ยากับอาหาร" options={['ก่อนอาหาร', 'หลังอาหาร', 'พร้อมอาหาร', 'ไม่ขึ้นกับมื้ออาหาร'].map((meal) => ({ value: meal, label: meal }))} /></label>
         <label className="text-sm sm:col-span-2">ช่วงเวลาและความถี่ในการใช้ยา<input required maxLength={400} placeholder="เช่น เช้า เที่ยง เย็น หรือก่อนนอน วันละ 1 ครั้ง" className={inputClass} value={item.times} onChange={(e) => update(index, { times: e.target.value })} /></label>
         <button type="button" className={secondaryButtonClass} onClick={() => setItems((rows) => rows.filter((_, i) => i !== index))}>ลบยารายการที่ {index + 1}</button>
       </fieldset>)}
@@ -58,7 +65,7 @@ function RecordEditor({ data, busy, selectedId, save }: {
   </form>;
 }
 
-function RecordList({ data, selectedId }: { data: PaiSnapshot; selectedId?: string }) {
+function RecordList({ data, selectedId }: { data: ClinicSnapshot; selectedId?: string }) {
   const [query, setQuery] = useState('');
   const [onlySelected, setOnlySelected] = useState(Boolean(selectedId));
   const records = data.records.filter((r) => (!onlySelected || r.appointment_id === selectedId) && `${r.patient} ${r.doctor} ${r.diagnosis ?? ''}`.toLowerCase().includes(query.toLowerCase()));
@@ -87,14 +94,14 @@ function RecordList({ data, selectedId }: { data: PaiSnapshot; selectedId?: stri
   </section>;
 }
 
-export function PatientRecordsPage({ repository, selectedId }: { repository?: PaiRepository; selectedId?: string }) {
-  const state = usePaiWorkspace('patient', repository);
-  return <WorkspaceShell {...state} role="patient" section="records">{state.loading ? <PaiPageLoading /> : state.data && <RecordList data={state.data} selectedId={selectedId} />}</WorkspaceShell>;
+export function PatientRecordsPage({ repository, selectedId }: { repository?: ClinicRepository; selectedId?: string }) {
+  const state = useClinicWorkspace('patient', repository);
+  return <ClinicWorkspaceShell {...state} role="patient" section="records">{state.loading ? <ClinicPageLoading /> : state.data && <RecordList data={state.data} selectedId={selectedId} />}</ClinicWorkspaceShell>;
 }
-export function MedicalRecordsPage({ repository, selectedId }: { repository?: PaiRepository; selectedId?: string }) {
-  const state = usePaiWorkspace('medical', repository);
-  return <WorkspaceShell {...state} role="medical" section="records">{state.loading ? <PaiPageLoading /> : state.data && <>
+export function MedicalRecordsPage({ repository, selectedId }: { repository?: ClinicRepository; selectedId?: string }) {
+  const state = useClinicWorkspace('medical', repository);
+  return <ClinicWorkspaceShell {...state} role="medical" section="records">{state.loading ? <ClinicPageLoading /> : state.data && <>
     <RecordEditor data={state.data} busy={state.busy} selectedId={selectedId} save={(input) => state.run((r) => r.saveRecord(input), input.complete ? 'บันทึกผลและจบตรวจแล้ว ผู้ป่วยเปิดอ่านได้' : 'บันทึกผลตรวจแล้ว กรุณาจบตรวจเพื่อให้ผู้ป่วยเปิดอ่านได้')} />
     <RecordList data={state.data} selectedId={selectedId} />
-  </>}</WorkspaceShell>;
+  </>}</ClinicWorkspaceShell>;
 }

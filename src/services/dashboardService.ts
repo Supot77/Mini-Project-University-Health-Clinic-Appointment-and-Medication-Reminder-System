@@ -69,13 +69,13 @@ export interface MedicationDashboardData {
 }
 
 export interface StaffProfileDirectoryItem {
-  createdAt: string;
   id: string;
   fullName: string;
   email: string | null;
   phone: string | null;
   role: UserRole;
   isActive: boolean;
+  createdAt: string;
 }
 
 // --- Notifications ---
@@ -180,7 +180,7 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: string | null;
     role: UserRole;
     is_active: boolean | null;
-    created_at: string;
+    created_at?: string | null;
   }>).map((profile) => ({
     id: profile.id,
     fullName: profile.full_name,
@@ -188,7 +188,7 @@ export async function getStaffProfileDirectory(): Promise<StaffProfileDirectoryI
     phone: profile.phone,
     role: profile.role,
     isActive: profile.is_active !== false,
-    createdAt: profile.created_at,
+    createdAt: profile.created_at ?? '',
   }));
 }
 
@@ -328,9 +328,9 @@ export async function getDashboardView(
   if (scopedSlotIds.length > 0) {
     let appointmentQuery = supabase
       .from('appointments')
-      .select('id, user_id, slot_id, queue_number, status')
+      .select('id, patient_id, slot_id, queue_number, status')
       .in('slot_id', scopedSlotIds);
-    if (role === 'patient') appointmentQuery = appointmentQuery.eq('user_id', actorId);
+    if (role === 'patient') appointmentQuery = appointmentQuery.eq('patient_id', actorId);
     const appointmentResult = await appointmentQuery;
     throwQueryError('โหลดนัดหมายไม่สำเร็จ', appointmentResult.error);
     appointments = (appointmentResult.data ?? []) as DashboardAppointment[];
@@ -420,9 +420,7 @@ export async function getDashboardView(
         date: slot?.slot_date ?? '',
         startTime: slot?.start_time?.slice(0, 5) ?? '',
         status: appointment.status,
-        patientName: (appointment.patient_id || appointment.user_id
-          ? profilesById.get(appointment.patient_id || appointment.user_id!)?.full_name
-          : undefined) ?? 'ไม่พบบัญชีผู้ป่วย',
+        patientName: profilesById.get(appointment.patient_id ?? appointment.user_id ?? '')?.full_name ?? 'ไม่พบบัญชีผู้ป่วย',
         doctorName: slot ? profilesById.get(slot.doctor_id)?.full_name ?? 'ไม่พบแพทย์' : 'ไม่พบแพทย์',
         departmentName: doctor?.department_id
           ? departmentsById.get(doctor.department_id)?.name ?? 'ไม่ระบุแผนก'
@@ -538,6 +536,14 @@ export async function updateStaffProfile(
     p_phone: update.phone,
     p_role: update.role,
     p_is_active: update.isActive,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteStaffProfile(profileId: string): Promise<void> {
+  const { error } = await supabase.rpc("staff_admin_delete_profile", {
+    p_profile_id: profileId,
   });
 
   if (error) throw new Error(error.message);

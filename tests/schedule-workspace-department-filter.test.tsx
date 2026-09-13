@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ScheduleWorkspace, { getNextAvailableTimeSlot } from '@/components/schedules/ScheduleWorkspace';
 import type { ScheduleDepartment, ScheduleDoctor, ScheduleService, ScheduleSlot } from '@/types/schedule';
 
@@ -117,10 +117,6 @@ describe('ScheduleWorkspace Service Filter', () => {
     shopState.isLoading = false;
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('only shows service options for active services that have open slots', () => {
     render(<ScheduleWorkspace role="patient" actorId="guest" />);
 
@@ -144,7 +140,7 @@ describe('ScheduleWorkspace Service Filter', () => {
     const serviceSelect = screen.getByRole('combobox', { name: 'กรองบริการ' });
     fireEvent.change(serviceSelect, { target: { value: 'service-general' } });
 
-    // After filtering by "เวชปฏิบัติทั่วไป", only doc-1 is available under doctor options
+    // After filtering by "ตรวจโรคทั่วไป", only doc-1 is available under doctor options
     expect(screen.getByRole('option', { name: 'นพ. สมชาย ใจดี' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'พญ. สมใจ สายชิล' })).not.toBeInTheDocument();
   });
