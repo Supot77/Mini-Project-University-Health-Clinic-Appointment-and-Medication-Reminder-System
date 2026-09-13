@@ -8,6 +8,7 @@ import {
   Ban,
   CheckCircle2,
   Clock,
+  Lock,
   Package,
   Pencil,
   Pill,
@@ -132,6 +133,11 @@ export default function PharmacyContent({
       router.replace('/dashboard');
     }
   }, [authLoading, authRole, router]);
+
+  const effectiveRole = currentRole || authRole || 'medical';
+  const isAdminOrStaff = effectiveRole === 'admin' || effectiveRole === 'staff_admin' || effectiveRole === 'staff';
+  const canManage = !isAdminOrStaff;
+
   const [medications, setMedications] = useState<Medication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -288,6 +294,7 @@ export default function PharmacyContent({
   }, [medications, searchQuery, selectedCategory, selectedType, statusFilter, sortBy]);
 
   const handleOpenAddModal = () => {
+    if (!canManage) return;
     setEditingItem(null);
     setDraft(DEFAULT_DRAFT);
     setFormError(null);
@@ -295,6 +302,7 @@ export default function PharmacyContent({
   };
 
   const handleOpenEditModal = (item: Medication) => {
+    if (!canManage) return;
     setEditingItem(item);
     setDraft({
       name: item.name,
@@ -313,6 +321,10 @@ export default function PharmacyContent({
 
   const handleSaveMedication = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage) {
+      setFormError('เฉพาะแพทย์และเภสัชกรเท่านั้นที่มีสิทธิ์เพิ่มหรือแก้ไขเวชภัณฑ์');
+      return;
+    }
     setFormError(null);
 
     if (!draft.name.trim()) {
@@ -372,6 +384,7 @@ export default function PharmacyContent({
   };
 
   const handleSoftDelete = async (item: Medication) => {
+    if (!canManage) return;
     setIsDeleting(true);
     try {
       const { error } = await supabase
@@ -396,6 +409,7 @@ export default function PharmacyContent({
   };
 
   const handleRestoreMedication = async (item: Medication) => {
+    if (!canManage) return;
     setIsDeleting(true);
     try {
       const { error } = await supabase
@@ -420,6 +434,7 @@ export default function PharmacyContent({
   };
 
   const handleHardDelete = async (item: Medication) => {
+    if (!canManage) return;
     setIsDeleting(true);
     try {
       const { error } = await supabase
@@ -476,10 +491,10 @@ export default function PharmacyContent({
                   : 'bg-blue-50 text-blue-700 ring-blue-600/20'
               }`}>
                 {currentRole === 'admin'
-                  ? '🛡️ สิทธิ์: ผู้ดูแลระบบ (Admin)'
+                  ? '🔒 สิทธิ์: ผู้ดูแลระบบ (Admin - ดูอย่างเดียว)'
                   : (currentRole === 'staff_admin' || currentRole === 'staff' || authRole === 'staff_admin')
-                  ? '🏢 สิทธิ์: เจ้าหน้าที่ / แอดมิน (Staff Admin)'
-                  : '🩺 สิทธิ์: บุคลากรทางการแพทย์ (Medical)'}
+                  ? '🔒 สิทธิ์: เจ้าหน้าที่คลินิก (Staff - ดูอย่างเดียว)'
+                  : '🩺 สิทธิ์: บุคลากรทางการแพทย์ (Medical - จัดการยาได้)'}
               </span>
               {(userName || userEmail) && (
                 <span className="text-[11px] text-slate-500">
@@ -506,16 +521,35 @@ export default function PharmacyContent({
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-sky-600' : ''}`} />
               <span className="hidden sm:inline">รีเฟรช</span>
             </button>
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-700 active:scale-95"
-            >
-              <Plus className="h-4 w-4 shrink-0" />
-              <span>นำเข้าเวชภัณฑ์ใหม่</span>
-            </button>
+            {canManage ? (
+              <button
+                type="button"
+                onClick={handleOpenAddModal}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-700 active:scale-95"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>นำเข้าเวชภัณฑ์ใหม่</span>
+              </button>
+            ) : (
+              <div
+                title="เฉพาะแพทย์และเภสัชกรเท่านั้นที่สามารถนำเข้าเวชภัณฑ์ได้ (Admin และ Staff ดูได้อย่างเดียว)"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 text-sm font-medium text-slate-400 cursor-not-allowed select-none"
+              >
+                <Lock className="h-4 w-4 shrink-0 text-slate-400" />
+                <span>นำเข้าเวชภัณฑ์ใหม่ (ล็อค)</span>
+              </div>
+            )}
           </div>
         </div>
+
+        {!canManage && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-xs text-amber-800">
+            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>โหมดดูอย่างเดียว (Read-Only):</strong> บัญชีผู้ดูแลระบบ (Admin) และเจ้าหน้าที่ (Staff) ได้รับสิทธิ์ในการตรวจสอบสต็อกและวันหมดอายุเท่านั้น หากต้องการเพิ่มหรือปรับแก้เวชภัณฑ์ กรุณาใช้บัญชีแพทย์หรือเภสัชกร
+            </span>
+          </div>
+        )}
 
         {errorMessage && (
           <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
@@ -839,56 +873,68 @@ export default function PharmacyContent({
                       </td>
 
                       <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {!item.is_active ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => void handleRestoreMedication(item)}
-                                title="กู้คืน / เปิดใช้งานเวชภัณฑ์นี้อีกครั้ง"
-                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs"
-                              >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                                <span>กู้คืน</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditModal(item)}
-                                title="แก้ไขข้อมูล"
-                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(item)}
-                                title="ลบเวชภัณฑ์ออกจากฐานข้อมูลถาวร"
-                                className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditModal(item)}
-                                title="แก้ไขข้อมูล"
-                                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(item)}
-                                title="ลบ / พักการใช้งานเวชภัณฑ์"
-                                className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                        {!canManage ? (
+                          <div className="flex items-center justify-end">
+                            <span
+                              title="สิทธิ์ดูอย่างเดียว: เฉพาะแพทย์และเภสัชกรเท่านั้นที่สามารถแก้ไขหรือลบยาได้"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-400 select-none"
+                            >
+                              <Lock className="h-3.5 w-3.5 text-slate-400" />
+                              <span>ดูอย่างเดียว (ล็อค)</span>
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1.5">
+                            {!item.is_active ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRestoreMedication(item)}
+                                  title="กู้คืน / เปิดใช้งานเวชภัณฑ์นี้อีกครั้ง"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                  <span>กู้คืน</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(item)}
+                                  title="แก้ไขข้อมูล"
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(item)}
+                                  title="ลบเวชภัณฑ์ออกจากฐานข้อมูลถาวร"
+                                  className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(item)}
+                                  title="แก้ไขข้อมูล"
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-sky-600 transition"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(item)}
+                                  title="ลบ / พักการใช้งานเวชภัณฑ์"
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
