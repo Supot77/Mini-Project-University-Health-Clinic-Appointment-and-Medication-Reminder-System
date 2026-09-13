@@ -11,6 +11,7 @@ export default async function PharmacyPage() {
       currentRole={rawRole || role}
       userEmail={user.email}
       userName={user.user_metadata?.full_name}
+      userId={user.id}
     />
   );
 }

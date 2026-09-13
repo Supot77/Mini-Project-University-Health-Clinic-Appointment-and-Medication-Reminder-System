@@ -8,6 +8,7 @@ import {
   Ban,
   CheckCircle2,
   Clock,
+  FileText,
   Lock,
   Package,
   Pencil,
@@ -23,6 +24,10 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
 import type { Medication } from '@/types/database';
+import PrescriptionsTab, {
+  type PrescribedMedItem,
+  type PrescriptionOrder,
+} from './PrescriptionsTab';
 
 const supabase = createClient();
 
@@ -118,12 +123,14 @@ interface PharmacyContentProps {
   currentRole?: string;
   userEmail?: string;
   userName?: string;
+  userId?: string;
 }
 
 export default function PharmacyContent({
   currentRole,
   userEmail,
   userName,
+  userId,
 }: PharmacyContentProps) {
   const { role: authRole, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -138,9 +145,13 @@ export default function PharmacyContent({
   const isAdminOrStaff = effectiveRole === 'admin' || effectiveRole === 'staff_admin' || effectiveRole === 'staff';
   const canManage = !isAdminOrStaff;
 
+  const [activeTab, setActiveTab] = useState<'inventory' | 'prescriptions'>('inventory');
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPrescriptions, setIsLoadingPrescriptions] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [prescriptionError, setPrescriptionError] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,8 +175,36 @@ export default function PharmacyContent({
     return () => clearTimeout(timer);
   }, [successToast]);
 
-  const loadMedications = useCallback(async () => {
-    setIsLoading(true);
+interface RawMedicalRecord {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  diagnosis: string | null;
+  treatment_notes: string | null;
+  prescribed_medications: PrescribedMedItem[] | null;
+  created_at: string;
+}
+
+interface RawProfile {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  student_id: string | null;
+}
+
+interface RawInventoryLog {
+  id: string;
+  medication_id: string;
+  quantity: number;
+  reason: string | null;
+  idempotency_key: string | null;
+  created_at: string;
+  pharmacist?: { full_name?: string | null } | null;
+}
+
+  const loadMedications = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     setErrorMessage(null);
     try {
       const { data, error } = await supabase
@@ -185,34 +224,125 @@ export default function PharmacyContent({
     }
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-    async function startFetching() {
-      try {
-        const { data, error } = await supabase
-          .from('medications')
-          .select('*')
-          .order('name', { ascending: true });
+  const loadPrescriptions = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoadingPrescriptions(true);
+    setPrescriptionError(null);
+    try {
+      const { data: recordsData, error: recordsError } = await supabase
+        .from('medical_records')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        if (ignore) return;
-        if (error) throw error;
-        setMedications((data as Medication[]) ?? []);
-      } catch (err: unknown) {
-        if (ignore) return;
-        const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการดึงข้อมูลจาก Supabase';
-        setErrorMessage(msg);
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
+      if (recordsError) throw recordsError;
+
+      const rawRecords = (recordsData || []) as RawMedicalRecord[];
+      const recordsWithMeds = rawRecords.filter((r) => {
+        const meds = r.prescribed_medications;
+        return Array.isArray(meds) && meds.length > 0;
+      });
+
+      const patientIds = recordsWithMeds.map((r) => r.patient_id).filter(Boolean);
+      const doctorIds = recordsWithMeds.map((r) => r.doctor_id).filter(Boolean);
+      const userIds = Array.from(new Set([...patientIds, ...doctorIds]));
+
+      const profilesMap = new Map<string, RawProfile>();
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone, student_id')
+          .in('id', userIds);
+
+        if (profilesData) {
+          (profilesData as RawProfile[]).forEach((p) => {
+            profilesMap.set(p.id, p);
+          });
         }
       }
-    }
 
-    void startFetching();
+      const { data: logsData } = await supabase
+        .from('inventory_logs')
+        .select('id, medication_id, quantity, reason, idempotency_key, created_at, pharmacist:profiles(full_name)')
+        .eq('action', 'dispense');
+
+      const dispenseLogs = (logsData || []) as RawInventoryLog[];
+
+      const orders: PrescriptionOrder[] = recordsWithMeds.map((r) => {
+        const patientProfile = profilesMap.get(r.patient_id);
+        const doctorProfile = profilesMap.get(r.doctor_id);
+        const meds: PrescribedMedItem[] = (r.prescribed_medications || []) as PrescribedMedItem[];
+
+        let dispensedCount = 0;
+        let lastDispensedAt: string | null = null;
+        let pharmacistName: string | null = null;
+
+        meds.forEach((m) => {
+          const key = `dispense:${r.id}:${m.medication_id}`;
+          const match = dispenseLogs.find(
+            (log) =>
+              log.idempotency_key === key ||
+              (log.reason && log.reason.includes(r.id) && log.medication_id === m.medication_id)
+          );
+          if (match) {
+            dispensedCount++;
+            if (!lastDispensedAt || new Date(match.created_at) > new Date(lastDispensedAt)) {
+              lastDispensedAt = match.created_at;
+              pharmacistName = match.pharmacist?.full_name || null;
+            }
+          }
+        });
+
+        const isFullyDispensed = meds.length > 0 && dispensedCount >= meds.length;
+
+        return {
+          id: r.id,
+          appointment_id: r.appointment_id,
+          patient_id: r.patient_id,
+          doctor_id: r.doctor_id,
+          patient_name: patientProfile?.full_name || 'ผู้ป่วยไม่ระบุนาม',
+          patient_phone: patientProfile?.phone || null,
+          patient_student_id: patientProfile?.student_id || null,
+          doctor_name: doctorProfile?.full_name || 'แพทย์ไม่ระบุนาม',
+          diagnosis: r.diagnosis || 'ไม่ได้ระบุ',
+          treatment_notes: r.treatment_notes || '',
+          prescribed_medications: meds,
+          created_at: r.created_at,
+          dispensed_items_count: dispensedCount,
+          is_fully_dispensed: isFullyDispensed,
+          dispensed_at: lastDispensedAt,
+          pharmacist_name: pharmacistName,
+        };
+      });
+
+      setPrescriptions(orders);
+    } catch (err: unknown) {
+      console.error('Error loading prescriptions:', err);
+      setPrescriptionError(
+        err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดรายการสั่งยา'
+      );
+    } finally {
+      setIsLoadingPrescriptions(false);
+    }
+  }, []);
+
+  const pendingPrescriptionsCount = useMemo(() => {
+    return prescriptions.filter((p) => !p.is_fully_dispensed).length;
+  }, [prescriptions]);
+
+  const handleReloadAll = useCallback(async () => {
+    await Promise.all([loadMedications(), loadPrescriptions()]);
+  }, [loadMedications, loadPrescriptions]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function start() {
+      await Promise.all([loadMedications(false), loadPrescriptions(false)]);
+      if (ignore) return;
+    }
+    void start();
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [loadMedications, loadPrescriptions]);
 
   const categoriesInDb = useMemo(() => {
     const set = new Set<string>();
@@ -513,31 +643,33 @@ export default function PharmacyContent({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void loadMedications()}
-              disabled={isLoading}
-              title="รีเฟรชข้อมูล"
+              onClick={() => void handleReloadAll()}
+              disabled={isLoading || isLoadingPrescriptions}
+              title="รีเฟรชข้อมูลทั้งหมด"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-95 disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-sky-600' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isLoading || isLoadingPrescriptions ? 'animate-spin text-sky-600' : ''}`} />
               <span className="hidden sm:inline">รีเฟรช</span>
             </button>
-            {canManage ? (
-              <button
-                type="button"
-                onClick={handleOpenAddModal}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-700 active:scale-95"
-              >
-                <Plus className="h-4 w-4 shrink-0" />
-                <span>นำเข้าเวชภัณฑ์ใหม่</span>
-              </button>
-            ) : (
-              <div
-                title="เฉพาะแพทย์และเภสัชกรเท่านั้นที่สามารถนำเข้าเวชภัณฑ์ได้ (Admin และ Staff ดูได้อย่างเดียว)"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 text-sm font-medium text-slate-400 cursor-not-allowed select-none"
-              >
-                <Lock className="h-4 w-4 shrink-0 text-slate-400" />
-                <span>นำเข้าเวชภัณฑ์ใหม่ (ล็อค)</span>
-              </div>
+            {activeTab === 'inventory' && (
+              canManage ? (
+                <button
+                  type="button"
+                  onClick={handleOpenAddModal}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-700 active:scale-95"
+                >
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span>นำเข้าเวชภัณฑ์ใหม่</span>
+                </button>
+              ) : (
+                <div
+                  title="เฉพาะแพทย์และเภสัชกรเท่านั้นที่สามารถนำเข้าเวชภัณฑ์ได้ (Admin และ Staff ดูได้อย่างเดียว)"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 text-sm font-medium text-slate-400 cursor-not-allowed select-none"
+                >
+                  <Lock className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span>นำเข้าเวชภัณฑ์ใหม่ (ล็อค)</span>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -546,10 +678,55 @@ export default function PharmacyContent({
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-xs text-amber-800">
             <Lock className="h-4 w-4 text-amber-600 shrink-0" />
             <span>
-              <strong>โหมดดูอย่างเดียว (Read-Only):</strong> บัญชีผู้ดูแลระบบ (Admin) และเจ้าหน้าที่ (Staff) ได้รับสิทธิ์ในการตรวจสอบสต็อกและวันหมดอายุเท่านั้น หากต้องการเพิ่มหรือปรับแก้เวชภัณฑ์ กรุณาใช้บัญชีแพทย์หรือเภสัชกร
+              <strong>โหมดดูอย่างเดียว (Read-Only):</strong> บัญชีผู้ดูแลระบบ (Admin) และเจ้าหน้าที่ (Staff) ได้รับสิทธิ์ในการตรวจสอบสต็อกและรายการสั่งยาเท่านั้น หากต้องการนำเข้า แก้ไขยา หรือตัดสต็อกจ่ายยา กรุณาใช้บัญชีแพทย์หรือเภสัชกร
             </span>
           </div>
         )}
+
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-200 pt-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('inventory')}
+            className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+              activeTab === 'inventory'
+                ? 'border-sky-600 text-sky-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+            }`}
+          >
+            <Package className="h-4.5 w-4.5" />
+            <span>คลังเวชภัณฑ์ (Inventory)</span>
+            <span
+              className={`ml-1 rounded-full px-2 py-0.5 text-xs ${
+                activeTab === 'inventory' ? 'bg-sky-100 text-sky-700 font-bold' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {medications.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('prescriptions')}
+            className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+              activeTab === 'prescriptions'
+                ? 'border-sky-600 text-sky-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+            }`}
+          >
+            <FileText className="h-4.5 w-4.5" />
+            <span>รายการสั่งยาและตัดจ่าย (Prescriptions & Dispensing)</span>
+            {pendingPrescriptionsCount > 0 ? (
+              <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800 animate-pulse">
+                {pendingPrescriptionsCount} รอตัดจ่าย
+              </span>
+            ) : (
+              <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                {prescriptions.length}
+              </span>
+            )}
+          </button>
+        </div>
 
         {errorMessage && (
           <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
@@ -560,7 +737,7 @@ export default function PharmacyContent({
             </div>
             <button
               type="button"
-              onClick={() => void loadMedications()}
+              onClick={() => void handleReloadAll()}
               className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-rose-700 border border-rose-200 shadow-xs hover:bg-rose-100"
             >
               ลองใหม่
@@ -569,7 +746,9 @@ export default function PharmacyContent({
         )}
       </div>
 
-      {/* Summary Cards */}
+      {activeTab === 'inventory' ? (
+        <>
+          {/* Summary Cards */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
           {
@@ -944,6 +1123,21 @@ export default function PharmacyContent({
           </table>
         </div>
       </div>
+      </>
+      ) : (
+        <PrescriptionsTab
+          prescriptions={prescriptions}
+          isLoading={isLoadingPrescriptions}
+          errorMessage={prescriptionError}
+          medications={medications}
+          canManage={canManage}
+          isAdminOrStaff={isAdminOrStaff}
+          userId={userId}
+          onRefresh={loadPrescriptions}
+          onStockUpdated={handleReloadAll}
+          onShowToast={(msg) => setSuccessToast(msg)}
+        />
+      )}
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
