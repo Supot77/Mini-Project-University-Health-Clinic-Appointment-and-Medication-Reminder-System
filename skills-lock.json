@@ -1,11 +1,23 @@
 {
   "version": 1,
   "skills": {
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "0eb8e9ba100985eb4da20c46807268cafd72ec1c4ea58132edf9be6c469867fe"
+    },
     "debug-mantra": {
       "source": "thananon/9arm-skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/debug-mantra/SKILL.md",
       "computedHash": "85875eb0c8570b163a3ff79c8ecc1bfb54152c1431b2d3ac247be176d951aa78"
+    },
+    "frontend-design": {
+      "source": "chongdashu/cc-skills-nanobananapro",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/frontend-design/SKILL.md",
+      "computedHash": "484b65ab74a4b865f50cbf5b0b195002c953e0095ca27ed10a4ea0c06a33625b"
     },
     "management-talk": {
       "source": "thananon/9arm-skills",
